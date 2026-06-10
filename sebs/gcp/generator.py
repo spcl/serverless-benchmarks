@@ -27,7 +27,7 @@ class GCPGenerator(Generator):
         self._ordered_states: List[State] = []
 
     def postprocess(self, payloads: List[dict]) -> dict:
-        payloads.append({"final": {"return": ["${res}"]}})
+        payloads.append({"final": {"return": "${res}"}})
 
         definition = {"main": {"params": ["res"], "steps": payloads}}
 

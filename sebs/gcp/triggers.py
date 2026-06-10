@@ -304,6 +304,9 @@ class WorkflowLibraryTrigger(LibraryTrigger):
                 gcp_result.stats.failure = True
                 return gcp_result
 
+        if execution.result:
+            gcp_result.output = json.loads(execution.result)
+
         return gcp_result
 
     def async_invoke(self, payload: dict):
