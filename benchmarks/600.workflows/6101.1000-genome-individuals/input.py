@@ -1,3 +1,5 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+
 import os
 import re
 import uuid
@@ -63,3 +65,45 @@ def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buck
         "populations": files[3:9],
         "sifting_input": files[1],
     }
+
+
+def validate_output(data_dir: str | None, input_config: dict, output: dict, language: str, storage=None) -> str | None:
+    if output is None:
+        return "Output is None"
+
+    # Output structure: {"blob": [{"individuals_output": "*.tar.gz", ...}], ...}
+    if isinstance(output, dict):
+        if "blob" not in output:
+            return f"Expected 'blob' key in output, got keys: {list(output.keys())}"
+        items = output["blob"]
+    elif isinstance(output, list):
+        items = output
+    else:
+        return f"Expected output to be a dict or list, got {type(output).__name__}"
+
+    if not isinstance(items, list):
+        return f"Expected 'blob' to be a list, got {type(items).__name__}"
+
+    expected_length = len(input_config["blob"])
+    if len(items) != expected_length:
+        return f"Output length {len(items)} does not match expected number of blobs {expected_length}"
+
+    for i, element in enumerate(items):
+        if not isinstance(element, dict):
+            return f"Element {i} is not a dict"
+        if "individuals_output" not in element:
+            return f"Element {i} is missing 'individuals_output' key"
+
+        value = element["individuals_output"]
+        if not isinstance(value, str) or not value:
+            return f"Element {i} has invalid 'individuals_output' value: expected a non-empty string"
+
+        if not value.endswith(".tar.gz") and not value.endswith(".gz"):
+            return f"Element {i} has invalid 'individuals_output' filename: expected to end with '.gz', got '{value}'"
+
+        # Filename should follow chr21n-... pattern (from handler: individuals_file = "ALL.chr21.1250.vcf" → chr21n prefix)
+        individuals_file = input_config.get("individuals_file", "")
+        if individuals_file and "chr21" in individuals_file and "chr21n" not in value:
+            return f"Element {i} 'individuals_output' '{value}' does not contain expected 'chr21n' prefix"
+
+    return None

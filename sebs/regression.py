@@ -70,6 +70,7 @@ benchmarks_cpp = [
 
 # Workflow benchmarks available for regression testing
 benchmarks_workflows = [
+    "610.gen",
     "620.func-invo",
     "630.parallel-sleep",
     "631.parallel-download",
@@ -415,7 +416,23 @@ class WorkflowTestSequenceMeta(type):
                         failure = True
                         logging_wrapper.error(f"{benchmark_name} workflow execution failed")
                     else:
-                        logging_wrapper.info(f"{benchmark_name} workflow execution succeeded")
+                        output = ret.output
+                        storage = (
+                            deployment_client.system_resources.get_storage()
+                            if benchmark.uses_storage
+                            else None
+                        )
+                        error = benchmark.validate_output(input_config, output, storage)
+                        if error is not None:
+                            failure = True
+                            logging_wrapper.error(
+                                f"{benchmark_name} workflow output validation failed,"
+                                f" reason: {error}"
+                            )
+                        else:
+                            logging_wrapper.info(
+                                f"{benchmark_name} workflow execution succeeded"
+                            )
                 except RuntimeError:
                     failure = True
                     logging_wrapper.error(f"{benchmark_name} workflow invocation raised exception")
@@ -425,7 +442,7 @@ class WorkflowTestSequenceMeta(type):
                     f"_{architecture}_{deployment_type}.json"
                 )
                 with open(os.path.join(self.client.output_dir, json_filename), "w") as f:
-                    json.dump({"output": ret.output if not failure else {}}, f, indent=2)
+                    json.dump({"output": ret.output}, f, indent=2)
 
                 deployment_client.shutdown()
 

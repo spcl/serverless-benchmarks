@@ -1400,17 +1400,20 @@ class Benchmark(LoggingBase):
                             path=os.path.abspath(output_dir)
                         )
                     )
+                    build_env = {
+                        "CONTAINER_UID": str(os.getuid()),
+                        "CONTAINER_GID": str(os.getgid()),
+                        "CONTAINER_USER": "docker_user",
+                        "APP": self.benchmark,
+                        "PLATFORM": self._deployment_name.upper(),
+                        "TARGET_ARCHITECTURE": self._experiment_config._architecture,
+                    }
+                    if os.path.exists(os.path.join(output_dir, "package.sh")):
+                        build_env["SCRIPT_FILE"] = "package.sh"
                     container = self._docker_client.containers.run(
                         "{}:{}".format(repo_name, image_name),
                         volumes=volumes,
-                        environment={
-                            "CONTAINER_UID": str(os.getuid()),
-                            "CONTAINER_GID": str(os.getgid()),
-                            "CONTAINER_USER": "docker_user",
-                            "APP": self.benchmark,
-                            "PLATFORM": self._deployment_name.upper(),
-                            "TARGET_ARCHITECTURE": self._experiment_config._architecture,
-                        },
+                        environment=build_env,
                         remove=False,
                         detach=True,
                     )

@@ -1,3 +1,5 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+
     #threads-duration
 size_generators = {
     'test' : (2, 2),
@@ -32,3 +34,26 @@ def buckets_count():
 def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
     count, sleep = size_generators[size]
     return { 'count': count, 'sleep': sleep }
+
+
+def validate_output(data_dir: str | None, input_config: dict, output: dict, language: str, storage = None) -> str | None:
+    if output is None:
+        return "Output is None"
+
+    expected_count = input_config['count']
+
+    if not isinstance(output, dict) or "buffer" not in output:
+        return f"Expected output dict with 'buffer' key, got: {output!r}"
+
+    results = output["buffer"]
+    if not isinstance(results, list):
+        return f"Expected 'buffer' to be a list, got {type(results).__name__}"
+
+    if len(results) != expected_count:
+        return f"Expected {expected_count} results, got {len(results)}"
+
+    for i, item in enumerate(results):
+        if item != "ok":
+            return f"Expected element {i} to be 'ok', got {item!r}"
+
+    return None

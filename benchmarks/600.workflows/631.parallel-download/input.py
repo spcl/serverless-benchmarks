@@ -1,3 +1,5 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+
 import os
 from random import shuffle
 
@@ -11,7 +13,7 @@ size_generators = {
     '2e20': (20, 2**20),
     '2e25': (20, 2**25),
     '2e26': (20, 2**26),
-    '2e27': (20, 2**27) 
+    '2e27': (20, 2**27)
 }
 
 
@@ -47,3 +49,28 @@ def generate_input(data_dir, size, benchmarks_bucket, input_buckets, output_buck
     # os.remove(data_path)
 
     return { 'count': count, "bucket": benchmarks_bucket, "blob": input_buckets[0] + '/' + data_name}
+
+
+def validate_output(data_dir: str | None, input_config: dict, output: dict, language: str, storage = None) -> str | None:
+    expected_count = input_config.get("count")
+    if expected_count is None:
+        return "Input config missing 'count' field"
+
+    if output is None:
+        return "Output is None"
+
+    if not isinstance(output, dict) or "buffer" not in output:
+        return f"Expected output dict with 'buffer' key, got: {output!r}"
+
+    results = output["buffer"]
+    if not isinstance(results, list):
+        return f"Expected 'buffer' to be a list, got {type(results).__name__}"
+
+    if len(results) != expected_count:
+        return f"Expected {expected_count} results, got {len(results)}"
+
+    for i, result in enumerate(results):
+        if result != "ok":
+            return f"Result at index {i} is {result!r}, expected 'ok'"
+
+    return None
