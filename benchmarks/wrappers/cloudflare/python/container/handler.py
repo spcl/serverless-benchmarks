@@ -50,8 +50,12 @@ def patched_urlopen(url, data=None, timeout=None, **kwargs):
 urllib.request.urlopen = patched_urlopen
 print("Monkey-patched urllib.request.urlopen to add User-Agent header")
 
-# Import the benchmark handler function
-from function.function import handler as benchmark_handler
+# Import the default benchmark handler function.
+# For workflow dispatch mode, individual function modules are imported dynamically.
+try:
+    from function.function import handler as benchmark_handler
+except ImportError:
+    benchmark_handler = None
 
 # Import storage and nosql if available
 try:
@@ -121,14 +125,30 @@ class ContainerHandler(BaseHTTPRequestHandler):
                     except ValueError:
                         event[key] = value
             
+            # Workflow dispatch mode: if the event contains a "function" key,
+            # route to that specific module instead of the default handler.
+            if 'function' in event:
+                import importlib
+                func_name = event['function']
+                func_input = event.get('input', {})
+                if isinstance(func_input, dict):
+                    func_input = {**func_input, 'request-id': req_id}
+                module = importlib.import_module(f"function.{func_name}")
+                func_result = module.handler(func_input)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(func_result).encode('utf-8'))
+                return
+
             # Add request metadata
             income_timestamp = datetime.datetime.now().timestamp()
             event['request-id'] = req_id
             event['income-timestamp'] = income_timestamp
-            
+
             # Measure execution time
             begin = datetime.datetime.now().timestamp()
-            
+
             # Call the benchmark function
             result = benchmark_handler(event)
             

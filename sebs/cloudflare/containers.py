@@ -111,6 +111,10 @@ class CloudflareContainersDeployment:
             "411.image-recognition" in benchmark_name
             or "311.compression" in benchmark_name
             or "504.dna-visualisation" in benchmark_name
+            or "6100.1000-genome" in benchmark_name
+            or "6101.1000-genome-individuals" in benchmark_name
+            or "650.vid" in benchmark_name
+            or "680.excamera" in benchmark_name
         ):
             self.logging.warning("Using standard-4 instance type for high resource benchmark")
             config["containers"][0]["instance_type"] = "standard-4"

@@ -39,12 +39,16 @@ class storage:
         storage.instance.entry_env = entry.env
         storage.instance.written_files = set()
         
-    def upload(self, bucket, key, filepath):
+    def upload(self, bucket, key, filepath, unique_name=True):
         if filepath in self.written_files:
             filepath = "/tmp" + os.path.abspath(filepath)
         with open(filepath, "rb") as f:
-            unique_key = self.upload_stream(bucket, key, f.read())
-        return unique_key
+            data = f.read()
+        if unique_name:
+            upload_key = self.upload_stream(bucket, key, data)
+        else:
+            upload_key = run_sync(self._upload_exact(bucket, key, data))
+        return upload_key
 
     def download(self, bucket, key, filepath):
         data = self.download_stream(bucket, key)
@@ -72,6 +76,14 @@ class storage:
             os.makedirs(os.path.join(out_path, path_to_file), exist_ok=True)
             self.download(bucket, file_name, os.path.join(out_path, file_name))
         return
+
+    async def _upload_exact(self, bucket, key, data):
+        if hasattr(data, 'getvalue'):
+            data = data.getvalue()
+        data_js = to_js(data) if isinstance(data, bytes) else str(data)
+        bobj = self.get_bucket(bucket)
+        await bobj.put(key, data_js)
+        return key
 
     def upload_stream(self, bucket, key, data):
         return run_sync(self.aupload_stream(bucket, key, data))

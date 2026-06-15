@@ -430,9 +430,7 @@ class WorkflowTestSequenceMeta(type):
                                 f" reason: {error}"
                             )
                         else:
-                            logging_wrapper.info(
-                                f"{benchmark_name} workflow execution succeeded"
-                            )
+                            logging_wrapper.info(f"{benchmark_name} workflow execution succeeded")
                 except RuntimeError:
                     failure = True
                     logging_wrapper.error(f"{benchmark_name} workflow invocation raised exception")
@@ -1465,6 +1463,55 @@ class OpenWhiskTestSequenceJava(
         return deployment_client
 
 
+class CloudflareTestSequenceWorkflows(
+    unittest.TestCase,
+    metaclass=WorkflowTestSequenceMeta,
+    benchmarks=benchmarks_workflows,
+    architectures=architectures_cloudflare,
+    deployments=["workers", "container"],
+    deployment_name="cloudflare",
+):
+    """Test suite for workflow benchmarks on Cloudflare Workflows.
+
+    Runs container-only benchmarks with system_variant=container and the four
+    lightweight benchmarks (610, 620, 630, 631) with both workers and container
+    variants. The filter_out_benchmarks function skips workers-incompatible ones.
+    """
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for workflow testing.
+
+        Args:
+            benchmark_name: Name of the workflow benchmark to deploy
+            architecture: Architecture to deploy on (x64)
+            deployment_type: Deployment type ("workers" for native Workers, "container")
+
+        Returns:
+            An initialized Cloudflare deployment client
+        """
+        deployment_name = "cloudflare"
+        assert cloud_config, "Cloud configuration is required"
+
+        is_container = deployment_type == "container"
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = is_container
+        config_copy["experiments"]["system_variant"] = deployment_type
+
+        f = (
+            f"regression_wf_{deployment_name}_{benchmark_name}"
+            f"_{architecture}_{deployment_type}.log"
+        )
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        with CloudflareTestSequenceWorkflows.lock:
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+        return deployment_client
+
+
 class CloudflareTestSequencePythonWorkers(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
@@ -1885,6 +1932,10 @@ def regression_suite(
         if "azure" in providers:
             suite.addTest(
                 unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequenceWorkflows)
+            )
+        if "cloudflare" in providers:
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(CloudflareTestSequenceWorkflows)
             )
 
     # Prepare the list of tests to run

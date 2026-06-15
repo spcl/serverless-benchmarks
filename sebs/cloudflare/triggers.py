@@ -1,4 +1,4 @@
-"""HTTP trigger implementation for Cloudflare Workers."""
+"""Trigger implementations for Cloudflare Workers and Workflows."""
 
 from typing import Optional
 import concurrent.futures
@@ -234,3 +234,220 @@ class HTTPTrigger(Trigger):
         """Reconstruct an HTTPTrigger from a serialized dict."""
         trigger = HTTPTrigger(obj["worker_name"], obj.get("url"))
         return trigger
+
+
+class WorkflowLibraryTrigger(Trigger):
+    """Trigger that invokes a Cloudflare Workflow via its orchestrator's HTTP endpoint.
+
+    The orchestrator worker's fetch handler creates a workflow instance and polls
+    for completion internally, returning the final result as the HTTP response.
+    """
+
+    def __init__(self, workflow_name: str, orchestrator_url: str):
+        """Initialize the workflow trigger.
+
+        Args:
+            workflow_name: Name of the Cloudflare Workflow.
+            orchestrator_url: HTTP URL of the orchestrator worker.
+        """
+        super().__init__()
+        self.workflow_name = workflow_name
+        self._orchestrator_url = orchestrator_url
+
+    @staticmethod
+    def typename() -> str:
+        """Return the canonical type name for this trigger class."""
+        return "Cloudflare.WorkflowLibraryTrigger"
+
+    @staticmethod
+    def trigger_type() -> Trigger.TriggerType:
+        """Return the trigger type enum value."""
+        return Trigger.TriggerType.LIBRARY
+
+    def _http_get(self, url: str) -> tuple:
+        """Perform a GET request and return (status_code, body_bytes)."""
+        import pycurl
+
+        c = pycurl.Curl()
+        c.setopt(
+            pycurl.HTTPHEADER,
+            ["User-Agent: Mozilla/5.0 (compatible; SeBS/1.0; "
+             "+https://github.com/spcl/serverless-benchmarks)"],
+        )
+        c.setopt(pycurl.URL, url)
+        data = BytesIO()
+        c.setopt(pycurl.WRITEFUNCTION, data.write)
+        c.setopt(pycurl.TIMEOUT, 30)
+        c.perform()
+        status_code = c.getinfo(pycurl.RESPONSE_CODE)
+        c.close()
+        return status_code, data.getvalue()
+
+    def _http_post(self, url: str, body: str) -> tuple:
+        """Perform a POST request and return (status_code, body_bytes)."""
+        import pycurl
+
+        c = pycurl.Curl()
+        c.setopt(
+            pycurl.HTTPHEADER,
+            [
+                "Content-Type: application/json",
+                "User-Agent: Mozilla/5.0 (compatible; SeBS/1.0; "
+                "+https://github.com/spcl/serverless-benchmarks)",
+            ],
+        )
+        c.setopt(pycurl.POST, 1)
+        c.setopt(pycurl.URL, url)
+        data = BytesIO()
+        c.setopt(pycurl.WRITEFUNCTION, data.write)
+        c.setopt(pycurl.POSTFIELDS, body)
+        c.setopt(pycurl.TIMEOUT, 30)
+        c.perform()
+        status_code = c.getinfo(pycurl.RESPONSE_CODE)
+        c.close()
+        return status_code, data.getvalue()
+
+    def _do_invoke(self, payload: dict) -> ExecutionResult:
+        """Create a workflow instance and poll until completion.
+
+        1. POST to orchestrator → receives {id} (202 Accepted).
+        2. GET orchestrator?id=<id> repeatedly until status is complete/errored.
+        """
+        begin = datetime.now()
+
+        # Step 1: create workflow instance
+        max_create_retries = 3
+        instance_id = None
+        for attempt in range(max_create_retries + 1):
+            try:
+                status_code, raw = self._http_post(self._orchestrator_url, json.dumps(payload))
+            except Exception as e:
+                if attempt < max_create_retries:
+                    self.logging.warning(f"Workflow creation network error: {e} — retrying")
+                    time.sleep(5)
+                    continue
+                self.logging.error(f"Workflow creation network error after retries: {e}")
+                end = datetime.now()
+                result = ExecutionResult.from_times(begin, end)
+                result.stats.failure = True
+                return result
+            try:
+                resp = json.loads(raw)
+            except json.JSONDecodeError:
+                text = raw.decode()
+                if "1042" in text and "error code" in text:
+                    raise ContainerProvisioningError(f"Error 1042 creating workflow: {text[:200]}")
+                if attempt < max_create_retries:
+                    time.sleep(5)
+                    continue
+                self.logging.error(
+                    f"Workflow creation non-JSON response: {text[:200]}"
+                )
+                end = datetime.now()
+                result = ExecutionResult.from_times(begin, end)
+                result.stats.failure = True
+                return result
+
+            if status_code == 202 and "id" in resp:
+                instance_id = resp["id"]
+                break
+            if "1042" in str(resp) and "error code" in str(resp):
+                raise ContainerProvisioningError(f"Error 1042 creating workflow: {resp}")
+            if attempt < max_create_retries:
+                time.sleep(5)
+                continue
+            self.logging.error(f"Workflow creation failed (status={status_code}): {resp}")
+            end = datetime.now()
+            result = ExecutionResult.from_times(begin, end)
+            result.stats.failure = True
+            return result
+
+        if instance_id is None:
+            self.logging.error("Failed to obtain workflow instance ID")
+            end = datetime.now()
+            result = ExecutionResult.from_times(begin, end)
+            result.stats.failure = True
+            return result
+
+        # Step 2: poll for completion
+        poll_url = f"{self._orchestrator_url}?id={instance_id}"
+        poll_interval = 5
+        max_poll_time = 7200
+        elapsed = 0
+        while elapsed < max_poll_time:
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+            try:
+                status_code, raw = self._http_get(poll_url)
+            except Exception as e:
+                self.logging.warning(
+                    f"Status poll network error (elapsed={elapsed}s): {e} — retrying"
+                )
+                continue
+            try:
+                resp = json.loads(raw)
+            except json.JSONDecodeError:
+                text = raw.decode()
+                self.logging.warning(f"Status poll non-JSON (elapsed={elapsed}s): {text[:100]}")
+                continue
+
+            wf_status = resp.get("status")
+            if wf_status == "complete":
+                end = datetime.now()
+                result = ExecutionResult.from_times(begin, end)
+                result.output = resp.get("output") or {}
+                return result
+            if wf_status == "errored":
+                end = datetime.now()
+                result = ExecutionResult.from_times(begin, end)
+                self.logging.error(f"Workflow {self.workflow_name} errored: {resp.get('error')}")
+                result.stats.failure = True
+                return result
+            # Still running (queued/running/paused) — keep polling
+
+        end = datetime.now()
+        self.logging.error(
+            f"Workflow {self.workflow_name} did not complete within {max_poll_time}s"
+        )
+        result = ExecutionResult.from_times(begin, end)
+        result.stats.failure = True
+        return result
+
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
+        """Invoke the workflow synchronously: create instance, poll until complete.
+
+        Retries on error 1042 (CPU time limit on cold start) up to 3 times.
+        """
+        self.logging.debug(f"Invoke workflow {self.workflow_name} at {self._orchestrator_url}")
+        max_retries = 3
+        retry_wait = 10
+        for attempt in range(max_retries + 1):
+            try:
+                return self._do_invoke(payload)
+            except ContainerProvisioningError:
+                if attempt < max_retries:
+                    self.logging.info(
+                        f"Workflow cold start (error 1042), waiting {retry_wait}s "
+                        f"before retry (attempt {attempt + 1}/{max_retries})..."
+                    )
+                    time.sleep(retry_wait)
+                else:
+                    raise
+        raise RuntimeError("Unreachable")
+
+    def async_invoke(self, payload: dict):
+        """Async invocation is not implemented for workflows."""
+        raise NotImplementedError("Async invocation is not implemented for workflows")
+
+    def serialize(self) -> dict:
+        """Return a serializable dict for caching."""
+        return {
+            "type": self.typename(),
+            "workflow_name": self.workflow_name,
+            "orchestrator_url": self._orchestrator_url,
+        }
+
+    @staticmethod
+    def deserialize(obj: dict) -> "WorkflowLibraryTrigger":
+        """Reconstruct a WorkflowLibraryTrigger from a cached dict."""
+        return WorkflowLibraryTrigger(obj["workflow_name"], obj["orchestrator_url"])

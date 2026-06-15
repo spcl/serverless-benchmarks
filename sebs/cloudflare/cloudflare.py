@@ -110,7 +110,10 @@ class Cloudflare(System):
     # Benchmark IDs are matched against the numeric prefix of the benchmark name
     # (e.g. "110" matches "110.dynamic-html").
     SUPPORTED_BENCHMARKS: Dict[Tuple[str, bool], Optional[List[str]]] = {
-        ("python", False): ["110", "120", "130", "210", "311", "501", "502", "503"],
+        ("python", False): [
+            "110", "120", "130", "210", "311", "501", "502", "503",
+            "610", "620", "630", "631",  # lightweight workflows (Pyodide-compatible)
+        ],
         ("nodejs", False): ["110", "120", "130", "311"],
         ("python", True): None,  # all benchmarks supported
         ("nodejs", True): ["110", "120", "130", "210", "311"],
@@ -1022,9 +1025,12 @@ class Cloudflare(System):
         Returns:
             Default function name
         """
-        # Cloudflare Worker names must be lowercase and can contain hyphens
+        # Cloudflare Worker names must be lowercase and can contain hyphens.
+        # Abbreviate language names to keep names under the 54-char limit for workers.dev.
+        lang_abbrev = {"python": "py", "nodejs": "js", "java": "java", "cpp": "cpp"}
+        lang = lang_abbrev.get(code_package.language_name, code_package.language_name)
         name = (
-            f"{code_package.benchmark}-{code_package.language_name}-"
+            f"{code_package.benchmark}-{lang}"
             f"{code_package.language_version.replace('.', '')}"
         ).lower()
         if code_package.language_variant != "default":
@@ -1188,6 +1194,280 @@ class Cloudflare(System):
         if wall_times:
             avg_wall_ms = sum(wall_times) / len(wall_times) / 1000.0
             self.logging.info(f"Average wall time: {avg_wall_ms:.2f} ms")
+
+    @staticmethod
+    def workflow_type() -> "Type[Function]":
+        """Return the Workflow subclass used by this platform."""
+        from sebs.cloudflare.workflow import CloudflareWorkflow
+
+        return CloudflareWorkflow
+
+    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> Function:
+        """Deploy a Cloudflare Workflow: dispatcher + orchestrator.
+
+        1. Deploys a dispatcher worker/container with all task functions.
+        2. Generates a TypeScript orchestrator from definition.json.
+        3. Deploys the orchestrator as a Cloudflare Workflow.
+
+        Args:
+            code_package: Benchmark containing the workflow code.
+            workflow_name: Name for the workflow.
+
+        Returns:
+            CloudflareWorkflow instance with trigger attached.
+        """
+        import os
+        import tempfile
+
+        from sebs.cloudflare.generator import CloudflareWorkflowGenerator
+        from sebs.cloudflare.triggers import WorkflowLibraryTrigger
+        from sebs.cloudflare.workflow import CloudflareWorkflow
+
+        container_deployment = code_package.system_variant.is_container
+        workflow_name = self.format_function_name(workflow_name, container_deployment)
+        account_id = self.config.credentials.account_id
+
+        if not account_id:
+            raise RuntimeError("Cloudflare account ID is required to create workflows")
+
+        # --- Step 1: Deploy the dispatcher (single worker/container with all functions) ---
+        # Cloudflare workers.dev subdomains cap at 54 chars.
+        # Cap the base name at 43 chars so that base + "-dispatcher" (11 chars) stays ≤ 54.
+        max_base_len = 43
+        if len(workflow_name) > max_base_len:
+            workflow_name = workflow_name[:max_base_len].rstrip("-")
+        dispatcher_name = workflow_name + "-dispatcher"
+        self.logging.info(f"Deploying workflow dispatcher: {dispatcher_name}")
+        container_uri = code_package._container_uri if container_deployment else None
+        dispatcher = self.create_function(
+            code_package,
+            dispatcher_name,
+            code_package.system_variant,
+            container_uri,
+        )
+
+        # --- Step 2: Generate orchestrator TypeScript from definition.json ---
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
+        if not os.path.exists(definition_path):
+            raise ValueError(f"No workflow definition found at {definition_path}")
+
+        # Container workers can't be called via service bindings from inside Workflow steps.
+        # Use the dispatcher's workers.dev URL directly for container-backed dispatchers.
+        if container_deployment:
+            dispatcher_url = self._build_workers_dev_url(dispatcher_name, account_id)
+            gen = CloudflareWorkflowGenerator(dispatcher_url=dispatcher_url)
+        else:
+            gen = CloudflareWorkflowGenerator(dispatcher_binding="DISPATCHER")
+        gen.parse(definition_path)
+        ts_source = gen.generate()
+
+        # --- Step 3: Package and deploy the orchestrator ---
+        orchestrator_name = workflow_name
+        orchestrator_dir = tempfile.mkdtemp(prefix="sebs-workflow-orchestrator-")
+
+        # Write generated workflow TypeScript
+        ts_path = os.path.join(orchestrator_dir, "workflow.ts")
+        with open(ts_path, "w") as f:
+            f.write(ts_source)
+
+        # Write minimal package.json
+        package_json = {
+            "name": orchestrator_name,
+            "type": "module",
+            "dependencies": {"@cloudflare/workers-types": "*"},
+        }
+        with open(os.path.join(orchestrator_dir, "package.json"), "w") as f:
+            import json as json_mod
+
+            json_mod.dump(package_json, f, indent=2)
+
+        # Generate wrangler.toml — omit service binding for container dispatchers
+        self._generate_workflow_wrangler_toml(
+            orchestrator_name,
+            orchestrator_dir,
+            account_id,
+            dispatcher_name if not container_deployment else None,
+        )
+
+        # Deploy the orchestrator via wrangler
+        env = {}
+        if self.config.credentials.api_token:
+            env["CLOUDFLARE_API_TOKEN"] = self.config.credentials.api_token
+        elif self.config.credentials.email and self.config.credentials.api_key:
+            env["CLOUDFLARE_EMAIL"] = self.config.credentials.email
+            env["CLOUDFLARE_API_KEY"] = self.config.credentials.api_key
+        env["CLOUDFLARE_ACCOUNT_ID"] = account_id
+
+        cli = self._workers_deployment._get_cli()
+        container_package_path = f"/tmp/workers/{orchestrator_name}"
+        cli.upload_package(orchestrator_dir, container_package_path)
+
+        self.logging.info(f"Deploying workflow orchestrator: {orchestrator_name}")
+        cli.wrangler_deploy(container_package_path, env=env)
+
+        # Build orchestrator URL and wait for readiness
+        orchestrator_url = self._build_workers_dev_url(orchestrator_name, account_id)
+        self._wait_for_worker_ready(orchestrator_name, orchestrator_url)
+
+        # --- Step 4: Create workflow object and attach trigger ---
+        function_cfg = FunctionConfig.from_benchmark(code_package)
+        workflow = CloudflareWorkflow(
+            name=orchestrator_name,
+            functions=[dispatcher],
+            benchmark=code_package.benchmark,
+            code_package_hash=code_package.hash,
+            cfg=function_cfg,
+            account_id=account_id,
+            dispatcher_name=dispatcher_name,
+            orchestrator_url=orchestrator_url,
+        )
+
+        trigger = WorkflowLibraryTrigger(orchestrator_name, orchestrator_url)
+        trigger.logging_handlers = self.logging_handlers
+        workflow.add_trigger(trigger)
+
+        self.logging.info(f"Workflow {orchestrator_name} deployed successfully")
+        return workflow
+
+    def update_workflow(self, workflow: Function, code_package: Benchmark):
+        """Update an existing Cloudflare Workflow deployment.
+
+        Re-deploys the dispatcher and regenerates/re-deploys the orchestrator.
+
+        Args:
+            workflow: Existing CloudflareWorkflow instance.
+            code_package: Updated benchmark code package.
+        """
+        import os
+        import tempfile
+
+        from sebs.cloudflare.generator import CloudflareWorkflowGenerator
+        from sebs.cloudflare.workflow import CloudflareWorkflow
+
+        workflow = cast(CloudflareWorkflow, workflow)
+        account_id = workflow.account_id
+
+        # Update the dispatcher
+        self.logging.info(f"Updating workflow dispatcher: {workflow.dispatcher_name}")
+        update_container_uri = (
+            code_package._container_uri if code_package.system_variant.is_container else None
+        )
+        dispatcher = self.create_function(
+            code_package,
+            workflow.dispatcher_name,
+            code_package.system_variant,
+            update_container_uri,
+        )
+        workflow.functions = [dispatcher]
+
+        # Regenerate and redeploy orchestrator
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
+        if not os.path.exists(definition_path):
+            raise ValueError(f"No workflow definition found at {definition_path}")
+
+        container_deployment = code_package.system_variant.is_container
+        if container_deployment:
+            dispatcher_url = self._build_workers_dev_url(workflow.dispatcher_name, account_id)
+            gen = CloudflareWorkflowGenerator(dispatcher_url=dispatcher_url)
+        else:
+            gen = CloudflareWorkflowGenerator(dispatcher_binding="DISPATCHER")
+        gen.parse(definition_path)
+        ts_source = gen.generate()
+
+        orchestrator_dir = tempfile.mkdtemp(prefix="sebs-workflow-orchestrator-")
+        with open(os.path.join(orchestrator_dir, "workflow.ts"), "w") as f:
+            f.write(ts_source)
+
+        package_json = {
+            "name": workflow.name,
+            "type": "module",
+            "dependencies": {"@cloudflare/workers-types": "*"},
+        }
+        with open(os.path.join(orchestrator_dir, "package.json"), "w") as f:
+            import json as json_mod
+
+            json_mod.dump(package_json, f, indent=2)
+
+        self._generate_workflow_wrangler_toml(
+            workflow.name,
+            orchestrator_dir,
+            account_id,
+            workflow.dispatcher_name if not container_deployment else None,
+        )
+
+        env = {}
+        if self.config.credentials.api_token:
+            env["CLOUDFLARE_API_TOKEN"] = self.config.credentials.api_token
+        elif self.config.credentials.email and self.config.credentials.api_key:
+            env["CLOUDFLARE_EMAIL"] = self.config.credentials.email
+            env["CLOUDFLARE_API_KEY"] = self.config.credentials.api_key
+        env["CLOUDFLARE_ACCOUNT_ID"] = account_id
+
+        cli = self._workers_deployment._get_cli()
+        container_package_path = f"/tmp/workers/{workflow.name}"
+        cli.upload_package(orchestrator_dir, container_package_path)
+
+        self.logging.info(f"Redeploying workflow orchestrator: {workflow.name}")
+        cli.wrangler_deploy(container_package_path, env=env)
+        self._wait_for_worker_ready(workflow.name, workflow.orchestrator_url)
+
+        self.logging.info(f"Workflow {workflow.name} updated successfully")
+
+    def _generate_workflow_wrangler_toml(
+        self,
+        orchestrator_name: str,
+        package_dir: str,
+        account_id: str,
+        dispatcher_name: Optional[str],
+    ) -> str:
+        """Generate wrangler.toml for the workflow orchestrator from template.
+
+        Args:
+            orchestrator_name: Name of the orchestrator worker.
+            package_dir: Directory to write the toml file.
+            account_id: Cloudflare account ID.
+            dispatcher_name: Name of the dispatcher worker (for service binding).
+                Pass None for container dispatchers — they are called via URL, not binding.
+
+        Returns:
+            Path to the generated wrangler.toml.
+        """
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore[no-redef]
+        try:
+            import tomli_w
+        except ImportError:
+            import toml as tomli_w  # type: ignore[no-redef, import-untyped]
+
+        from importlib.resources import files
+
+        template_path = (
+            files("sebs.cloudflare").joinpath("templates").joinpath("wrangler-workflow.toml")
+        )
+        with template_path.open("rb") as f:
+            config = tomllib.load(f)
+
+        config["name"] = orchestrator_name
+        config["account_id"] = account_id
+        config["workflows"][0]["name"] = orchestrator_name
+        if dispatcher_name is not None:
+            config["services"][0]["service"] = dispatcher_name
+        else:
+            # Container dispatchers are called via URL; remove service binding
+            config.pop("services", None)
+
+        toml_path = os.path.join(package_dir, "wrangler.toml")
+        try:
+            with open(toml_path, "wb") as f:
+                tomli_w.dump(config, f)
+        except TypeError:
+            with open(toml_path, "w") as f:
+                f.write(tomli_w.dumps(config))
+
+        self.logging.info(f"Generated workflow wrangler.toml at {toml_path}")
+        return toml_path
 
     def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """

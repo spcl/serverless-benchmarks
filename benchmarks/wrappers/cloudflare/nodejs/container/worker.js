@@ -331,8 +331,21 @@ async function handleR2Request(request, env) {
     }
 
     if (url.pathname === '/r2/download') {
-      const object = await env.R2.get(key);
-      
+      // Support optional byte-range via Range header (e.g. "bytes=0-1023")
+      const rangeHeader = request.headers.get('Range');
+      let r2Options = undefined;
+      let rangeStart, rangeEnd;
+      if (rangeHeader) {
+        const match = rangeHeader.match(/^bytes=(\d+)-(\d+)$/);
+        if (match) {
+          rangeStart = parseInt(match[1], 10);
+          rangeEnd = parseInt(match[2], 10);
+          r2Options = { range: { offset: rangeStart, length: rangeEnd - rangeStart + 1 } };
+        }
+      }
+
+      const object = await env.R2.get(key, r2Options);
+
       if (!object) {
         return new Response(JSON.stringify({
           error: 'Object not found'
@@ -341,15 +354,20 @@ async function handleR2Request(request, env) {
           headers: { 'Content-Type': 'application/json' }
         });
       }
-      
-      // Return the object data
-      return new Response(object.body, {
-        headers: {
-          'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream',
-          'Content-Length': object.size.toString()
-        }
-      });
-      
+
+      const status = rangeHeader ? 206 : 200;
+      const headers = {
+        'Content-Type': object.httpMetadata?.contentType || 'application/octet-stream',
+      };
+      if (rangeHeader && rangeStart !== undefined) {
+        const totalSize = object.size ?? (rangeEnd - rangeStart + 1);
+        headers['Content-Range'] = `bytes ${rangeStart}-${rangeEnd}/${totalSize}`;
+        headers['Content-Length'] = String(rangeEnd - rangeStart + 1);
+      } else {
+        headers['Content-Length'] = object.size?.toString() ?? '';
+      }
+      return new Response(object.body, { status, headers });
+
     } else if (url.pathname === '/r2/upload') {
       // Upload to R2 — stream request.body directly to avoid buffering large payloads in Worker memory
       console.log(`[worker.js /r2/upload] bucket=${bucket}, key=${key}`);

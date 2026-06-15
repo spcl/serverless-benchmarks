@@ -169,17 +169,16 @@ class storage:
             print(f"R2 download error: {e}")
             raise RuntimeError(f"Failed to download from R2: {e}")
     
-    def upload(self, bucket, key, filepath):
-        """Upload file from disk with unique key generation"""
-        # Generate unique key to avoid conflicts
-        unique_key = self.unique_name(key)
+    def upload(self, bucket, key, filepath, unique_name=True):
+        """Upload file from disk."""
+        upload_key = self.unique_name(key) if unique_name else key
         with open(filepath, 'rb') as f:
             data = f.read()
         try:
-            self._upload_bytes(unique_key, data)
+            self._upload_bytes(upload_key, data)
         except Exception as e:
             raise RuntimeError(f"Failed to upload to R2: {e}")
-        return unique_key
+        return upload_key
     
     def _upload_with_key(self, bucket: str, key: str, data):
         """Upload data to R2 via worker proxy with exact key (internal method)"""
@@ -211,7 +210,31 @@ class storage:
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, 'wb') as f:
             f.write(data)
-    
+
+    def download_within_range(self, bucket: str, key: str, start_bytes: int, end_bytes: int) -> str:
+        """Download a byte range of an object from R2 via the worker proxy."""
+        if not self.r2_enabled:
+            raise RuntimeError("R2 not configured")
+
+        if not storage.worker_url:
+            raise RuntimeError("Worker URL not set - cannot access R2")
+
+        params = urllib.parse.urlencode({'bucket': bucket, 'key': key})
+        url = f"{storage.worker_url}/r2/download?{params}"
+
+        req = urllib.request.Request(url)
+        req.add_header('Range', f'bytes={start_bytes}-{end_bytes}')
+
+        try:
+            with urllib.request.urlopen(req) as response:
+                return response.read().decode('utf-8')
+        except urllib.error.HTTPError as e:
+            if e.code in (206, 200):
+                return e.read().decode('utf-8')
+            raise RuntimeError(f"Failed to download range from R2: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to download range from R2: {e}")
+
     def list_directory(self, bucket, prefix):
         """List all object keys with a given prefix."""
         if not storage.worker_url:

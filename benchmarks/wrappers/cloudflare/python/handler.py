@@ -63,23 +63,33 @@ class Default(WorkerEntrypoint):
                 except IndexError:
                     event[param[0]] = None
 
+        from function import storage
+
+        storage.storage.init_instance(self)
+
+        if hasattr(self.env, 'NOSQL_STORAGE_DATABASE'):
+            from function import nosql
+
+            nosql.nosql.init_instance(self)
+
+        # Workflow dispatch mode: route to a specific function module
+        if 'function' in event:
+            import importlib
+            func_name = event['function']
+            func_input = event.get('input', {})
+            if isinstance(func_input, dict):
+                func_input = {**func_input, 'request-id': req_id}
+            module = importlib.import_module(f"function.{func_name}")
+            func_result = module.handler(func_input)
+            return Response(json.dumps(func_result),
+                            headers={"Content-Type": "application/json"})
+
         ## note: time fixed in worker
         income_timestamp = datetime.datetime.now().timestamp()
 
         event['request-id'] = req_id
         event['income-timestamp'] = income_timestamp
 
-
-
-        from function import storage
-
-        storage.storage.init_instance(self)
-
-
-        if hasattr(self.env, 'NOSQL_STORAGE_DATABASE'):
-            from function import nosql
-
-            nosql.nosql.init_instance(self)
 
         print("event:", event)
 
@@ -98,7 +108,7 @@ class Default(WorkerEntrypoint):
             log_data['measurement'] = ret['measurement']
         else:
             log_data['measurement'] = {}
-        
+
         # Add memory usage to measurement (if resource module is available)
         if HAS_RESOURCE:
             memory_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
@@ -106,7 +116,7 @@ class Default(WorkerEntrypoint):
         else:
             # Pyodide doesn't support resource module
             log_data['measurement']['memory_used_mb'] = 0.0
-        
+
         if 'logs' in event:
             log_data['time'] = 0
 

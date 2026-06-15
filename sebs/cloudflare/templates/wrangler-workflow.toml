@@ -1,0 +1,17 @@
+# Template for Cloudflare Workflow orchestrators
+# This file is read and modified by the deployment system
+
+name = "PLACEHOLDER_WORKER_NAME"
+main = "workflow.ts"
+compatibility_date = "2025-06-01"
+account_id = "PLACEHOLDER_ACCOUNT_ID"
+compatibility_flags = ["nodejs_compat"]
+
+[[workflows]]
+name = "PLACEHOLDER_WORKFLOW_NAME"
+binding = "WORKFLOW"
+class_name = "BenchmarkWorkflow"
+
+[[services]]
+binding = "DISPATCHER"
+service = "PLACEHOLDER_DISPATCHER_NAME"
