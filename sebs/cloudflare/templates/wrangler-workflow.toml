@@ -12,6 +12,25 @@ name = "PLACEHOLDER_WORKFLOW_NAME"
 binding = "WORKFLOW"
 class_name = "BenchmarkWorkflow"
 
-[[services]]
-binding = "DISPATCHER"
-service = "PLACEHOLDER_DISPATCHER_NAME"
+[[workflows]]
+name = "PLACEHOLDER_ITEM_WORKFLOW_NAME"
+binding = "ITEM_WORKFLOW"
+class_name = "ItemWorkflow"
+
+[[durable_objects.bindings]]
+name = "FANIN"
+class_name = "FanInCoordinator"
+
+[[durable_objects.bindings]]
+name = "DISPATCHER"
+class_name = "DispatcherContainer"
+
+[[containers]]
+class_name = "DispatcherContainer"
+image = "PLACEHOLDER_CONTAINER_IMAGE"
+max_instances = 1
+instance_type = "lite"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["FanInCoordinator", "DispatcherContainer"]

@@ -98,7 +98,9 @@ class CloudflareCredentials(Credentials):
         )
 
     @staticmethod
-    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
+    def deserialize(
+        config: dict, cache: Cache, handlers: LoggingHandlers
+    ) -> Credentials:
         """Load credentials from config dict, falling back to environment variables."""
         cached_config = cache.get_config("cloudflare")
         ret: CloudflareCredentials
@@ -133,7 +135,11 @@ class CloudflareCredentials(Credentials):
                 "or CLOUDFLARE_EMAIL, CLOUDFLARE_API_KEY, and CLOUDFLARE_ACCOUNT_ID"
             )
 
-        if account_id is not None and ret.account_id is not None and account_id != ret.account_id:
+        if (
+            account_id is not None
+            and ret.account_id is not None
+            and account_id != ret.account_id
+        ):
             ret.logging.error(
                 f"The account id {ret.account_id} from provided credentials is different "
                 f"from the account id {account_id} found in the cache! Please change "
@@ -244,12 +250,15 @@ class CloudflareConfig(Config):
     Configuration for Cloudflare Workers platform.
     """
 
-    def __init__(self, credentials: CloudflareCredentials, resources: CloudflareResources):
+    def __init__(
+        self, credentials: CloudflareCredentials, resources: CloudflareResources
+    ):
         """Initialize configuration with the given credentials and resources."""
         super().__init__(name="cloudflare")
         self._credentials = credentials
         self._resources = resources
-        self._max_instances: int = 10
+        self._max_instances: int = 20
+        self._chunk_size: int = 1
 
     @staticmethod
     def typename() -> str:
@@ -271,6 +280,11 @@ class CloudflareConfig(Config):
         """Maximum number of container instances for container deployments."""
         return self._max_instances
 
+    @property
+    def chunk_size(self) -> int:
+        """Number of Map items assigned to one child workflow instance."""
+        return self._chunk_size
+
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         """Apply region and other fields from a config dictionary to an existing instance."""
@@ -279,16 +293,20 @@ class CloudflareConfig(Config):
         config._region = dct.get("region", "global")
         if "max_instances" in dct:
             config._max_instances = int(dct["max_instances"])
+        if "chunk_size" in dct:
+            config._chunk_size = max(1, int(dct["chunk_size"]))
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
         """Build a CloudflareConfig from user config and cache, resolving credentials."""
         cached_config = cache.get_config("cloudflare")
         credentials = cast(
-            CloudflareCredentials, CloudflareCredentials.deserialize(config, cache, handlers)
+            CloudflareCredentials,
+            CloudflareCredentials.deserialize(config, cache, handlers),
         )
         resources = cast(
-            CloudflareResources, CloudflareResources.deserialize(config, cache, handlers)
+            CloudflareResources,
+            CloudflareResources.deserialize(config, cache, handlers),
         )
         config_obj = CloudflareConfig(credentials, resources)
         config_obj.logging_handlers = handlers
@@ -315,6 +333,8 @@ class CloudflareConfig(Config):
         out = {
             "name": "cloudflare",
             "region": self._region,
+            "max_instances": self._max_instances,
+            "chunk_size": self._chunk_size,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }

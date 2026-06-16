@@ -560,6 +560,11 @@ class Benchmark(LoggingBase):
         return self._input_processed
 
     @property
+    def last_input_config(self) -> Optional[Dict[str, Any]]:
+        """Return the most recently prepared benchmark input, if available."""
+        return self._last_input_config
+
+    @property
     def uses_storage(self) -> bool:
         """
         Check if the benchmark uses cloud storage.
@@ -745,6 +750,7 @@ class Benchmark(LoggingBase):
 
         # Check if input has been processed
         self._input_processed: bool = False
+        self._last_input_config: Optional[Dict[str, Any]] = None
         self._uses_storage: bool = False
         self._uses_nosql: bool = False
 
@@ -1794,6 +1800,7 @@ class Benchmark(LoggingBase):
             nosql_storage.update_cache(self._benchmark)
 
         self._input_processed = True
+        self._last_input_config = input_config
 
         return input_config
 
