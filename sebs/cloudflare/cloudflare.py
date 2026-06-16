@@ -851,6 +851,7 @@ class Cloudflare(System):
                         health_instances = data.get("health", {}).get("instances", {})
                         healthy = health_instances.get("healthy", 0)
                         starting = health_instances.get("starting", 0)
+                        max_instances = data.get("max_instances", self.config.max_instances)
                         self.logging.debug(f"Container {container_name} health: {health_instances}")
                         if max_instances > 0 and healthy >= max_instances:
                             self.logging.info(
