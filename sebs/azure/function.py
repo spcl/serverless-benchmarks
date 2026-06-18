@@ -113,7 +113,7 @@ class AzureWorkflow(Workflow):
     @staticmethod
     def deserialize(cached_config: dict) -> "AzureWorkflow":
         """Deserialize workflow from cached configuration."""
-        from sebs.azure.triggers import HTTPTrigger
+        from sebs.azure.triggers import HTTPTrigger, WorkflowHTTPTrigger
 
         cfg = FunctionConfig.deserialize(cached_config["config"])
         ret = AzureWorkflow(
@@ -124,7 +124,11 @@ class AzureWorkflow(Workflow):
             cfg,
         )
         for trigger in cached_config["triggers"]:
-            trigger_type = {"HTTP": HTTPTrigger}.get(trigger["type"])
+            trigger_type = {
+                "HTTP": HTTPTrigger,
+                "WorkflowHTTP": WorkflowHTTPTrigger,
+                WorkflowHTTPTrigger.typename(): WorkflowHTTPTrigger,
+            }.get(trigger["type"])
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
         return ret
