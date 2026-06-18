@@ -5,6 +5,7 @@ import uuid
 import operator
 import logging
 import datetime
+import copy
 
 import azure.durable_functions as df
 from redis import Redis
@@ -152,7 +153,6 @@ def handler(context: df.DurableOrchestrationContext):
                     
                 elif isinstance(first_state, Map):
                     array = get_var(res, first_state.array)
-                    tasks = []
 
                     if first_state.next:
                         #call suborchestrator.
@@ -197,6 +197,7 @@ def handler(context: df.DurableOrchestrationContext):
             duration += (now() - ts)
             map_res = yield context.task_all(parallel_tasks)
             ts = now()
+            base_res = res
             res = {}
 
             for state in first_states:
@@ -205,10 +206,21 @@ def handler(context: df.DurableOrchestrationContext):
                     output = []
                     for index in indices:
                         output.append(map_res[index])
-                    res[state.func_name] = output
+                    if isinstance(state, Map):
+                        branch_res = copy.deepcopy(base_res)
+                        set_var(branch_res, output, state.array)
+                        res[state.func_name] = branch_res
+                    else:
+                        res[state.func_name] = output
                 else:
                     #task state
-                    res[state.func_name] = map_res[indices[0]]
+                    output = map_res[indices[0]]
+                    if isinstance(state, Map):
+                        branch_res = copy.deepcopy(base_res)
+                        set_var(branch_res, output, state.array)
+                        res[state.func_name] = branch_res
+                    else:
+                        res[state.func_name] = output
 
             current = states.get(current.next, None)
 

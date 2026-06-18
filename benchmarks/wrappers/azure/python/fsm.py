@@ -83,6 +83,13 @@ class Map(State):
         self.next = next
         self.common_params = common_params
 
+    @property
+    def func_name(self) -> str:
+        state = self.funcs[self.root]
+        while state["type"] == "map":
+            state = state["states"][state["root"]]
+        return state["func_name"]
+
     @classmethod
     def deserialize(cls, name: str, payload: dict) -> "Map":
         return cls(
