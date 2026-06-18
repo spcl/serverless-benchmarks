@@ -104,7 +104,8 @@
       }
     },
     "cloudflare": {
-      "max_instances": 1
+      "max_instances": 20,
+      "chunk_size": 1
     },
     "openwhisk": {
       "shutdownStorage": false,
