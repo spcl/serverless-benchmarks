@@ -8,7 +8,6 @@ import datetime
 import copy
 
 import azure.durable_functions as df
-from redis import Redis
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(dir_path, os.path.pardir))
@@ -281,13 +280,17 @@ def handler(context: df.DurableOrchestrationContext):
 
     payload = json.dumps(payload)
 
-    redis_host = {{REDIS_HOST}}
-    redis_password = {{REDIS_PASSWORD}}
+    redis_host = os.getenv("REDIS_HOST", "")
+    redis_username = os.getenv("REDIS_USERNAME") or None
+    redis_password = os.getenv("REDIS_PASSWORD") or None
     if redis_host:
+        from redis import Redis
+
         redis = Redis(host=redis_host,
               port=6379,
               decode_responses=True,
               socket_connect_timeout=10,
+              username=redis_username,
               password=redis_password)
 
         key = os.path.join(workflow_name, func_name, request_id, str(uuid.uuid4())[0:8])

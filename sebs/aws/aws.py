@@ -13,6 +13,7 @@ import os
 import shutil
 import time
 import uuid
+from dataclasses import replace
 from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 
 import boto3
@@ -34,6 +35,8 @@ from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.system import System
 from sebs.sebs_types import Language
+
+AWS_MAX_FUNCTION_TIMEOUT = 900
 
 
 class AWS(System):
@@ -92,6 +95,45 @@ class AWS(System):
             AWSConfig: AWS configuration
         """
         return self._config
+
+    @staticmethod
+    def _effective_function_config(cfg: FunctionConfig) -> FunctionConfig:
+        if cfg.timeout > AWS_MAX_FUNCTION_TIMEOUT:
+            return replace(cfg, timeout=AWS_MAX_FUNCTION_TIMEOUT)
+        return cfg
+
+    def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
+        changed = False
+        expected_config = self._effective_function_config(
+            FunctionConfig.from_benchmark(benchmark)
+        )
+
+        for attr, new_val in [
+            ("timeout", expected_config.timeout),
+            ("memory", benchmark.benchmark_config.memory),
+        ]:
+            old_val = getattr(cached_function.config, attr)
+            if new_val != old_val:
+                self.logging.info(
+                    f"Updating function configuration due to changed attribute {attr}: "
+                    f"cached function has value {old_val} whereas {new_val} has been requested."
+                )
+                changed = True
+                setattr(cached_function.config, attr, new_val)
+
+        for lang_attr in [["language"] * 2, ["language_version", "version"]]:
+            new_val = getattr(benchmark, lang_attr[0])
+            old_val = getattr(cached_function.config.runtime, lang_attr[1])
+            if new_val != old_val:
+                self.logging.info(
+                    f"Updating function configuration due to changed runtime attribute "
+                    f"{lang_attr}: cached function has value {old_val} whereas "
+                    f"{new_val} has been requested."
+                )
+                changed = True
+                setattr(cached_function.config.runtime, lang_attr[1], new_val)
+
+        return changed
 
     @property
     def system_resources(self) -> AWSSystemResources:
@@ -258,18 +300,6 @@ class AWS(System):
             Language.NODEJS: ["handler.js", "package.json", "node_modules"],
         }
 
-        handler_path = os.path.join(directory, CONFIG_FILES[language][0])
-        if self.config.redis_host is not None:
-            from sebs.utils import replace_string_in_file
-            replace_string_in_file(
-                handler_path, "{{REDIS_HOST}}", f'"{self.config.redis_host}"'
-            )
-        if self.config.redis_password is not None:
-            from sebs.utils import replace_string_in_file
-            replace_string_in_file(
-                handler_path, "{{REDIS_PASSWORD}}", f'"{self.config.redis_password}"'
-            )
-
         if language in [Language.PYTHON, Language.NODEJS]:
             package_config = CONFIG_FILES[language]
             function_dir = os.path.join(directory, "function")
@@ -369,12 +399,14 @@ class AWS(System):
         benchmark = code_package.benchmark
         language = code_package.language
         language_runtime = code_package.language_version
-        timeout = code_package.benchmark_config.timeout
         memory = code_package.benchmark_config.memory
         code_size = code_package.code_size
         code_bucket: Optional[str] = None
         func_name = AWS.format_function_name(func_name)
-        function_cfg = FunctionConfig.from_benchmark(code_package)
+        function_cfg = self._effective_function_config(
+            FunctionConfig.from_benchmark(code_package)
+        )
+        timeout = function_cfg.timeout
         architecture = function_cfg.architecture.value
         # we can either check for exception or use list_functions
         # there's no API for test
@@ -524,7 +556,9 @@ class AWS(System):
             if package is None:
                 raise RuntimeError("Code location is not set for zip deployment")
 
-            function_cfg = FunctionConfig.from_benchmark(code_package)
+            function_cfg = self._effective_function_config(
+                FunctionConfig.from_benchmark(code_package)
+            )
             architecture = function_cfg.architecture.value
 
             # Run AWS update
@@ -579,6 +613,12 @@ class AWS(System):
         assert code_package.has_input_processed
 
         envs = env_variables.copy()
+        if self.config.redis_host:
+            envs["REDIS_HOST"] = self.config.redis_host
+            if self.config.redis_username:
+                envs["REDIS_USERNAME"] = self.config.redis_username
+            if self.config.redis_password:
+                envs["REDIS_PASSWORD"] = self.config.redis_password
         if code_package.uses_nosql:
             nosql_storage = self.system_resources.get_nosql_storage()
             for original_name, actual_name in nosql_storage.get_tables(
@@ -596,6 +636,7 @@ class AWS(System):
                 envs = {**response["Environment"]["Variables"], **envs}
 
         function = cast(LambdaFunction, function)
+        function._cfg = self._effective_function_config(function.config)
         # We only update envs if anything new was added
         if len(envs) > 0:
             self.client.update_function_configuration(
@@ -1023,7 +1064,9 @@ class AWS(System):
                 code_package.benchmark,
                 ret["stateMachineArn"],
                 code_package.hash,
-                FunctionConfig.from_benchmark(code_package),
+                self._effective_function_config(
+                    FunctionConfig.from_benchmark(code_package)
+                ),
             )
         except self.get_sfn_client().exceptions.StateMachineAlreadyExists as e:
             match = re.search("'([^']*)'", str(e))
@@ -1033,7 +1076,9 @@ class AWS(System):
             self.logging.info(f"Workflow {workflow_name} exists on AWS, updating.")
             workflow = SFNWorkflow(
                 workflow_name, funcs, code_package.benchmark, arn, code_package.hash,
-                FunctionConfig.from_benchmark(code_package),
+                self._effective_function_config(
+                    FunctionConfig.from_benchmark(code_package)
+                ),
             )
             self._update_workflow_definition(workflow, code_package)
             workflow.updated_code = True
@@ -1048,6 +1093,24 @@ class AWS(System):
 
         workflow = cast(SFNWorkflow, workflow)
         self._update_workflow_definition(workflow, code_package)
+
+    def refresh_workflow_configuration(self, workflow, code_package: Benchmark) -> None:
+        if not code_package.has_input_processed:
+            return
+
+        from sebs.aws.workflow import SFNWorkflow
+
+        workflow = cast(SFNWorkflow, workflow)
+        needs_refresh = self.config.redis_host is not None
+        for function in workflow.functions:
+            needs_refresh = (
+                self.is_configuration_changed(function, code_package) or needs_refresh
+            )
+        if not needs_refresh:
+            return
+
+        for function in workflow.functions:
+            self.update_function_configuration(function, code_package)
 
     def _update_workflow_definition(self, workflow, code_package: Benchmark):
         from sebs.aws.workflow import SFNWorkflow

@@ -190,6 +190,10 @@ class System(ABC, LoggingBase):
     def update_workflow(self, workflow: Workflow, code_package: Benchmark):
         raise NotImplementedError("Workflows not supported on this platform")
 
+    def refresh_workflow_configuration(self, workflow: Workflow, code_package: Benchmark) -> None:
+        """Refresh runtime configuration for a cached workflow."""
+        return None
+
     def get_workflow(
         self, code_package: Benchmark, workflow_name: Optional[str] = None
     ) -> Workflow:
@@ -237,6 +241,8 @@ class System(ABC, LoggingBase):
                 function=workflow,
             )
             code_package.query_cache()
+        else:
+            self.refresh_workflow_configuration(workflow, code_package)
 
         return workflow
 

@@ -18,17 +18,19 @@ The module supports:
 """
 
 import copy
+import csv
 import json
 import logging
 import os
 import unittest
 import testtools
 import threading
-from time import sleep
+from time import sleep, time
 from typing import cast, Dict, List, Optional, Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
 from sebs.utils import ColoredWrapper, SensitiveDataFilter, LoggingBase
+from sebs.utils import connect_to_redis_cache, download_measurements
 
 if TYPE_CHECKING:
     from sebs import SeBS
@@ -112,6 +114,60 @@ benchmark_input_size: str = "test"
 RESOURCE_PREFIX = "regr"
 LOGGING_REDACTED = False
 LOGGING_REDACTOR: SensitiveDataFilter = SensitiveDataFilter()
+
+
+def write_workflow_measurements(
+    deployment_client,
+    output_dir: str,
+    workflow_name: str,
+    after: float,
+    request_id: Optional[str],
+    benchmark_name: str,
+    architecture: str,
+    deployment_type: str,
+    logging_wrapper: ColoredWrapper,
+) -> None:
+    """Download workflow Redis measurements for a regression invocation."""
+    redis_host = getattr(deployment_client.config, "redis_host", None)
+    if not redis_host:
+        return
+
+    redis_password = getattr(deployment_client.config, "redis_password", None) or None
+    redis_username = getattr(deployment_client.config, "redis_username", None) or None
+    try:
+        redis = connect_to_redis_cache(
+            redis_host, password=redis_password, username=redis_username
+        )
+        measurements = download_measurements(
+            redis,
+            workflow_name,
+            after,
+            request_id=request_id,
+            benchmark=benchmark_name,
+            architecture=architecture,
+            system_variant=deployment_type,
+            deployment=deployment_client.name(),
+        )
+    except Exception as e:
+        logging_wrapper.warning(f"Could not download Redis measurements ({e})")
+        return
+
+    if not measurements:
+        return
+
+    path = os.path.join(
+        output_dir,
+        "results",
+        workflow_name,
+        deployment_client.name() + ".csv",
+    )
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fieldnames = sorted({key for row in measurements for key in row.keys()})
+    with open(path, "w", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(measurements)
+    logging_wrapper.info(f"Saved {len(measurements)} Redis measurements to {path}")
 
 
 def configure_regression_deployment(
@@ -410,6 +466,8 @@ class WorkflowTestSequenceMeta(type):
                     trigger = triggers[0]
 
                 failure = False
+                ret = None
+                invoke_begin = time()
                 try:
                     ret = trigger.sync_invoke(input_config)
                     if ret.stats.failure:
@@ -437,12 +495,24 @@ class WorkflowTestSequenceMeta(type):
                     failure = True
                     logging_wrapper.error(f"{benchmark_name} workflow invocation raised exception")
 
+                write_workflow_measurements(
+                    deployment_client,
+                    self.client.output_dir,
+                    wf.name,
+                    invoke_begin,
+                    ret.request_id if ret is not None else None,
+                    benchmark_name,
+                    architecture,
+                    deployment_type,
+                    logging_wrapper,
+                )
+
                 json_filename = (
                     f"regression_wf_{deployment_name}_{benchmark_name}"
                     f"_{architecture}_{deployment_type}.json"
                 )
                 with open(os.path.join(self.client.output_dir, json_filename), "w") as f:
-                    json.dump({"output": ret.output}, f, indent=2)
+                    json.dump({"output": ret.output if ret is not None else None}, f, indent=2)
 
                 deployment_client.shutdown()
 

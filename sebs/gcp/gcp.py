@@ -2932,6 +2932,28 @@ class GCP(System):
                 else:
                     raise
 
+    def refresh_workflow_configuration(self, workflow: "Function", code_package: Benchmark) -> None:
+        if not code_package.has_input_processed:
+            return
+
+        from sebs.gcp.workflow import GCPWorkflow
+
+        wf = cast(GCPWorkflow, workflow)
+        workflow_timeout_changed = wf.config.timeout != code_package.benchmark_config.timeout
+        if workflow_timeout_changed:
+            self.update_workflow(wf, code_package)
+            wf.config.timeout = code_package.benchmark_config.timeout
+
+        if not self.config.redis_host and not workflow_timeout_changed:
+            return
+
+        for function in wf.functions:
+            self.update_function_configuration(
+                function,
+                code_package,
+                {"MY_FUNCTION_NAME": function.name},
+            )
+
     def cached_function(self, function: Function) -> None:
         """Configure a cached function instance for use.
 
@@ -3015,6 +3037,12 @@ class GCP(System):
         """
 
         envs = {}
+        if self.config.redis_host:
+            envs["REDIS_HOST"] = self.config.redis_host
+            if self.config.redis_username:
+                envs["REDIS_USERNAME"] = self.config.redis_username
+            if self.config.redis_password:
+                envs["REDIS_PASSWORD"] = self.config.redis_password
         if code_package.uses_nosql:
 
             db = (
@@ -3050,7 +3078,6 @@ class GCP(System):
         assert code_package.has_input_processed
 
         function = cast(GCPFunction, function)
-
         # Select deployment strategy
         strategy = self._strategy_for_deployment_type(function.deployment_type)
 

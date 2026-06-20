@@ -58,7 +58,7 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.experiments.config import SystemVariant
-from sebs.utils import LoggingHandlers, execute, replace_string_in_file
+from sebs.utils import LoggingHandlers, execute
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Workflow
 from sebs.faas.system import System
 from sebs.faas.config import Resources
@@ -488,23 +488,6 @@ class Azure(System):
             if not os.path.exists(init_path):
                 open(init_path, "w").close()
 
-        # Substitute Redis placeholders in handler and orchestrator files
-        redis_host = self.config.redis_host
-        redis_password = self.config.redis_password
-        redis_host_val = f'"{redis_host}"' if redis_host else "None"
-        redis_password_val = f'"{redis_password}"' if redis_password else "None"
-
-        for func_dir in func_dirs:
-            handler_path = os.path.join(func_dir, WRAPPER_FILES[language][0])
-            if os.path.exists(handler_path):
-                replace_string_in_file(handler_path, "{{REDIS_HOST}}", redis_host_val)
-                replace_string_in_file(handler_path, "{{REDIS_PASSWORD}}", redis_password_val)
-
-        run_workflow_path = os.path.join(directory, "run_workflow", "run_workflow.py")
-        if os.path.exists(run_workflow_path):
-            replace_string_in_file(run_workflow_path, "{{REDIS_HOST}}", redis_host_val)
-            replace_string_in_file(run_workflow_path, "{{REDIS_PASSWORD}}", redis_password_val)
-
         # generate host.json
         host_json = {
             "version": "2.0",
@@ -802,6 +785,12 @@ class Azure(System):
             RuntimeError: If environment variable operations fail.
         """
         envs = env_variables.copy()
+        if self.config.redis_host:
+            envs["REDIS_HOST"] = self.config.redis_host
+            if self.config.redis_username:
+                envs["REDIS_USERNAME"] = self.config.redis_username
+            if self.config.redis_password:
+                envs["REDIS_PASSWORD"] = self.config.redis_password
         if code_package.uses_nosql:
 
             nosql_storage = cast(CosmosDB, self._system_resources.get_nosql_storage())
@@ -1311,6 +1300,10 @@ class Azure(System):
             plan_name = self._ensure_high_cpu_workflow_plan(resource_group, self.config.region)
             self._ensure_function_app_plan(workflow.name, resource_group, plan_name)
         self.update_function(workflow, code_package, code_package.system_variant, None)
+
+    def refresh_workflow_configuration(self, workflow: Workflow, code_package: Benchmark) -> None:
+        if self.config.redis_host and code_package.has_input_processed:
+            self.update_envs(workflow, code_package)
 
     def download_metrics(
         self,

@@ -45,6 +45,7 @@ dependencies = [
 
     # Storage & Local
     "minio==5.0.10",
+    "redis",
 
     # AWS
     "boto3",
@@ -160,4 +161,3 @@ sebs = ["py.typed"]
 "sebs.tools" = [
     "**/*.py",
 ]
-

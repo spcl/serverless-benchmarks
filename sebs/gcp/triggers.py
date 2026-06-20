@@ -275,13 +275,23 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         )
 
         execution_client = ExecutionsClient()
-        execution = Execution(argument=json.dumps(payload))
+        request_id = payload.get("__sebs_request_id") or payload.get("__request_id") or ""
+        if not request_id:
+            import uuid
+
+            request_id = str(uuid.uuid4())[0:8]
+        workflow_input = {
+            **payload,
+            "__sebs_request_id": request_id,
+            "__request_id": request_id,
+        }
+        execution = Execution(argument=json.dumps(workflow_input))
 
         begin = datetime.datetime.now()
         res = execution_client.create_execution(parent=full_workflow_name, execution=execution)
-        end = datetime.datetime.now()
 
-        gcp_result = ExecutionResult.from_times(begin, end)
+        gcp_result = ExecutionResult()
+        gcp_result.request_id = request_id
 
         execution_finished = False
         while not execution_finished:
@@ -297,13 +307,21 @@ class WorkflowLibraryTrigger(LibraryTrigger):
 
             if not execution_finished:
                 time.sleep(10)
-            elif execution.state == Execution.State.FAILED:
+            elif execution.state != Execution.State.SUCCEEDED:
+                end = datetime.datetime.now()
+                gcp_result = ExecutionResult.from_times(begin, end)
+                gcp_result.request_id = request_id
                 self.logging.error(f"Invocation of {self.name} failed")
+                self.logging.error(f"State: {execution.state}")
                 self.logging.error(f"Input: {payload}")
-                self.logging.error(f"Error: {execution.error}")
+                if execution.error:
+                    self.logging.error(f"Error: {execution.error}")
                 gcp_result.stats.failure = True
                 return gcp_result
 
+        end = datetime.datetime.now()
+        gcp_result = ExecutionResult.from_times(begin, end)
+        gcp_result.request_id = request_id
         if execution.result:
             gcp_result.output = json.loads(execution.result)
 
