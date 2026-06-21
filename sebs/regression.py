@@ -18,17 +18,21 @@ The module supports:
 """
 
 import copy
+import csv
 import json
 import logging
 import os
+import sys
+import traceback
 import unittest
 import testtools
 import threading
-from time import sleep
+from time import sleep, time
 from typing import cast, Dict, List, Optional, Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
 from sebs.utils import ColoredWrapper, SensitiveDataFilter, LoggingBase
+from sebs.utils import connect_to_redis_cache, download_measurements
 
 if TYPE_CHECKING:
     from sebs import SeBS
@@ -112,6 +116,60 @@ benchmark_input_size: str = "test"
 RESOURCE_PREFIX = "regr"
 LOGGING_REDACTED = False
 LOGGING_REDACTOR: SensitiveDataFilter = SensitiveDataFilter()
+
+
+def write_workflow_measurements(
+    deployment_client,
+    output_dir: str,
+    workflow_name: str,
+    after: float,
+    request_id: Optional[str],
+    benchmark_name: str,
+    architecture: str,
+    deployment_type: str,
+    logging_wrapper: ColoredWrapper,
+) -> None:
+    """Download workflow Redis measurements for a regression invocation."""
+    redis_host = getattr(deployment_client.config, "redis_host", None)
+    if not redis_host:
+        return
+
+    redis_password = getattr(deployment_client.config, "redis_password", None) or None
+    redis_username = getattr(deployment_client.config, "redis_username", None) or None
+    try:
+        redis = connect_to_redis_cache(
+            redis_host, password=redis_password, username=redis_username
+        )
+        measurements = download_measurements(
+            redis,
+            workflow_name,
+            after,
+            request_id=request_id,
+            benchmark=benchmark_name,
+            architecture=architecture,
+            system_variant=deployment_type,
+            deployment=deployment_client.name(),
+        )
+    except Exception as e:
+        logging_wrapper.warning(f"Could not download Redis measurements ({e})")
+        return
+
+    if not measurements:
+        return
+
+    path = os.path.join(
+        output_dir,
+        "results",
+        workflow_name,
+        deployment_client.name() + ".csv",
+    )
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fieldnames = sorted({key for row in measurements for key in row.keys()})
+    with open(path, "w", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(measurements)
+    logging_wrapper.info(f"Saved {len(measurements)} Redis measurements to {path}")
 
 
 def configure_regression_deployment(
@@ -378,74 +436,107 @@ class WorkflowTestSequenceMeta(type):
                 deployment_client = self.get_deployment(
                     benchmark_name, architecture, deployment_type
                 )
-                deployment_client.disable_rich_output()
-
-                logging_wrapper.info(
-                    f"Begin workflow regression test of {benchmark_name} on "
-                    f"{deployment_client.name()}. "
-                    f"Architecture {architecture}, deployment type: {deployment_type}."
-                )
-
-                experiment_config = self.client.get_experiment_config(self.experiment_config)
-                benchmark = self.client.get_benchmark(
-                    benchmark_name, deployment_client, experiment_config
-                )
-
-                input_config = benchmark.prepare_input(
-                    deployment_client.system_resources,
-                    size=benchmark_input_size,
-                    replace_existing=experiment_config.update_storage,
-                )
-
-                wf = deployment_client.get_workflow(
-                    benchmark, deployment_client.default_function_name(benchmark)
-                )
-
-                trigger_type = Trigger.TriggerType.LIBRARY
-                triggers = wf.triggers(trigger_type)
-                if len(triggers) == 0:
-                    trigger = deployment_client.create_trigger(wf, trigger_type)
-                    sleep(5)
-                else:
-                    trigger = triggers[0]
-
-                failure = False
                 try:
-                    ret = trigger.sync_invoke(input_config)
-                    if ret.stats.failure:
-                        failure = True
-                        logging_wrapper.error(f"{benchmark_name} workflow execution failed")
+                    deployment_client.disable_rich_output()
+
+                    logging_wrapper.info(
+                        f"Begin workflow regression test of {benchmark_name} on "
+                        f"{deployment_client.name()}. "
+                        f"Architecture {architecture}, deployment type: {deployment_type}."
+                    )
+
+                    experiment_config = self.client.get_experiment_config(self.experiment_config)
+                    benchmark = self.client.get_benchmark(
+                        benchmark_name, deployment_client, experiment_config
+                    )
+
+                    input_config = benchmark.prepare_input(
+                        deployment_client.system_resources,
+                        size=benchmark_input_size,
+                        replace_existing=experiment_config.update_storage,
+                    )
+
+                    wf = deployment_client.get_workflow(
+                        benchmark, deployment_client.default_function_name(benchmark)
+                    )
+
+                    trigger_type = Trigger.TriggerType.LIBRARY
+                    triggers = wf.triggers(trigger_type)
+                    if len(triggers) == 0:
+                        trigger = deployment_client.create_trigger(wf, trigger_type)
+                        sleep(5)
                     else:
-                        output = ret.output
-                        storage = (
-                            deployment_client.system_resources.get_storage()
-                            if benchmark.uses_storage
-                            else None
-                        )
-                        error = benchmark.validate_output(input_config, output, storage)
-                        if error is not None:
+                        trigger = triggers[0]
+
+                    failure = False
+                    ret = None
+                    invoke_begin = time()
+                    try:
+                        ret = trigger.sync_invoke(input_config)
+                        if ret.stats.failure:
                             failure = True
-                            logging_wrapper.error(
-                                f"{benchmark_name} workflow output validation failed,"
-                                f" reason: {error}"
-                            )
+                            logging_wrapper.error(f"{benchmark_name} workflow execution failed")
                         else:
-                            logging_wrapper.info(f"{benchmark_name} workflow execution succeeded")
-                except RuntimeError:
-                    failure = True
-                    logging_wrapper.error(f"{benchmark_name} workflow invocation raised exception")
+                            output = ret.output
+                            storage = (
+                                deployment_client.system_resources.get_storage()
+                                if benchmark.uses_storage
+                                else None
+                            )
+                            error = benchmark.validate_output(input_config, output, storage)
+                            if error is not None:
+                                failure = True
+                                logging_wrapper.error(
+                                    f"{benchmark_name} workflow output validation failed,"
+                                    f" reason: {error}"
+                                )
+                            else:
+                                logging_wrapper.info(
+                                    f"{benchmark_name} workflow execution succeeded"
+                                )
+                    except Exception:
+                        failure = True
+                        logging_wrapper.error(
+                            f"{benchmark_name} workflow invocation raised exception"
+                        )
+                        logging_wrapper.error(traceback.format_exc())
 
-                json_filename = (
-                    f"regression_wf_{deployment_name}_{benchmark_name}"
-                    f"_{architecture}_{deployment_type}.json"
-                )
-                with open(os.path.join(self.client.output_dir, json_filename), "w") as f:
-                    json.dump({"output": ret.output}, f, indent=2)
+                    write_workflow_measurements(
+                        deployment_client,
+                        self.client.output_dir,
+                        wf.name,
+                        invoke_begin,
+                        ret.request_id if ret is not None else None,
+                        benchmark_name,
+                        architecture,
+                        deployment_type,
+                        logging_wrapper,
+                    )
 
-                deployment_client.shutdown()
+                    json_filename = (
+                        f"regression_wf_{deployment_name}_{benchmark_name}"
+                        f"_{architecture}_{deployment_type}.json"
+                    )
+                    with open(os.path.join(self.client.output_dir, json_filename), "w") as f:
+                        json.dump(
+                            {"output": ret.output if ret is not None else None}, f, indent=2
+                        )
 
-                if failure:
-                    raise RuntimeError(f"Workflow test of {benchmark_name} failed!")
+                    if failure:
+                        raise RuntimeError(f"Workflow test of {benchmark_name} failed!")
+                finally:
+                    primary_exception_active = sys.exc_info()[0] is not None
+                    try:
+                        deployment_client.shutdown()
+                    except Exception as shutdown_error:
+                        logging_wrapper.error(
+                            f"{benchmark_name} workflow deployment shutdown raised exception"
+                        )
+                        logging_wrapper.error(traceback.format_exc())
+                        if not primary_exception_active:
+                            raise RuntimeError(
+                                f"Workflow test of {benchmark_name} failed during shutdown!"
+                            ) from shutdown_error
 
             return test
 

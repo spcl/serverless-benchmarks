@@ -33,6 +33,7 @@ Example:
 
 import datetime
 import glob
+import hashlib
 import json
 import random
 import re
@@ -58,7 +59,7 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.experiments.config import SystemVariant
-from sebs.utils import LoggingHandlers, execute, replace_string_in_file
+from sebs.utils import LoggingHandlers, execute
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Workflow
 from sebs.faas.system import System
 from sebs.faas.config import Resources
@@ -488,22 +489,32 @@ class Azure(System):
             if not os.path.exists(init_path):
                 open(init_path, "w").close()
 
-        # Substitute Redis placeholders in handler and orchestrator files
-        redis_host = self.config.redis_host
-        redis_password = self.config.redis_password
-        redis_host_val = f'"{redis_host}"' if redis_host else "None"
-        redis_password_val = f'"{redis_password}"' if redis_password else "None"
-
-        for func_dir in func_dirs:
-            handler_path = os.path.join(func_dir, WRAPPER_FILES[language][0])
-            if os.path.exists(handler_path):
-                replace_string_in_file(handler_path, "{{REDIS_HOST}}", redis_host_val)
-                replace_string_in_file(handler_path, "{{REDIS_PASSWORD}}", redis_password_val)
-
-        run_workflow_path = os.path.join(directory, "run_workflow", "run_workflow.py")
-        if os.path.exists(run_workflow_path):
-            replace_string_in_file(run_workflow_path, "{{REDIS_HOST}}", redis_host_val)
-            replace_string_in_file(run_workflow_path, "{{REDIS_PASSWORD}}", redis_password_val)
+        task_hub_hash = hashlib.md5()
+        for root, dirs, files in os.walk(directory):
+            dirs[:] = sorted(dirs)
+            for file in sorted(files):
+                if file == "host.json" or file.endswith(".zip"):
+                    continue
+                if ".python_packages" in os.path.relpath(root, directory).split(os.sep):
+                    continue
+                if not (
+                    file.endswith(".py")
+                    or file.endswith(".json")
+                    or file == "requirements.txt"
+                ):
+                    continue
+                path = os.path.join(root, file)
+                rel_path = os.path.relpath(path, directory)
+                task_hub_hash.update(rel_path.encode("utf-8"))
+                task_hub_hash.update(b"\0")
+                with open(path, "rb") as fp:
+                    task_hub_hash.update(fp.read())
+                task_hub_hash.update(b"\0")
+        durable_task_config = {
+            "hubName": "sebs" + task_hub_hash.hexdigest()[:16],
+        }
+        if self._requires_high_cpu_workflow_plan(benchmark):
+            durable_task_config["maxConcurrentActivityFunctions"] = 1
 
         # generate host.json
         host_json = {
@@ -512,13 +523,10 @@ class Azure(System):
                 "id": "Microsoft.Azure.Functions.ExtensionBundle",
                 "version": "[2.*, 3.0.0)",
             },
+            "extensions": {
+                "durableTask": durable_task_config,
+            },
         }
-        if self._requires_high_cpu_workflow_plan(benchmark):
-            host_json["extensions"] = {
-                "durableTask": {
-                    "maxConcurrentActivityFunctions": 1,
-                }
-            }
         json.dump(host_json, open(os.path.join(directory, "host.json"), "w"), indent=2)
 
         code_size = Benchmark.directory_size(directory)
@@ -767,7 +775,11 @@ class Azure(System):
         container_dest = self._mount_function_code(code_package)
         function_url = self.publish_function(function, code_package, container_dest, True)
 
-        self._wait_for_function_ready(function_url)
+        if isinstance(function, AzureWorkflow):
+            self.logging.info("Waiting for workflow function app publish to settle...")
+            time.sleep(30)
+        else:
+            self._wait_for_function_ready(function_url)
 
         # Avoid duplication of HTTP trigger
         found_trigger = False
@@ -802,6 +814,12 @@ class Azure(System):
             RuntimeError: If environment variable operations fail.
         """
         envs = env_variables.copy()
+        if self.config.redis_host:
+            envs["REDIS_HOST"] = self.config.redis_host
+            if self.config.redis_username:
+                envs["REDIS_USERNAME"] = self.config.redis_username
+            if self.config.redis_password:
+                envs["REDIS_PASSWORD"] = self.config.redis_password
         if code_package.uses_nosql:
 
             nosql_storage = cast(CosmosDB, self._system_resources.get_nosql_storage())
@@ -1194,7 +1212,12 @@ class Azure(System):
             "Consumption function apps to Premium; redeploy with a new app name."
         )
 
-    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> AzureWorkflow:
+    def create_workflow(
+        self,
+        code_package: Benchmark,
+        workflow_name: str,
+        container_uri: str | None = None,
+    ) -> AzureWorkflow:
         """Create a new Azure Durable Functions workflow.
 
         Deploys the workflow as a single Function App containing the
@@ -1299,7 +1322,12 @@ class Azure(System):
         )
         return workflow
 
-    def update_workflow(self, workflow: Workflow, code_package: Benchmark) -> None:
+    def update_workflow(
+        self,
+        workflow: Workflow,
+        code_package: Benchmark,
+        container_uri: str | None = None,
+    ) -> None:
         """Update an existing Azure Durable Functions workflow.
 
         Args:
@@ -1311,6 +1339,12 @@ class Azure(System):
             plan_name = self._ensure_high_cpu_workflow_plan(resource_group, self.config.region)
             self._ensure_function_app_plan(workflow.name, resource_group, plan_name)
         self.update_function(workflow, code_package, code_package.system_variant, None)
+
+    def refresh_workflow_configuration(self, workflow: Workflow, code_package: Benchmark) -> bool:
+        if self.config.redis_host and code_package.has_input_processed:
+            self.update_envs(workflow, code_package)
+            return True
+        return False
 
     def download_metrics(
         self,

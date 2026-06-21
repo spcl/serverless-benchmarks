@@ -46,7 +46,10 @@ def handler(req):
         func_payload = event["payload"]
         request_id = event.get("request_id", provider_request_id)
     elif isinstance(event, dict):
-        request_id = event.pop("__request_id", provider_request_id)
+        request_id = event.pop(
+            "__sebs_request_id",
+            event.pop("__request_id", provider_request_id),
+        )
         func_payload = event
     else:
         func_payload = event
@@ -93,14 +96,16 @@ def handler(req):
 
     try:
         redis_host = os.getenv("REDIS_HOST", "")
-        redis_password = os.getenv("REDIS_PASSWORD", "")
-        if redis_host and redis_password:
+        redis_username = os.getenv("REDIS_USERNAME") or None
+        redis_password = os.getenv("REDIS_PASSWORD") or None
+        if redis_host:
             from redis import Redis
             redis_client = Redis(
                 host=redis_host,
                 port=6379,
                 decode_responses=True,
                 socket_connect_timeout=10,
+                username=redis_username,
                 password=redis_password,
             )
             key = os.path.join(workflow_name, func_name, request_id, str(uuid.uuid4())[0:8])

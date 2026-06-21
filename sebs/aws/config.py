@@ -1201,6 +1201,13 @@ class AWSConfig(Config):
         return None
 
     @property
+    def redis_username(self) -> str | None:
+        redis_cfg = getattr(self._resources, "_redis", None)
+        if redis_cfg:
+            return redis_cfg.get("username")
+        return None
+
+    @property
     def redis_password(self) -> str | None:
         redis_cfg = getattr(self._resources, "_redis", None)
         if redis_cfg:

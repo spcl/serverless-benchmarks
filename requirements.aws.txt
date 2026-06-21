@@ -1,4 +1,5 @@
 boto3
 botocore
 urllib3
+redis
 boto3-stubs[lambda,s3,apigatewayv2,sts,logs,iam,ecr]

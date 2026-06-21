@@ -184,11 +184,25 @@ class System(ABC, LoggingBase):
     def workflow_type() -> "Type[Workflow]":
         raise NotImplementedError("Workflows not supported on this platform")
 
-    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> Workflow:
+    def create_workflow(
+        self,
+        code_package: Benchmark,
+        workflow_name: str,
+        container_uri: str | None = None,
+    ) -> Workflow:
         raise NotImplementedError("Workflows not supported on this platform")
 
-    def update_workflow(self, workflow: Workflow, code_package: Benchmark):
+    def update_workflow(
+        self,
+        workflow: Workflow,
+        code_package: Benchmark,
+        container_uri: str | None = None,
+    ):
         raise NotImplementedError("Workflows not supported on this platform")
+
+    def refresh_workflow_configuration(self, workflow: Workflow, code_package: Benchmark) -> bool:
+        """Refresh runtime configuration for a cached workflow."""
+        return False
 
     def get_workflow(
         self, code_package: Benchmark, workflow_name: Optional[str] = None
@@ -206,7 +220,7 @@ class System(ABC, LoggingBase):
             self.logging.info(
                 f"Creating new workflow! Reason: workflow {workflow_name} not found in cache."
             )
-            workflow = self.create_workflow(code_package, workflow_name)
+            workflow = self.create_workflow(code_package, workflow_name, container_uri)
             self.cache_client.add_function(
                 deployment_name=self.name(),
                 language_name=code_package.language_name,
@@ -227,7 +241,7 @@ class System(ABC, LoggingBase):
                 f"{workflow.code_package_hash} is not up to date with "
                 f"current build {code_package.hash}, updating!"
             )
-            self.update_workflow(workflow, code_package)
+            self.update_workflow(workflow, code_package, container_uri)
             workflow.code_package_hash = code_package.hash
             workflow.updated_code = True
             self.cache_client.add_function(
@@ -237,6 +251,10 @@ class System(ABC, LoggingBase):
                 function=workflow,
             )
             code_package.query_cache()
+        else:
+            if self.refresh_workflow_configuration(workflow, code_package):
+                self.cache_client.update_function(workflow)
+                code_package.query_cache()
 
         return workflow
 

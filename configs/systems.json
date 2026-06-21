@@ -316,7 +316,9 @@
             "nosql.py",
             "setup.py"
           ],
-          "packages": [],
+          "packages": [
+            "redis"
+          ],
           "module_packages": {
             "storage": [
               "google-cloud-storage==3.10.1"

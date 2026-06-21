@@ -9,9 +9,6 @@ import importlib
 # Add current directory to allow location of packages
 sys.path.append(os.path.join(os.path.dirname(__file__), ".python_packages/lib/site-packages"))
 
-from redis import Redis
-
-
 def probe_cold_start():
     is_cold = False
     fname = os.path.join("/tmp", "cold_run")
@@ -75,16 +72,23 @@ def handler(event, context):
     measurement_json = json.dumps(measurement)
 
     try:
-        redis = Redis(
-            host={{REDIS_HOST}},
-            port=6379,
-            decode_responses=True,
-            socket_connect_timeout=10,
-            password={{REDIS_PASSWORD}},
-        )
+        redis_host = os.getenv("REDIS_HOST", "")
+        redis_username = os.getenv("REDIS_USERNAME") or None
+        redis_password = os.getenv("REDIS_PASSWORD") or None
+        if redis_host:
+            from redis import Redis
 
-        key = os.path.join(workflow_name, func_name, request_id, str(uuid.uuid4())[0:8])
-        redis.set(key, measurement_json)
+            redis = Redis(
+                host=redis_host,
+                port=6379,
+                decode_responses=True,
+                socket_connect_timeout=10,
+                username=redis_username,
+                password=redis_password,
+            )
+
+            key = os.path.join(workflow_name, func_name, request_id, str(uuid.uuid4())[0:8])
+            redis.set(key, measurement_json)
     except Exception:
         pass
 

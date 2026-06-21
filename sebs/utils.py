@@ -805,15 +805,26 @@ def replace_string_in_file(path: str, from_str: str, to_str: str):
         f.write(data)
 
 
-def connect_to_redis_cache(host: str):
+def connect_to_redis_cache(
+    host: str, password: str | None = None, username: str | None = None
+):
     from redis import Redis
 
-    redis = Redis(host=host, port=6379, decode_responses=True, socket_connect_timeout=10)
+    redis = Redis(
+        host=host,
+        port=6379,
+        decode_responses=True,
+        socket_connect_timeout=10,
+        username=username,
+        password=password,
+    )
     redis.ping()
     return redis
 
 
-def download_measurements(redis, workflow_name: str, after: float, **static_args):
+def download_measurements(
+    redis, workflow_name: str, after: float, request_id: str | None = None, **static_args
+):
     payloads = []
     for key in redis.scan_iter(match=f"{workflow_name}/*"):
         payload = redis.get(key)
@@ -822,6 +833,9 @@ def download_measurements(redis, workflow_name: str, after: float, **static_args
             try:
                 payload = json.loads(payload)
                 if payload["start"] > after:
+                    if request_id:
+                        payload["workflow.request_id"] = request_id
+                        payload["workflow.request_id_match"] = f"/{request_id}/" in key
                     payload = {**payload, **static_args}
                     payloads.append(payload)
             except json.decoder.JSONDecodeError:

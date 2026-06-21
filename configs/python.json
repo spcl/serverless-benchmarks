@@ -56,17 +56,36 @@
       "region": "us-east-1",
       "lambda-role": "",
       "resources": {
+        "redis": {
+          "host": "",
+          "username": "",
+          "password": ""
+        },
         "use-function-url": true,
         "function-url-auth-type": "NONE"
       }
     },
     "azure": {
-      "region": "westeurope"
+      "region": "westeurope",
+      "resources": {
+        "redis": {
+          "host": "",
+          "username": "",
+          "password": ""
+        }
+      }
     },
     "gcp": {
       "region": "europe-west1",
       "project_name": "",
       "credentials": "",
+      "resources": {
+        "redis": {
+          "host": "",
+          "username": "",
+          "password": ""
+        }
+      },
       "configuration": {
         "function-gen1": {
           "min-instances": 0,

@@ -233,8 +233,9 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         aws_result = ExecutionResult.from_times(begin, end)
         aws_result.request_id = request_id
 
-        if status == "FAILED":
+        if status != "SUCCEEDED":
             self.logging.error(f"Invocation of {self.name} failed")
+            self.logging.error(f"Status: {status}")
             self.logging.error(f"Input: {payload}")
             aws_result.stats.failure = True
             return aws_result

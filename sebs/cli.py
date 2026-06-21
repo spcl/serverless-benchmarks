@@ -377,7 +377,7 @@ def invoke(
 @click.option(
     "--trigger",
     type=click.Choice(["library", "http"]),
-    default="http",
+    default="library",
     help="Workflow trigger to be used.",
 )
 @click.option(
@@ -416,10 +416,14 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
     )
 
     redis_host = getattr(deployment_client.config, "redis_host", None)
+    redis_username = getattr(deployment_client.config, "redis_username", None) or None
+    redis_password = getattr(deployment_client.config, "redis_password", None) or None
     redis = None
     if redis_host:
         try:
-            redis = connect_to_redis_cache(redis_host)
+            redis = connect_to_redis_cache(
+                redis_host, password=redis_password, username=redis_username
+            )
         except Exception as e:
             sebs_client.logging.warning(f"Could not connect to Redis ({e}), skipping measurements")
 
@@ -441,7 +445,9 @@ def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_nam
             sebs_client.logging.info(f"Failure on repetition {i + 1}/{repetitions}")
 
         if redis:
-            measurements += download_measurements(redis, wf.name, result.begin_time, rep=i)
+            measurements += download_measurements(
+                redis, wf.name, result.begin_time, request_id=ret.request_id, rep=i
+            )
         result.add_invocation(wf, ret)
     result.end()
 

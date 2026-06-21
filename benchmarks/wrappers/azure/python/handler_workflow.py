@@ -8,7 +8,6 @@ import importlib
 import logging
 
 import azure.functions as func
-from redis import Redis
 
 SEBS_USER_AGENT = "SeBS/1.2 (https://github.com/spcl/serverless-benchmarks) SeBS Benchmark Suite/1.2"
 
@@ -113,13 +112,17 @@ def main(event, context: func.Context):
 
     payload = json.dumps(payload)
 
-    redis_host = {{REDIS_HOST}}
-    redis_password = {{REDIS_PASSWORD}}
+    redis_host = os.getenv("REDIS_HOST", "")
+    redis_username = os.getenv("REDIS_USERNAME") or None
+    redis_password = os.getenv("REDIS_PASSWORD") or None
     if redis_host:
+        from redis import Redis
+
         redis = Redis(host=redis_host,
               port=6379,
               decode_responses=True,
               socket_connect_timeout=10,
+              username=redis_username,
               password=redis_password)
 
         req_id = event["request_id"]

@@ -355,6 +355,13 @@ class AzureResources(Resources):
         return None
 
     @property
+    def redis_username(self) -> Optional[str]:
+        """Get Redis username for workflow measurements."""
+        if self._redis:
+            return self._redis.get("username")
+        return None
+
+    @property
     def redis_password(self) -> Optional[str]:
         """Get Redis password for workflow measurements."""
         if self._redis:
@@ -768,6 +775,8 @@ class AzureResources(Resources):
         if cached_config and "resources" in cached_config and len(cached_config["resources"]) > 0:
             logging.info("Using cached resources for Azure")
             AzureResources.initialize(ret, cached_config["resources"])
+            if "resources" in config and "redis" in config["resources"]:
+                ret._redis = config["resources"]["redis"]
         else:
             # Check for new config
             if "resources" in config:
@@ -825,6 +834,11 @@ class AzureConfig(Config):
     def redis_host(self) -> Optional[str]:
         """Get Redis host for workflow measurements."""
         return self._resources.redis_host
+
+    @property
+    def redis_username(self) -> Optional[str]:
+        """Get Redis username for workflow measurements."""
+        return self._resources.redis_username
 
     @property
     def redis_password(self) -> Optional[str]:

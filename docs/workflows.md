@@ -10,12 +10,13 @@ docker run --network=host --name redis -d redis redis-server --save 60 1 --logle
 
 ### Usage
 
-To execute a workflow, the host address and password of the redis instance must be given as part of the config file for the respective platform:
+To execute a workflow, the host address and credentials of the redis instance must be given as part of the config file for the respective platform:
 
 ```json
 "resources": {
   "redis": {
-    "host": "1.1.1.1",
+    "host": "redis.example.com",
+    "username": "",
     "password": "yourpassword"
   }
 }
