@@ -1,10 +1,8 @@
 import json
 import sys
 import os
-import uuid
 import operator
 import logging
-import datetime
 import copy
 
 import azure.durable_functions as df
@@ -33,12 +31,13 @@ def set_var(obj, val, path: str):
         obj = obj[n]
     obj[names[-1]] = val
 
-def handler(context: df.DurableOrchestrationContext):
-    start = datetime.datetime.now().timestamp()
-    ts = start
-    now = lambda: datetime.datetime.now().timestamp()
-    duration = 0
 
+def child_instance_id(parent_instance_id: str, state_name: str, index: int, ordinal: int):
+    safe_state = "".join(c if c.isalnum() or c in "-_" else "-" for c in state_name)
+    return f"{parent_instance_id}-{ordinal}-{safe_state}-{index}"
+
+
+def handler(context: df.DurableOrchestrationContext):
     with open("definition.json") as f:
         definition = json.load(f)
 
@@ -50,14 +49,14 @@ def handler(context: df.DurableOrchestrationContext):
     logging.info("START")
     res = input["payload"]
     request_id = input["request_id"]
+    parent_instance_id = getattr(context, "instance_id", request_id)
+    child_ordinal = 0
 
     while current:
         logging.info(current.name)
 
         if isinstance(current, Task):
             input = {"payload": res, "request_id": request_id}
-
-            duration += (now() - ts)
 
             if current.failure is None:
                 res = yield context.call_activity(current.func_name, input)
@@ -68,8 +67,6 @@ def handler(context: df.DurableOrchestrationContext):
                     current = states.get(current.next, None)
                 except:
                     current = states.get(current.failure, None)
-
-            ts = now()
 
         elif isinstance(current, Switch):
             ops = {
@@ -101,7 +98,7 @@ def handler(context: df.DurableOrchestrationContext):
             if first_state.next:
                 #call suborchestrator - each map task should proceed with next step directly after it finished.
                 if current.common_params:
-                    for elem in array:
+                    for idx, elem in enumerate(array):
                         payload = {}
                         payload["array_element"] = elem
                         params = current.common_params.split(",")
@@ -111,17 +108,31 @@ def handler(context: df.DurableOrchestrationContext):
                         myinput["root"] = current.root
 
                         myinput["states"] = current.funcs
-                        uuid_name = str(uuid.uuid4())[0:4]
-                        parallel_task = context.call_sub_orchestrator("run_subworkflow", myinput, uuid_name)
+                        instance_id = child_instance_id(
+                            parent_instance_id, current.name, idx, child_ordinal
+                        )
+                        child_ordinal += 1
+                        parallel_task = context.call_sub_orchestrator(
+                            "run_subworkflow",
+                            myinput,
+                            instance_id,
+                        )
                         tasks.append(parallel_task)
                 else:    
-                    for elem in array:
+                    for idx, elem in enumerate(array):
                         myinput = {"payload": elem, "request_id": request_id}
                         myinput["root"] = current.root
                         myinput["states"] = current.funcs
                         
-                        uuid_name = str(uuid.uuid4())[0:4]
-                        parallel_task = context.call_sub_orchestrator("run_subworkflow", myinput, uuid_name)
+                        instance_id = child_instance_id(
+                            parent_instance_id, current.name, idx, child_ordinal
+                        )
+                        child_ordinal += 1
+                        parallel_task = context.call_sub_orchestrator(
+                            "run_subworkflow",
+                            myinput,
+                            instance_id,
+                        )
                         tasks.append(parallel_task)
             else:
                 if current.common_params:
@@ -139,9 +150,7 @@ def handler(context: df.DurableOrchestrationContext):
                         myinput = {"payload": elem, "request_id": request_id}
                         tasks.append(context.call_activity(first_state.func_name, myinput))
 
-            duration += (now() - ts)
             map_res = yield context.task_all(tasks)
-            ts = now()
 
             set_var(res, map_res, current.array)
             current = states.get(current.next, None)
@@ -149,9 +158,7 @@ def handler(context: df.DurableOrchestrationContext):
             for i in range(current.count):
                 input = {"payload": res, "request_id": request_id}
 
-                duration += (now() - ts)
                 res = yield context.call_activity(current.func_name, input)
-                ts = now()
 
             current = states.get(current.next, None)
         elif isinstance(current, Loop):
@@ -159,9 +166,7 @@ def handler(context: df.DurableOrchestrationContext):
             for elem in array:
                 input = {"payload": elem, "request_id": request_id}
 
-                duration += (now() - ts)
                 yield context.call_activity(current.func_name, input)
-                ts = now()
 
             current = states.get(current.next, None)
 
@@ -169,7 +174,7 @@ def handler(context: df.DurableOrchestrationContext):
             parallel_tasks = []
             first_states = []
             state_to_result = {}
-            for subworkflow in current.funcs:
+            for i, subworkflow in enumerate(current.funcs):
                 parallel_states = {n: State.deserialize(n, s) for n, s in subworkflow["states"].items()}
                 
                 first_state = parallel_states[subworkflow["root"]]
@@ -183,7 +188,15 @@ def handler(context: df.DurableOrchestrationContext):
                     if first_state.next:
                         input["root"] = subworkflow["root"]
                         input["states"] = subworkflow["states"] #parallel_states
-                        parallel_task = context.call_sub_orchestrator("run_subworkflow", input)
+                        instance_id = child_instance_id(
+                            parent_instance_id, f"{current.name}-{i}", 0, child_ordinal
+                        )
+                        child_ordinal += 1
+                        parallel_task = context.call_sub_orchestrator(
+                            "run_subworkflow",
+                            input,
+                            instance_id,
+                        )
                         parallel_tasks.append(parallel_task)
                     else:
                         parallel_tasks.append(context.call_activity(first_state.func_name, input))
@@ -196,7 +209,7 @@ def handler(context: df.DurableOrchestrationContext):
                         #call suborchestrator.
                         if first_state.common_params:
                             #assemble input differently
-                            for elem in array:
+                            for elem_idx, elem in enumerate(array):
                                 payload = {}
                                 payload["array_element"] = elem
                                 params = first_state.common_params.split(",")
@@ -205,16 +218,38 @@ def handler(context: df.DurableOrchestrationContext):
                                 myinput = {"payload": payload, "request_id": request_id}
                                 myinput["root"] = subworkflow["root"]
                                 myinput["states"] = subworkflow["states"]
-                                parallel_task = context.call_sub_orchestrator("run_subworkflow", myinput)
+                                instance_id = child_instance_id(
+                                    parent_instance_id,
+                                    f"{current.name}-{i}",
+                                    elem_idx,
+                                    child_ordinal,
+                                )
+                                child_ordinal += 1
+                                parallel_task = context.call_sub_orchestrator(
+                                    "run_subworkflow",
+                                    myinput,
+                                    instance_id,
+                                )
                                 parallel_tasks.append(parallel_task)
                                 state_to_result[first_state.func_name].append(len(parallel_tasks)-1)
                         else:    
-                            for elem in array:
+                            for elem_idx, elem in enumerate(array):
                                 myinput = {"payload": elem, "request_id": request_id}
                                 
                                 myinput["root"] = subworkflow["root"]
                                 myinput["states"] = subworkflow["states"]
-                                parallel_task = context.call_sub_orchestrator("run_subworkflow", myinput)
+                                instance_id = child_instance_id(
+                                    parent_instance_id,
+                                    f"{current.name}-{i}",
+                                    elem_idx,
+                                    child_ordinal,
+                                )
+                                child_ordinal += 1
+                                parallel_task = context.call_sub_orchestrator(
+                                    "run_subworkflow",
+                                    myinput,
+                                    instance_id,
+                                )
                                 parallel_tasks.append(parallel_task)
                                 state_to_result[first_state.func_name].append(len(parallel_tasks)-1)
                     else: 
@@ -235,9 +270,7 @@ def handler(context: df.DurableOrchestrationContext):
                                 parallel_tasks.append(context.call_activity(first_state.func_name, myinput))
                                 state_to_result[first_state.func_name].append(len(parallel_tasks)-1)
                     
-            duration += (now() - ts)
             map_res = yield context.task_all(parallel_tasks)
-            ts = now()
             base_res = res
             res = {}
 
@@ -268,33 +301,6 @@ def handler(context: df.DurableOrchestrationContext):
 
         else:
             raise ValueError(f"Undefined state: {current}")
-
-    workflow_name = os.getenv("APPSETTING_WEBSITE_SITE_NAME")
-    func_name = "run_workflow"
-
-    payload = {
-        "func": func_name,
-        "start": start,
-        "end": start+duration
-    }
-
-    payload = json.dumps(payload)
-
-    redis_host = os.getenv("REDIS_HOST", "")
-    redis_username = os.getenv("REDIS_USERNAME") or None
-    redis_password = os.getenv("REDIS_PASSWORD") or None
-    if redis_host:
-        from redis import Redis
-
-        redis = Redis(host=redis_host,
-              port=6379,
-              decode_responses=True,
-              socket_connect_timeout=10,
-              username=redis_username,
-              password=redis_password)
-
-        key = os.path.join(workflow_name, func_name, request_id, str(uuid.uuid4())[0:8])
-        redis.set(key, payload)
 
     return res
 
