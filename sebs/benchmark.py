@@ -791,6 +791,10 @@ class Benchmark(LoggingBase):
                 path = os.path.join(directory, f)
                 with open(path, "rb") as opened_file:
                     hash_sum.update(opened_file.read())
+        workflow_definition = os.path.join(os.path.dirname(directory), "definition.json")
+        if os.path.isfile(workflow_definition):
+            with open(workflow_definition, "rb") as opened_file:
+                hash_sum.update(opened_file.read())
         # Include variant overlay files (or patch) in the hash so that a
         # change to the variant directory invalidates the cached package.
         if variant != "default":
