@@ -1732,9 +1732,9 @@ class Cloudflare(System):
             Path to the generated wrangler.toml.
         """
         try:
-            import tomllib
+            import tomllib  # type: ignore[import-not-found]  # Python 3.11+
         except ImportError:
-            import tomli as tomllib  # type: ignore[no-redef]
+            import tomli as tomllib  # type: ignore[no-redef, import-not-found]
         try:
             import tomli_w
         except ImportError:
