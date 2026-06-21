@@ -27,7 +27,7 @@ import json
 import time
 from datetime import datetime
 from io import BytesIO
-from typing import Any, Dict, Optional  # noqa
+from typing import Any, cast, Dict, Optional  # noqa
 
 from sebs.azure.config import AzureResources
 from sebs.faas.function import ExecutionResult, Trigger
@@ -198,18 +198,20 @@ class WorkflowHTTPTrigger(HTTPTrigger):
 
         end = datetime.now()
         result = ExecutionResult.from_times(begin, end)
-        result.times.http_startup = conn_time
-        result.times.http_first_byte_return = receive_time
+        cast(Any, result.times).http_startup = conn_time
+        cast(Any, result.times).http_first_byte_return = receive_time
         result.request_id = envelope.get("request_id", "")
 
         parsed_output = dict(envelope)
         parsed_output["result"] = workflow_result
         parsed_output["end"] = f"{end.timestamp():.6f}"
         result.parse_benchmark_output(parsed_output)
-        result.output = workflow_result
+        result.output = cast(dict, workflow_result)
         return result
 
-    def _http_post_json(self, url: str, payload: dict, timeout: int) -> tuple[int, bytes, float, float]:
+    def _http_post_json(
+        self, url: str, payload: dict, timeout: int
+    ) -> tuple[int, bytes, float, float]:
         """POST JSON and return status, body, connection time, and first-byte time."""
         import pycurl
 

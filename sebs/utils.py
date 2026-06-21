@@ -798,6 +798,7 @@ def ensure_benchmarks_data(logger: ColoredWrapper) -> Path:
 
 
 def replace_string_in_file(path: str, from_str: str, to_str: str):
+    """Replace all occurrences of a string in a text file."""
     with open(path, "rt") as f:
         data = f.read()
     data = data.replace(from_str, to_str)
@@ -805,9 +806,8 @@ def replace_string_in_file(path: str, from_str: str, to_str: str):
         f.write(data)
 
 
-def connect_to_redis_cache(
-    host: str, password: str | None = None, username: str | None = None
-):
+def connect_to_redis_cache(host: str, password: str | None = None, username: str | None = None):
+    """Create and validate a Redis connection for measurement collection."""
     from redis import Redis
 
     redis = Redis(
@@ -825,6 +825,7 @@ def connect_to_redis_cache(
 def download_measurements(
     redis, workflow_name: str, after: float, request_id: str | None = None, **static_args
 ):
+    """Download recent workflow measurement payloads from Redis."""
     payloads = []
     for key in redis.scan_iter(match=f"{workflow_name}/*"):
         payload = redis.get(key)

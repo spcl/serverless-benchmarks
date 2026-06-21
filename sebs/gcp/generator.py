@@ -1,10 +1,14 @@
+"""GCP Workflows generator for SeBS workflow definitions."""
+
 import uuid
-from typing import Dict, Union, List, Optional, Set, Tuple
+from typing import Dict, Union, List, Set, Tuple
 
 from sebs.faas.fsm import Generator, State, Task, Switch, Map, Parallel, Repeat, Loop, Branch
 
 
 class GCPGenerator(Generator):
+    """Generate GCP Workflows definitions from SeBS workflow FSMs."""
+
     def __init__(
         self,
         workflow_name: str,
@@ -27,6 +31,7 @@ class GCPGenerator(Generator):
         self._ordered_states: List[State] = []
 
     def postprocess(self, payloads: List[dict]) -> dict:
+        """Wrap encoded steps in a GCP Workflows main definition."""
         payloads.append({"final": {"return": "${res}"}})
 
         definition = {"main": {"params": ["res"], "steps": payloads}}
@@ -69,6 +74,7 @@ class GCPGenerator(Generator):
         return ordered
 
     def generate(self) -> str:
+        """Generate a serialized GCP Workflows definition."""
         self._ordered_states = self._topological_order()
         terminal_names = self._find_terminal_state_names()
 
@@ -76,7 +82,6 @@ class GCPGenerator(Generator):
         for s in self._ordered_states:
             obj = self.encode_state(s)
             if isinstance(obj, dict):
-                encoded_name = list(obj.keys())[0]
                 payloads.append(obj)
                 # Add explicit jump to final for terminal states that aren't last
                 if s.name in terminal_names and self._ordered_states[-1].name != s.name:
@@ -102,6 +107,7 @@ class GCPGenerator(Generator):
         return terminals
 
     def encode_task(self, state: Task) -> Union[dict, List[dict]]:
+        """Encode a task state as an HTTP call step."""
         url = self._func_triggers[state.func_name]
 
         if state.failure:
@@ -141,6 +147,7 @@ class GCPGenerator(Generator):
             return plain_steps
 
     def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
+        """Encode a switch state as a GCP Workflows switch step."""
         return {
             state.name: {
                 "switch": [self._encode_case(c) for c in state.cases],
@@ -149,6 +156,7 @@ class GCPGenerator(Generator):
         }
 
     def _encode_case(self, case: Switch.Case) -> dict:
+        """Encode a switch case into a GCP Workflows condition."""
         cond = "res." + case.var + " " + case.op + " " + str(case.val)
         return {"condition": "${" + cond + "}", "next": case.next}
 
@@ -188,20 +196,22 @@ class GCPGenerator(Generator):
             for p in state.common_params:
                 temp_dict[p] = "${" + res_var + "." + p + "}"
 
-            inner_steps = [
+            inner_steps: List[dict] = [
                 {"build_" + enrich_id: {"assign": [{temp_var: temp_dict}]}},
                 {
-                    "append_" + enrich_id: {
+                    "append_"
+                    + enrich_id: {
                         "assign": [
                             {enriched_var: "${list.concat(" + enriched_var + ", " + temp_var + ")}"}
                         ]
                     }
                 },
             ]
-            enrich_steps = [
+            enrich_steps: List[dict] = [
                 {"init_" + enrich_id: {"assign": [{enriched_var: []}]}},
                 {
-                    "loop_" + enrich_id: {
+                    "loop_"
+                    + enrich_id: {
                         "for": {
                             "value": "elem",
                             "in": "${" + res_var + "." + state.array + "}",
@@ -210,30 +220,32 @@ class GCPGenerator(Generator):
                     }
                 },
             ]
-            call_step = {
+            call_step: dict = {
                 state.name: {
                     "call": "experimental.executions.map",
                     "args": {"workflow_id": id, "arguments": "${" + enriched_var + "}"},
                     "result": map_res_var,
                 }
             }
-            return_steps = [*enrich_steps, call_step]
+            return_steps: List[dict] = enrich_steps + [call_step]
         else:
             call_step = {
                 state.name: {
                     "call": "experimental.executions.map",
-                    "args": {"workflow_id": id, "arguments": "${" + res_var + "." + state.array + "}"},
+                    "args": {
+                        "workflow_id": id,
+                        "arguments": "${" + res_var + "." + state.array + "}",
+                    },
                     "result": map_res_var,
                 }
             }
             return_steps = [call_step]
         # Update only the array key; all other context fields are preserved.
-        assign_step = {
-            "assign_res_" + state.name: {
-                "assign": [{res_var + "." + state.array: "${" + map_res_var + "}"}]
-            }
+        assign_step: dict = {
+            "assign_res_"
+            + state.name: {"assign": [{res_var + "." + state.array: "${" + map_res_var + "}"}]}
         }
-        steps = return_steps + [assign_step]
+        steps: List[dict] = return_steps + [assign_step]
         if state.next:
             steps.append({"next_" + state.name: {"next": state.next}})
         return steps
@@ -281,8 +293,25 @@ class GCPGenerator(Generator):
         for s in ordered:
             if isinstance(s, Task):
                 url = self._func_triggers[s.func_name]
-                steps.append({s.name: {"call": "http.post", "args": {"url": url, "body": "${" + shared_var + "}", "timeout": self._func_timeout}, "result": shared_var}})
-                steps.append({"assign_res_" + s.name: {"assign": [{shared_var: "${" + shared_var + ".body}"}]}})
+                steps.append(
+                    {
+                        s.name: {
+                            "call": "http.post",
+                            "args": {
+                                "url": url,
+                                "body": "${" + shared_var + "}",
+                                "timeout": self._func_timeout,
+                            },
+                            "result": shared_var,
+                        }
+                    }
+                )
+                steps.append(
+                    {
+                        "assign_res_"
+                        + s.name: {"assign": [{shared_var: "${" + shared_var + ".body}"}]}
+                    }
+                )
             elif isinstance(s, Map):
                 # Pass shared_var directly so encode_map reads/writes that variable
                 # instead of the global "res".  This avoids cross-branch interference
@@ -342,18 +371,17 @@ class GCPGenerator(Generator):
             }
         }
         # Merge: build a single dict keyed by branch root name using YAML dict syntax.
-        merged_dict = {branch.root: "${" + var + "}" for var, branch in zip(shared_vars, state.branches)}
-        merge_step = {
-            "merge_" + state.name: {
-                "assign": [{"res": merged_dict}]
-            }
+        merged_dict = {
+            branch.root: "${" + var + "}" for var, branch in zip(shared_vars, state.branches)
         }
+        merge_step = {"merge_" + state.name: {"assign": [{"res": merged_dict}]}}
         steps: List[dict] = [init_step, parallel_step, merge_step]
         if state.next:
             steps.append({"next_" + state.name: {"next": state.next}})
         return steps
 
     def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
+        """Encode a loop state as a GCP Workflows for step."""
         url = self._func_triggers[state.func_name]
 
         return {
@@ -361,20 +389,25 @@ class GCPGenerator(Generator):
                 "for": {
                     "value": "val",
                     "index": "idx",
-                    "in": "${res."+state.array+"}",
+                    "in": "${res." + state.array + "}",
                     "steps": [
                         {
                             "body": {
                                 "call": "http.post",
-                                "args": {"url": url, "body": "${val}", "timeout": self._func_timeout}
+                                "args": {
+                                    "url": url,
+                                    "body": "${val}",
+                                    "timeout": self._func_timeout,
+                                },
                             }
                         }
-                    ]
+                    ],
                 }
             }
         }
 
     def generate_maps(self):
+        """Generate auxiliary map sub-workflow definitions."""
         for workflow_id, (url, common_params) in self._map_funcs.items():
             yield (
                 workflow_id,
@@ -386,7 +419,11 @@ class GCPGenerator(Generator):
                                 {
                                     "map": {
                                         "call": "http.post",
-                                        "args": {"url": url, "body": "${elem}", "timeout": self._func_timeout},
+                                        "args": {
+                                            "url": url,
+                                            "body": "${elem}",
+                                            "timeout": self._func_timeout,
+                                        },
                                         "result": "elem",
                                     }
                                 },

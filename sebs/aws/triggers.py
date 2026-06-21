@@ -209,13 +209,16 @@ class LibraryTrigger(Trigger):
 
 
 class WorkflowLibraryTrigger(LibraryTrigger):
+    """AWS Step Functions trigger using the library client."""
+
     def sync_invoke(self, payload: dict) -> ExecutionResult:
+        """Synchronously start and wait for a Step Functions execution."""
         self.logging.debug(f"Invoke workflow {self.name}")
 
         request_id = str(uuid.uuid4())[0:8]
         sfn_input = {**payload, "__sebs_request_id": request_id}
 
-        client = self._deployment_client.get_sfn_client()
+        client = self.deployment_client.get_sfn_client()
         begin = datetime.datetime.now()
         ret = client.start_execution(stateMachineArn=self.name, input=json.dumps(sfn_input))
         execution_arn = ret["executionArn"]
@@ -247,21 +250,26 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         return aws_result
 
     def async_invoke(self, payload: dict):
+        """Reject asynchronous workflow invocation."""
         raise NotImplementedError("Async invocation is not implemented for workflows")
 
     @staticmethod
     def typename() -> str:
+        """Get the trigger type name."""
         return "AWS.WorkflowLibraryTrigger"
 
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
+        """Get the trigger kind."""
         return Trigger.TriggerType.LIBRARY
 
     def serialize(self) -> dict:
+        """Serialize this workflow trigger for the cache."""
         return {"type": "Library", "name": self.name}
 
     @staticmethod
     def deserialize(obj: dict) -> "WorkflowLibraryTrigger":
+        """Deserialize a cached workflow trigger."""
         return WorkflowLibraryTrigger(obj["name"])
 
 

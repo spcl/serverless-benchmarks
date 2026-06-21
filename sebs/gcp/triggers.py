@@ -264,12 +264,15 @@ class LibraryTrigger(Trigger):
 
 
 class WorkflowLibraryTrigger(LibraryTrigger):
+    """GCP Workflows trigger using the Workflows executions client."""
+
     def sync_invoke(self, payload: dict) -> ExecutionResult:
+        """Synchronously create and wait for a GCP Workflow execution."""
         from google.cloud.workflows.executions_v1 import ExecutionsClient, Execution
 
         self.logging.info(f"Invoke workflow {self.name}")
 
-        config = self._deployment_client.config
+        config = self.deployment_client.config
         full_workflow_name = (
             f"projects/{config.project_name}/locations/{config.region}/workflows/{self.name}"
         )
@@ -328,21 +331,26 @@ class WorkflowLibraryTrigger(LibraryTrigger):
         return gcp_result
 
     def async_invoke(self, payload: dict):
+        """Reject asynchronous workflow invocation."""
         raise NotImplementedError("Async invocation is not implemented for workflows")
 
     @staticmethod
     def typename() -> str:
+        """Get the trigger type name."""
         return "GCP.WorkflowLibraryTrigger"
 
     @staticmethod
     def trigger_type() -> Trigger.TriggerType:
+        """Get the trigger kind."""
         return Trigger.TriggerType.LIBRARY
 
     def serialize(self) -> dict:
+        """Serialize this workflow trigger for the cache."""
         return {"type": "Library", "name": self.name}
 
     @staticmethod
     def deserialize(obj: dict) -> "WorkflowLibraryTrigger":
+        """Deserialize a cached workflow trigger."""
         return WorkflowLibraryTrigger(obj["name"])
 
 

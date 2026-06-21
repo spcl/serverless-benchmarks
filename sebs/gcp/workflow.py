@@ -1,11 +1,16 @@
+"""GCP Workflows deployment model for SeBS."""
+
 from typing import List, cast, Optional
 
+from sebs.faas.config import Resources
 from sebs.faas.function import FunctionConfig, Workflow
 from sebs.gcp.function import GCPFunction
 from sebs.gcp.storage import GCPStorage
 
 
 class GCPWorkflow(Workflow):
+    """Workflow deployed as a GCP Workflows resource."""
+
     def __init__(
         self,
         name: str,
@@ -15,15 +20,18 @@ class GCPWorkflow(Workflow):
         cfg: FunctionConfig,
         bucket: Optional[str] = None,
     ):
+        """Create a GCP workflow object."""
         super().__init__(benchmark, name, code_package_hash, cfg)
         self.functions = functions
         self.bucket = bucket
 
     @staticmethod
     def typename() -> str:
+        """Get the serialized workflow type name."""
         return "GCP.GCPWorkflow"
 
     def serialize(self) -> dict:
+        """Serialize the workflow and child Cloud Functions."""
         return {
             **super().serialize(),
             "functions": [f.serialize() for f in self.functions],
@@ -32,6 +40,7 @@ class GCPWorkflow(Workflow):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "GCPWorkflow":
+        """Deserialize a cached GCP workflow."""
         from sebs.faas.function import Trigger
         from sebs.gcp.triggers import WorkflowLibraryTrigger, HTTPTrigger
 
@@ -54,7 +63,8 @@ class GCPWorkflow(Workflow):
             ret.add_trigger(trigger_type.deserialize(trigger))
         return ret
 
-    def code_bucket(self, benchmark: str, storage_client: GCPStorage):
+    def code_bucket(self, benchmark: str, storage_client: GCPStorage) -> str:
+        """Get or create the deployment bucket for workflow child code."""
         if not self.bucket:
-            self.bucket, idx = storage_client.add_input_bucket(benchmark)
+            self.bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
         return self.bucket

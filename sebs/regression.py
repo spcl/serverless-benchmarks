@@ -137,9 +137,7 @@ def write_workflow_measurements(
     redis_password = getattr(deployment_client.config, "redis_password", None) or None
     redis_username = getattr(deployment_client.config, "redis_username", None) or None
     try:
-        redis = connect_to_redis_cache(
-            redis_host, password=redis_password, username=redis_username
-        )
+        redis = connect_to_redis_cache(redis_host, password=redis_password, username=redis_username)
         measurements = download_measurements(
             redis,
             workflow_name,
@@ -416,12 +414,18 @@ class WorkflowTestSequenceMeta(type):
     """
 
     def __init__(cls, name, bases, attrs, benchmarks, architectures, deployments, deployment_name):
+        """Record workflow deployment metadata on the generated test class."""
         type.__init__(cls, name, bases, attrs)
         cls.deployment_name = deployment_name
 
     def __new__(mcs, name, bases, dict, benchmarks, architectures, deployments, deployment_name):
+        """Create workflow regression test methods for every benchmark variant."""
+
         def gen_test(benchmark_name, architecture, deployment_type):
+            """Build one workflow regression test method."""
+
             def test(self):
+                """Execute one workflow regression benchmark."""
                 log_name = f"Regression-WF-{deployment_name}-{benchmark_name}-{deployment_type}"
                 logger = logging.getLogger(log_name)
                 logger.setLevel(logging.INFO)
@@ -518,9 +522,7 @@ class WorkflowTestSequenceMeta(type):
                         f"_{architecture}_{deployment_type}.json"
                     )
                     with open(os.path.join(self.client.output_dir, json_filename), "w") as f:
-                        json.dump(
-                            {"output": ret.output if ret is not None else None}, f, indent=2
-                        )
+                        json.dump({"output": ret.output if ret is not None else None}, f, indent=2)
 
                     if failure:
                         raise RuntimeError(f"Workflow test of {benchmark_name} failed!")
@@ -564,7 +566,10 @@ class AWSTestSequenceWorkflows(
     deployments=["package"],
     deployment_name="aws",
 ):
+    """AWS workflow regression test sequence."""
+
     def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Create and initialize an AWS deployment for workflow regression."""
         deployment_name = "aws"
         assert cloud_config, "Cloud configuration is required"
 
@@ -600,7 +605,10 @@ class GCPTestSequenceWorkflows(
     deployments=["function-gen2"],
     deployment_name="gcp",
 ):
+    """GCP workflow regression test sequence."""
+
     def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Create and initialize a GCP deployment for workflow regression."""
         deployment_name = "gcp"
         assert cloud_config, "Cloud configuration is required"
 
@@ -675,7 +683,10 @@ class AzureTestSequenceWorkflows(
             config_copy["experiments"]["architecture"] = architecture
             config_copy["experiments"]["system_variant"] = deployment_type
 
-            f = f"regression_wf_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+            f = (
+                f"regression_wf_{deployment_name}_{benchmark_name}_"
+                f"{architecture}_{deployment_type}.log"
+            )
             deployment_client = self.client.get_deployment(
                 config_copy,
                 logging_filename=os.path.join(self.client.output_dir, f),

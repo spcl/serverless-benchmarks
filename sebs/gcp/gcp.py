@@ -26,7 +26,6 @@ Example:
 """
 
 import docker
-import json
 import os
 import logging
 import random
@@ -48,7 +47,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark, BenchmarkConfig
 from sebs.experiments.config import SystemVariant
-from sebs.faas.function import Function, FunctionConfig, Trigger
+from sebs.faas.function import Function, FunctionConfig, Trigger, Workflow
 from sebs.faas.config import Resources
 from sebs.faas.system import System
 from sebs.gcp.config import (
@@ -304,6 +303,7 @@ class DeploymentStrategy(Protocol):
 
     @staticmethod
     def get_full_workflow_name(project_name: str, location: str, workflow_name: str) -> str:
+        """Generate the fully qualified GCP Workflow resource name."""
         return f"projects/{project_name}/locations/{location}/workflows/{workflow_name}"
 
     def function_exists(self, project_name: str, location: str, func_name: str) -> Any:
@@ -2301,7 +2301,7 @@ class GCP(System):
         return GCPFunction
 
     @staticmethod
-    def workflow_type() -> "Type[Function]":
+    def workflow_type() -> "Type[Workflow]":
         """Get the workflow class type for this platform.
 
         Returns:
@@ -2836,6 +2836,7 @@ class GCP(System):
         from sebs.gcp.function import GCPFunction
         from sebs.gcp.workflow import GCPWorkflow
 
+        trigger: Trigger
         if isinstance(function, GCPWorkflow):
             if trigger_type == Trigger.TriggerType.LIBRARY:
                 trigger = WorkflowLibraryTrigger(function.name, self)
@@ -2904,7 +2905,7 @@ class GCP(System):
         code_package: Benchmark,
         workflow_name: str,
         container_uri: str | None = None,
-    ) -> "Function":
+    ) -> "Workflow":
         """Create a new GCP Workflow that orchestrates Cloud Functions.
 
         Deploys individual functions for each code file in the benchmark,
@@ -2918,7 +2919,6 @@ class GCP(System):
         Returns:
             GCPWorkflow instance representing the deployed workflow
         """
-        import yaml
         from google.cloud.workflows_v1 import WorkflowsClient, Workflow as GCPWorkflowProto
         from sebs.gcp.workflow import GCPWorkflow
         from sebs.gcp.generator import GCPGenerator
@@ -3023,7 +3023,6 @@ class GCP(System):
             workflow: Existing GCPWorkflow instance to update
             code_package: New benchmark package with updated code
         """
-        import yaml
         from google.cloud.workflows_v1 import WorkflowsClient, Workflow as GCPWorkflowProto
         from sebs.gcp.workflow import GCPWorkflow
         from sebs.gcp.generator import GCPGenerator
@@ -3097,6 +3096,7 @@ class GCP(System):
                     raise
 
     def refresh_workflow_configuration(self, workflow: "Function", code_package: Benchmark) -> bool:
+        """Refresh workflow and child function configuration when inputs change."""
         from sebs.gcp.workflow import GCPWorkflow
 
         wf = cast(GCPWorkflow, workflow)
@@ -3166,8 +3166,9 @@ class GCP(System):
 
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
             if isinstance(trigger, WorkflowLibraryTrigger) or isinstance(function, GCPWorkflow):
-                trigger.logging_handlers = self.logging_handlers
-                trigger._deployment_client = self
+                workflow_trigger = cast(WorkflowLibraryTrigger, trigger)
+                workflow_trigger.logging_handlers = self.logging_handlers
+                workflow_trigger.deployment_client = self
             else:
                 func = cast(GCPFunction, function)
                 gcp_trigger = cast(LibraryTrigger, trigger)

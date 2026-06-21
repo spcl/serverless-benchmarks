@@ -1,17 +1,25 @@
-from typing import Dict, List, Union, Any
+"""AWS Step Functions generator for SeBS workflow definitions."""
+
+from typing import Dict, List, Union, Any, cast
 import numbers
 import uuid
 
-from sebs.faas.fsm import Generator, Task, Switch, Map, Repeat, Loop
+from sebs.faas.fsm import Generator, Task, Switch, Map, Loop
 
 
 class SFNGenerator(Generator):
+    """Generate Amazon States Language definitions from SeBS workflow FSMs."""
+
     def __init__(self, func_arns: Dict[str, str]):
+        """Create a generator with function name to Lambda ARN mappings."""
         super().__init__()
         self._func_arns = func_arns
 
     def postprocess(self, payloads: List[dict]) -> dict:
+        """Wrap encoded states in a Step Functions state machine definition."""
+
         def _nameless(p: dict) -> dict:
+            """Remove the temporary state name field from a payload."""
             del p["Name"]
             return p
 
@@ -26,10 +34,11 @@ class SFNGenerator(Generator):
         return definition
 
     def encode_task(self, state: Task) -> Union[dict, List[dict]]:
+        """Encode a task state as an AWS Lambda task."""
         payload: Dict[str, Any] = {
             "Name": state.name,
             "Type": "Task",
-            "Resource": self._func_arns[state.func_name]
+            "Resource": self._func_arns[state.func_name],
         }
 
         if state.next:
@@ -38,22 +47,17 @@ class SFNGenerator(Generator):
             payload["End"] = True
 
         if state.failure:
-            payload["Catch"] = [
-                {"ErrorEquals": ["States.ALL"], "Next": state.failure}
-            ]
+            payload["Catch"] = [{"ErrorEquals": ["States.ALL"], "Next": state.failure}]
 
         return payload
 
     def encode_switch(self, state: Switch) -> Union[dict, List[dict]]:
+        """Encode a switch state as an AWS Choice state."""
         choises = [self._encode_case(c) for c in state.cases]
-        return {
-            "Name": state.name,
-            "Type": "Choice",
-            "Choices": choises,
-            "Default": state.default
-        }
+        return {"Name": state.name, "Type": "Choice", "Choices": choises, "Default": state.default}
 
     def _encode_case(self, case: Switch.Case) -> dict:
+        """Encode a switch case into an Amazon States Language condition."""
         type = "Numeric" if isinstance(case.val, numbers.Number) else "String"
         comp = {
             "<": "LessThan",
@@ -67,6 +71,7 @@ class SFNGenerator(Generator):
         return {"Variable": "$." + case.var, cond: case.val, "Next": case.next}
 
     def encode_map(self, state: Map) -> Union[dict, List[dict]]:
+        """Encode a map state as a Step Functions Map state."""
         map_func_name = "func_" + str(uuid.uuid4())[:8]
 
         # state.funcs can be a dict of nested states or a list of function names
@@ -109,6 +114,7 @@ class SFNGenerator(Generator):
         return payload
 
     def encode_parallel(self, state) -> Union[dict, List[dict]]:
+        """Encode a parallel state as a Step Functions Parallel state."""
         from sebs.faas.fsm import State as FsmState
 
         branches = []
@@ -129,9 +135,7 @@ class SFNGenerator(Generator):
             "Branches": branches,
             # Convert the Parallel output array into a dict keyed by branch root name
             # so downstream states can reference results by name (e.g. $.sifting).
-            "ResultSelector": {
-                f"{b.root}.$": f"$[{i}]" for i, b in enumerate(state.branches)
-            },
+            "ResultSelector": {f"{b.root}.$": f"$[{i}]" for i, b in enumerate(state.branches)},
             "ResultPath": "$",
         }
 
@@ -143,11 +147,11 @@ class SFNGenerator(Generator):
         return payload
 
     def encode_loop(self, state: Loop) -> Union[dict, List[dict]]:
+        """Encode a loop state as a single-concurrency Map state."""
         map_state = Map(state.name, [state.func_name], state.array, state.name, state.next, None)
-        payload = self.encode_map(map_state)
+        payload = cast(Dict[str, Any], self.encode_map(map_state))
         payload["MaxConcurrency"] = 1
         payload["ResultSelector"] = dict()
         payload["ResultPath"] = "$." + str(uuid.uuid4())[:8]
 
         return payload
-
