@@ -1478,7 +1478,12 @@ class Cloudflare(System):
 
         return CloudflareWorkflow
 
-    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> Function:
+    def create_workflow(
+        self,
+        code_package: Benchmark,
+        workflow_name: str,
+        container_uri: str | None = None,
+    ) -> Function:
         """Deploy a Cloudflare Workflow: dispatcher + orchestrator.
 
         1. Deploys a dispatcher worker/container with all task functions.
@@ -1488,6 +1493,7 @@ class Cloudflare(System):
         Args:
             code_package: Benchmark containing the workflow code.
             workflow_name: Name for the workflow.
+            container_uri: Optional prebuilt dispatcher container URI.
 
         Returns:
             CloudflareWorkflow instance with trigger attached.
@@ -1518,7 +1524,9 @@ class Cloudflare(System):
         if len(workflow_name) > max_base_len:
             workflow_name = workflow_name[:max_base_len].rstrip("-")
         dispatcher_name = workflow_name + "-dispatcher"
-        container_uri = code_package._container_uri if container_deployment else None
+        container_uri = container_uri or (
+            code_package._container_uri if container_deployment else None
+        )
         if not container_uri:
             raise RuntimeError(
                 f"Container image URI is missing for workflow {code_package.benchmark}. "
@@ -1634,7 +1642,12 @@ class Cloudflare(System):
         self.logging.info(f"Workflow {orchestrator_name} deployed successfully")
         return workflow
 
-    def update_workflow(self, workflow: Function, code_package: Benchmark):
+    def update_workflow(
+        self,
+        workflow: Function,
+        code_package: Benchmark,
+        container_uri: str | None = None,
+    ):
         """Update an existing Cloudflare Workflow deployment.
 
         Pushes the dispatcher image and regenerates/re-deploys the orchestrator.
@@ -1642,6 +1655,7 @@ class Cloudflare(System):
         Args:
             workflow: Existing CloudflareWorkflow instance.
             code_package: Updated benchmark code package.
+            container_uri: Optional prebuilt dispatcher container URI.
         """
         import os
         import tempfile
@@ -1658,7 +1672,7 @@ class Cloudflare(System):
                 "Select the cloudflare container system variant for workflow benchmarks."
             )
 
-        container_uri = code_package._container_uri
+        container_uri = container_uri or code_package._container_uri
         if not container_uri:
             raise RuntimeError(
                 f"Container image URI is missing for workflow {code_package.benchmark}. "
@@ -1799,9 +1813,18 @@ class Cloudflare(System):
         config["containers"][0]["image"] = dispatcher_image
         config["containers"][0]["max_instances"] = max_instances
         config["containers"][0]["instance_type"] = instance_type
-        config["vars"] = {"WORKER_URL": worker_url}
+        config["vars"] = {
+            "WORKER_URL": worker_url,
+            "WORKFLOW_NAME": orchestrator_name,
+        }
         if code_package:
             config["vars"]["BENCHMARK_NAME"] = code_package.benchmark
+        if self.config.redis_host:
+            config["vars"]["REDIS_HOST"] = self.config.redis_host
+            if self.config.redis_username:
+                config["vars"]["REDIS_USERNAME"] = self.config.redis_username
+            if self.config.redis_password:
+                config["vars"]["REDIS_PASSWORD"] = self.config.redis_password
 
         if code_package and code_package.uses_nosql:
             nosql_storage = self.system_resources.get_nosql_storage()

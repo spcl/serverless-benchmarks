@@ -120,7 +120,14 @@
     },
     "cloudflare": {
       "max_instances": 20,
-      "chunk_size": 1
+      "chunk_size": 1,
+      "resources": {
+        "redis": {
+          "host": "",
+          "username": "",
+          "password": ""
+        }
+      }
     },
     "openwhisk": {
       "shutdownStorage": false,

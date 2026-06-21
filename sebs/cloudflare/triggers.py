@@ -395,11 +395,13 @@ class WorkflowLibraryTrigger(Trigger):
             if wf_status == "complete":
                 end = datetime.now()
                 result = ExecutionResult.from_times(begin, end)
+                result.request_id = instance_id
                 result.output = resp.get("output") or {}
                 return result
             if wf_status == "errored":
                 end = datetime.now()
                 result = ExecutionResult.from_times(begin, end)
+                result.request_id = instance_id
                 self.logging.error(f"Workflow {self.workflow_name} errored: {resp.get('error')}")
                 result.stats.failure = True
                 return result
@@ -410,6 +412,7 @@ class WorkflowLibraryTrigger(Trigger):
             f"Workflow {self.workflow_name} did not complete within {max_poll_time}s"
         )
         result = ExecutionResult.from_times(begin, end)
+        result.request_id = instance_id
         result.stats.failure = True
         return result
 

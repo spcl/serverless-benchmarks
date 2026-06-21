@@ -9,6 +9,7 @@ import sys
 import os
 import traceback
 import resource
+import uuid
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import datetime
@@ -73,6 +74,47 @@ except ImportError:
 PORT = int(os.environ.get('PORT', 8080))
 
 
+def probe_cold_start():
+    is_cold = False
+    fname = os.path.join("/tmp", "cold_run")
+    if not os.path.exists(fname):
+        is_cold = True
+        container_id = str(uuid.uuid4())[0:8]
+        with open(fname, "a") as f:
+            f.write(container_id)
+    else:
+        with open(fname, "r") as f:
+            container_id = f.read()
+
+    return is_cold, container_id
+
+
+def redis_header(headers, name, env_name, default=None):
+    return headers.get(name) or os.getenv(env_name, default)
+
+
+def write_workflow_measurement(headers, workflow_name, func_name, request_id, measurement):
+    try:
+        redis_host = redis_header(headers, "X-SEBS-REDIS-HOST", "REDIS_HOST", "")
+        redis_username = redis_header(headers, "X-SEBS-REDIS-USERNAME", "REDIS_USERNAME")
+        redis_password = redis_header(headers, "X-SEBS-REDIS-PASSWORD", "REDIS_PASSWORD")
+        if redis_host:
+            from redis import Redis
+
+            redis_client = Redis(
+                host=redis_host,
+                port=6379,
+                decode_responses=True,
+                socket_connect_timeout=10,
+                username=redis_username or None,
+                password=redis_password or None,
+            )
+            key = os.path.join(workflow_name, func_name, request_id, str(uuid.uuid4())[0:8])
+            redis_client.set(key, json.dumps(measurement))
+    except Exception:
+        pass
+
+
 class ContainerHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.handle_request()
@@ -90,8 +132,9 @@ class ContainerHandler(BaseHTTPRequestHandler):
         
         try:
             # Get unique request ID from Cloudflare (CF-Ray header)
-            import uuid
             req_id = self.headers.get('CF-Ray', str(uuid.uuid4()))
+            os.environ["STORAGE_UPLOAD_BYTES"] = "0"
+            os.environ["STORAGE_DOWNLOAD_BYTES"] = "0"
             
             # Extract Worker URL from header for R2 and NoSQL proxy
             worker_url = self.headers.get('X-Worker-URL')
@@ -131,10 +174,51 @@ class ContainerHandler(BaseHTTPRequestHandler):
                 import importlib
                 func_name = event['function']
                 func_input = event.get('input', {})
+                workflow_request_id = (
+                    self.headers.get("X-SEBS-Workflow-Request-ID") or req_id
+                )
+                workflow_name = (
+                    self.headers.get("X-SEBS-Workflow-Name")
+                    or os.getenv("WORKFLOW_NAME")
+                    or os.getenv("BENCHMARK_NAME")
+                    or "cloudflare-workflow"
+                )
                 if isinstance(func_input, dict):
                     func_input = {**func_input, 'request-id': req_id}
+                start = datetime.datetime.now().timestamp()
                 module = importlib.import_module(f"function.{func_name}")
                 func_result = module.handler(func_input)
+                end = datetime.datetime.now().timestamp()
+
+                is_cold, container_id = probe_cold_start()
+                measurement = {
+                    "func": func_name,
+                    "start": start,
+                    "end": end,
+                    "is_cold": is_cold,
+                    "container_id": container_id,
+                    "provider.request_id": req_id,
+                }
+
+                func_res = os.getenv("SEBS_FUNCTION_RESULT")
+                if func_res:
+                    measurement["result"] = json.loads(func_res)
+
+                bytes_upload = os.getenv("STORAGE_UPLOAD_BYTES", 0)
+                if bytes_upload:
+                    measurement["blob.upload"] = int(bytes_upload)
+
+                bytes_download = os.getenv("STORAGE_DOWNLOAD_BYTES", 0)
+                if bytes_download:
+                    measurement["blob.download"] = int(bytes_download)
+
+                write_workflow_measurement(
+                    self.headers,
+                    workflow_name,
+                    func_name,
+                    workflow_request_id,
+                    measurement,
+                )
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()

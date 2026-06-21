@@ -79,6 +79,10 @@ interface Env {{
   FANIN: DurableObjectNamespace;
   DISPATCHER: DurableObjectNamespace;
   WORKER_URL: string;
+  WORKFLOW_NAME?: string;
+  REDIS_HOST?: string;
+  REDIS_USERNAME?: string;
+  REDIS_PASSWORD?: string;
   R2?: R2Bucket;
   [key: string]: any;
 }}
@@ -159,30 +163,44 @@ function isFetchTimeoutError(error: unknown): boolean {{
 // Retry fetch on 502/503, timeout, or non-JSON responses.
 // Any other non-2xx response is treated as a hard error and thrown immediately.
 async function dispatchWithRetry(
-  namespace: DurableObjectNamespace,
+  env: Env,
   containerId: string,
-  workerUrl: string,
+  workflowRequestId: string,
   body: any,
   maxAttempts = 10,
   timeoutMs = {self._dispatch_timeout_ms},
 ): Promise<any> {{
-  const stub = getDurableObjectByName(namespace, containerId);
+  const stub = getDurableObjectByName(env.DISPATCHER, containerId);
   console.log(
     `[workflow-dispatch] containerId=${{containerId}} function=${{body?.function ?? "unknown"}}`
   );
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {{
     let r: Response;
+    const headers: Record<string, string> = {{
+      "Content-Type": "application/json",
+      "X-Worker-URL": env.WORKER_URL,
+      "X-Dispatcher-Container-ID": containerId,
+      "X-SEBS-Workflow-Request-ID": workflowRequestId,
+    }};
+    if (env.WORKFLOW_NAME) {{
+      headers["X-SEBS-Workflow-Name"] = env.WORKFLOW_NAME;
+    }}
+    if (env.REDIS_HOST) {{
+      headers["X-SEBS-REDIS-HOST"] = env.REDIS_HOST;
+      if (env.REDIS_USERNAME) {{
+        headers["X-SEBS-REDIS-USERNAME"] = env.REDIS_USERNAME;
+      }}
+      if (env.REDIS_PASSWORD) {{
+        headers["X-SEBS-REDIS-PASSWORD"] = env.REDIS_PASSWORD;
+      }}
+    }}
     try {{
       r = await fetchWithTimeout(
         stub,
         "http://dispatcher/",
         {{
           method: "POST",
-          headers: {{
-            "Content-Type": "application/json",
-            "X-Worker-URL": workerUrl,
-            "X-Dispatcher-Container-ID": containerId,
-          }},
+          headers,
           body: JSON.stringify(body),
         }},
         timeoutMs,
@@ -272,6 +290,7 @@ export class BenchmarkWorkflow extends WorkflowEntrypoint<Env, any> {{
     const dispatchContainerId = _fanin
       ? `${{_fanin.parentId}}-${{_fanin.stateName}}-branch-${{_fanin.branchIdx}}`
       : event.instanceId;
+    const workflowRequestId = _fanin?.workflowRequestId ?? event.instanceId;
 
     try {{
       while (true) {{
@@ -396,9 +415,9 @@ export default {{
         try {{
           const {var}_result = await step.do("{state.name}", async () => {{
             return await dispatchWithRetry(
-              this.env.DISPATCHER,
+              this.env,
               dispatchContainerId,
-              this.env.WORKER_URL,
+              workflowRequestId,
               {{
               function: {json.dumps(state.func_name)},
               input: state,
@@ -418,9 +437,9 @@ export default {{
       case "{state.name}": {{
         const {var}_result = await step.do("{state.name}", async () => {{
           return await dispatchWithRetry(
-            this.env.DISPATCHER,
+            this.env,
             dispatchContainerId,
-            this.env.WORKER_URL,
+            workflowRequestId,
             {{
             function: {json.dumps(state.func_name)},
             input: state,
@@ -492,6 +511,7 @@ export default {{
               await createWorkflowWithRetry(this.env.ITEM_WORKFLOW, childId, {{
                 items: mapInputs_{var}.slice(start, start + {self._chunk_size}),
                 parentId: parentId_{var},
+                workflowRequestId,
                 stateName: "{state.name}",
                 chunkIdx,
                 total,
@@ -541,6 +561,7 @@ export default {{
                 _start: {json.dumps(branch.root)},
                 _fanin: {{
                   parentId: parentId_{var},
+                  workflowRequestId,
                   stateName: "{state.name}",
                   branchIdx: {idx},
                   total: {total},
@@ -584,9 +605,9 @@ export default {{
         for (let i = 0; i < {state.count}; i++) {{
           state = await step.do(`{state.name}_${{i}}`, async () => {{
             return await dispatchWithRetry(
-              this.env.DISPATCHER,
+              this.env,
               dispatchContainerId,
-              this.env.WORKER_URL,
+              workflowRequestId,
               {{
               function: {json.dumps(state.func_name)},
               input: state,
@@ -608,9 +629,9 @@ export default {{
         for (let i = 0; i < {array_path}.length; i++) {{
           {array_path}[i] = await step.do(`{state.name}_${{i}}`, async () => {{
             return await dispatchWithRetry(
-              this.env.DISPATCHER,
+              this.env,
               dispatchContainerId,
-              this.env.WORKER_URL,
+              workflowRequestId,
               {{
               function: {json.dumps(state.func_name)},
               input: {array_path}[i],
@@ -627,7 +648,7 @@ export default {{
         return """\
 export class ItemWorkflow extends WorkflowEntrypoint<Env, any> {
   async run(event: WorkflowEvent<any>, step: WorkflowStep) {
-    const { items, parentId, stateName, chunkIdx, total, func } = event.payload;
+    const { items, parentId, workflowRequestId, stateName, chunkIdx, total, func } = event.payload;
     console.log(
       `[workflow-item] parentId=${parentId} state=${stateName} ` +
       `chunkIdx=${chunkIdx} total=${total} func=${func} items=${items.length}`
@@ -637,9 +658,9 @@ export class ItemWorkflow extends WorkflowEntrypoint<Env, any> {
         const containerId = `${parentId}-${stateName}-${chunkIdx}`;
         if (items.length === 1) {
           const result = await dispatchWithRetry(
-            this.env.DISPATCHER,
+            this.env,
             containerId,
-            this.env.WORKER_URL,
+            workflowRequestId ?? parentId,
             {
             function: func,
             input: items[0],
@@ -650,9 +671,9 @@ export class ItemWorkflow extends WorkflowEntrypoint<Env, any> {
         return await Promise.all(
           items.map((item: any) =>
             dispatchWithRetry(
-              this.env.DISPATCHER,
+              this.env,
               containerId,
-              this.env.WORKER_URL,
+              workflowRequestId ?? parentId,
               {
               function: func,
               input: item,

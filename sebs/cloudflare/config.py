@@ -1,7 +1,7 @@
 """Configuration classes for the Cloudflare Workers platform."""
 
 import os
-from typing import Optional, cast
+from typing import Dict, Optional, cast
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
@@ -176,6 +176,7 @@ class CloudflareResources(Resources):
         """Initialize Cloudflare resources with no namespace ID assigned."""
         super().__init__(name="cloudflare")
         self._namespace_id: Optional[str] = None
+        self._redis: Optional[Dict] = None
 
     @staticmethod
     def typename() -> str:
@@ -192,6 +193,27 @@ class CloudflareResources(Resources):
         """Set the KV namespace ID for this resource deployment."""
         self._namespace_id = value
 
+    @property
+    def redis_host(self) -> Optional[str]:
+        """Get Redis host for workflow measurements."""
+        if self._redis:
+            return self._redis.get("host")
+        return None
+
+    @property
+    def redis_username(self) -> Optional[str]:
+        """Get Redis username for workflow measurements."""
+        if self._redis:
+            return self._redis.get("username")
+        return None
+
+    @property
+    def redis_password(self) -> Optional[str]:
+        """Get Redis password for workflow measurements."""
+        if self._redis:
+            return self._redis.get("password")
+        return None
+
     @staticmethod
     def initialize(res: Resources, dct: dict):
         """Populate a CloudflareResources instance from a config dictionary."""
@@ -200,6 +222,7 @@ class CloudflareResources(Resources):
 
         if "namespace_id" in dct:
             ret._namespace_id = dct["namespace_id"]
+        ret._redis = dct.get("redis")
 
         return ret
 
@@ -229,6 +252,8 @@ class CloudflareResources(Resources):
             CloudflareResources.initialize(ret, cached_config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for Cloudflare")
+            if "resources" in config and "redis" in config["resources"]:
+                ret._redis = config["resources"]["redis"]
         else:
             # Check for new config
             if "resources" in config:
@@ -284,6 +309,21 @@ class CloudflareConfig(Config):
     def chunk_size(self) -> int:
         """Number of Map items assigned to one child workflow instance."""
         return self._chunk_size
+
+    @property
+    def redis_host(self) -> Optional[str]:
+        """Get Redis host for workflow measurements."""
+        return self._resources.redis_host
+
+    @property
+    def redis_username(self) -> Optional[str]:
+        """Get Redis username for workflow measurements."""
+        return self._resources.redis_username
+
+    @property
+    def redis_password(self) -> Optional[str]:
+        """Get Redis password for workflow measurements."""
+        return self._resources.redis_password
 
     @staticmethod
     def initialize(cfg: Config, dct: dict):
