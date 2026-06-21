@@ -19,7 +19,7 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
-from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
+from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig, Workflow
 from sebs.experiments.config import SystemVariant
 from sebs.faas.system import System
 from sebs.faas.config import Resources
@@ -93,8 +93,7 @@ class _CloudflareContainerAdapter:
         NOT a pushable URI and is not passed to any registry client.
         """
         image_name = (
-            f"{benchmark.replace('.', '-')}-{language_name}-"
-            f"{language_version.replace('.', '')}"
+            f"{benchmark.replace('.', '-')}-{language_name}-" f"{language_version.replace('.', '')}"
         )
         return f"{image_name}:latest"
 
@@ -171,16 +170,12 @@ class Cloudflare(System):
         prefix = benchmark_name.split(".")[0]
         return prefix in allowed
 
-    def get_function(
-        self, code_package: Benchmark, func_name: Optional[str] = None
-    ) -> Function:
+    def get_function(self, code_package: Benchmark, func_name: Optional[str] = None) -> Function:
         """Override to validate benchmark support and auto-select cloudflare variant."""
         language = code_package.language_name
         container_deployment = code_package.system_variant.is_container
         benchmark_name = code_package.benchmark
-        if not self.is_benchmark_supported(
-            benchmark_name, language, container_deployment
-        ):
+        if not self.is_benchmark_supported(benchmark_name, language, container_deployment):
             deployment_type = "container" if container_deployment else "worker"
             raise RuntimeError(
                 f"Benchmark '{benchmark_name}' is not supported for "
@@ -195,11 +190,8 @@ class Cloudflare(System):
         # (CLI --language-variant flag), which defaults to "default".  Promoting
         # here ensures copy_code() applies the cloudflare/ source overlay and the
         # cache key reflects the correct variant.
-        if (
-            code_package.language_variant == "default"
-            and code_package.benchmark_config.supports(
-                code_package.language, self.name()
-            )
+        if code_package.language_variant == "default" and code_package.benchmark_config.supports(
+            code_package.language, self.name()
         ):
             code_package.select_variant(self.name())
 
@@ -225,9 +217,7 @@ class Cloudflare(System):
             sebs_config,
             cache_client,
             docker_client,
-            CloudflareSystemResources(
-                config, cache_client, docker_client, logger_handlers
-            ),
+            CloudflareSystemResources(config, cache_client, docker_client, logger_handlers),
         )
         self.logging_handlers = logger_handlers
         self._config = config
@@ -245,9 +235,7 @@ class Cloudflare(System):
             self.logging, sebs_config, docker_client, self.system_resources
         )
         # Adapter so benchmark.build() can call container_client.build_base_image()
-        self._container_adapter = _CloudflareContainerAdapter(
-            self._containers_deployment
-        )
+        self._container_adapter = _CloudflareContainerAdapter(self._containers_deployment)
 
     def initialize(
         self,
@@ -266,9 +254,7 @@ class Cloudflare(System):
         self._verify_credentials()
         self.initialize_resources(select_prefix=resource_prefix)
 
-    def initialize_resources(
-        self, select_prefix: Optional[str] = None, quiet: bool = False
-    ):
+    def initialize_resources(self, select_prefix: Optional[str] = None, quiet: bool = False):
         """
         Initialize Cloudflare resources.
 
@@ -298,9 +284,7 @@ class Cloudflare(System):
 
         # Try to create R2 bucket, but don't fail if R2 is not enabled
         try:
-            self.system_resources.get_storage().get_bucket(
-                Resources.StorageBucketType.BENCHMARKS
-            )
+            self.system_resources.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
             self.logging.info("R2 storage initialized successfully")
         except Exception as e:
             self.logging.warning(
@@ -347,17 +331,13 @@ class Cloudflare(System):
                 if len(self.config.credentials.api_token) > 8
                 else "***"
             )
-            self.logging.info(
-                f"Using API Token authentication (starts with: {token_preview})"
-            )
+            self.logging.info(f"Using API Token authentication (starts with: {token_preview})")
         else:
             self.logging.info(
                 f"Using Email + API Key authentication (email: {self.config.credentials.email})"
             )
 
-        response = requests.get(
-            f"{self._api_base_url}/user/tokens/verify", headers=headers
-        )
+        response = requests.get(f"{self._api_base_url}/user/tokens/verify", headers=headers)
 
         if response.status_code != 200:
             raise RuntimeError(
@@ -464,9 +444,7 @@ class Cloudflare(System):
         Returns:
             Path to the generated wrangler.toml file
         """
-        language_variant = (
-            code_package.language_variant if code_package else "cloudflare"
-        )
+        language_variant = code_package.language_variant if code_package else "cloudflare"
         handler = self._get_deployment_handler(container_deployment)
         return handler.generate_wrangler_toml(
             worker_name,
@@ -590,9 +568,7 @@ class Cloudflare(System):
     def _get_worker(self, worker_name: str, account_id: str) -> Optional[dict]:
         """Get information about an existing worker."""
         headers = self._get_auth_headers()
-        url = (
-            f"{self._api_base_url}/accounts/{account_id}/workers/scripts/{worker_name}"
-        )
+        url = f"{self._api_base_url}/accounts/{account_id}/workers/scripts/{worker_name}"
 
         response = requests.get(url, headers=headers)
 
@@ -604,9 +580,7 @@ class Cloudflare(System):
         elif response.status_code == 404:
             return None
         else:
-            self.logging.warning(
-                f"Unexpected response checking worker: {response.status_code}"
-            )
+            self.logging.warning(f"Unexpected response checking worker: {response.status_code}")
             return None
 
     def _create_or_update_worker(
@@ -655,9 +629,7 @@ class Cloudflare(System):
         # Dockerfile. Must happen before generating wrangler.toml so the registry
         # URI is written in from the start.
         if container_deployment and container_uri:
-            self.logging.info(
-                f"Pushing container image {container_uri} to Cloudflare registry..."
-            )
+            self.logging.info(f"Pushing container image {container_uri} to Cloudflare registry...")
             container_uri = cli.containers_push(container_uri, env=env)
             self.logging.info(f"Image pushed to: {container_uri}")
 
@@ -681,9 +653,7 @@ class Cloudflare(System):
         cli.upload_package(package_dir, container_package_path)
 
         try:
-            self.logging.info(
-                f"Deploying worker {worker_name} using Wrangler in container..."
-            )
+            self.logging.info(f"Deploying worker {worker_name} using Wrangler in container...")
 
             # pywrangler is used for all native Python workers (packages must be
             # synced via pyproject.toml before wrangler uploads the bundle).
@@ -701,8 +671,8 @@ class Cloudflare(System):
             worker_url = self._build_workers_dev_url(worker_name, account_id_val)
 
             if container_deployment:
-                container_name = (
-                    self._containers_deployment._container_name_from_worker(worker_name)
+                container_name = self._containers_deployment._container_name_from_worker(
+                    worker_name
                 )
                 # Cloudflare compares the newly pushed registry image against the
                 # image currently running in the container worker. If the image digest
@@ -851,9 +821,7 @@ class Cloudflare(System):
                         health_instances = data.get("health", {}).get("instances", {})
                         healthy = health_instances.get("healthy", 0)
                         starting = health_instances.get("starting", 0)
-                        self.logging.debug(
-                            f"Container {container_name} health: {health_instances}"
-                        )
+                        self.logging.debug(f"Container {container_name} health: {health_instances}")
                         if healthy > 0:
                             self.logging.info(
                                 f"Container {container_name} is ready "
@@ -883,9 +851,7 @@ class Cloudflare(System):
         """Return the Cloudflare container name for the generated workflow dispatcher."""
         return f"{worker_name}-dispatchercontainer"
 
-    def _workflow_max_instances(
-        self, code_package: Benchmark, definition_path: str
-    ) -> int:
+    def _workflow_max_instances(self, code_package: Benchmark, definition_path: str) -> int:
         """Return the exact DispatcherContainer ceiling for a workflow input."""
         benchmark_name = code_package.benchmark
         prepared_input = code_package.last_input_config or {}
@@ -927,6 +893,7 @@ class Cloudflare(System):
             state_name: Optional[str],
             visiting: Set[Tuple[int, str]],
         ) -> Optional[int]:
+            """Estimate maximum parallelism reachable from one workflow state."""
             if not state_name or state_name == "__end__":
                 return 1
             if state_name not in state_defs:
@@ -958,9 +925,7 @@ class Cloudflare(System):
                     return None
 
                 chunks = max(1, math.ceil(array_length / self.config.chunk_size))
-                branch_max = state_max(
-                    state.get("states", {}), state.get("root"), visiting
-                )
+                branch_max = state_max(state.get("states", {}), state.get("root"), visiting)
                 if branch_max is None:
                     return None
                 current_max = chunks * branch_max
@@ -1013,9 +978,7 @@ class Cloudflare(System):
                 return self._workflow_list_length(prepared_input, "populations")
 
         if benchmark_name == "650.vid" and array_path == "frames":
-            return self._workflow_chunked_length(
-                prepared_input, "n_frames", "batch_size"
-            )
+            return self._workflow_chunked_length(prepared_input, "n_frames", "batch_size")
 
         if benchmark_name == "680.excamera" and array_path == "segments":
             segments = self._workflow_list_length(prepared_input, "segments")
@@ -1162,9 +1125,7 @@ class Cloudflare(System):
             self.logging.warning(f"Error fetching workers.dev subdomain: {e}")
             return None
 
-    def _build_workers_dev_url(
-        self, worker_name: str, account_id: Optional[str]
-    ) -> str:
+    def _build_workers_dev_url(self, worker_name: str, account_id: Optional[str]) -> str:
         """Build a best-effort public URL for a worker.
 
         Prefer using the account's readable workers.dev subdomain when available
@@ -1198,8 +1159,7 @@ class Cloudflare(System):
         account_id = worker.account_id or self.config.credentials.account_id
         if account_id and not self._get_worker(worker.name, account_id):
             self.logging.info(
-                f"Cached worker {worker.name} no longer exists on Cloudflare "
-                "— will redeploy."
+                f"Cached worker {worker.name} no longer exists on Cloudflare " "— will redeploy."
             )
             function.code_package_hash = ""
 
@@ -1256,9 +1216,7 @@ class Cloudflare(System):
         # Update configuration if needed (no-op for containers: no runtime memory changes)
         self.update_function_configuration(worker, code_package)
 
-    def update_function_configuration(
-        self, cached_function: Function, benchmark: Benchmark
-    ):
+    def update_function_configuration(self, cached_function: Function, benchmark: Benchmark):
         """
         Update the configuration of a Cloudflare Worker.
 
@@ -1299,8 +1257,7 @@ class Cloudflare(System):
         lang_abbrev = {"python": "py", "nodejs": "js", "java": "java", "cpp": "cpp"}
         lang = lang_abbrev.get(code_package.language_name, code_package.language_name)
         name = (
-            f"{code_package.benchmark}-{lang}"
-            f"{code_package.language_version.replace('.', '')}"
+            f"{code_package.benchmark}-{lang}" f"{code_package.language_version.replace('.', '')}"
         ).lower()
         if code_package.language_variant != "default":
             name = f"{name}-{code_package.language_variant}"
@@ -1382,8 +1339,7 @@ class Cloudflare(System):
             return
 
         self.logging.info(
-            f"Extracting metrics from {len(requests)} invocations "
-            f"of worker {function_name}"
+            f"Extracting metrics from {len(requests)} invocations " f"of worker {function_name}"
         )
 
         # Aggregate statistics from all requests
@@ -1423,9 +1379,7 @@ class Cloudflare(System):
                 # GB-seconds calculation: (128MB / 1024MB/GB) * (cpu_time_us / 1000000 us/s)
                 cpu_time_seconds = result.provider_times.execution / 1_000_000.0
                 gb_seconds = (128.0 / 1024.0) * cpu_time_seconds
-                result.billing.gb_seconds = int(
-                    gb_seconds * 1_000_000
-                )  # micro GB-seconds
+                result.billing.gb_seconds = int(gb_seconds * 1_000_000)  # micro GB-seconds
 
         # Calculate statistics
         metrics["cloudflare"] = {
@@ -1443,17 +1397,13 @@ class Cloudflare(System):
             metrics["cloudflare"]["cpu_time_measurements"] = len(cpu_times)
 
         if wall_times:
-            metrics["cloudflare"]["avg_wall_time_us"] = sum(wall_times) // len(
-                wall_times
-            )
+            metrics["cloudflare"]["avg_wall_time_us"] = sum(wall_times) // len(wall_times)
             metrics["cloudflare"]["min_wall_time_us"] = min(wall_times)
             metrics["cloudflare"]["max_wall_time_us"] = max(wall_times)
             metrics["cloudflare"]["wall_time_measurements"] = len(wall_times)
 
         if memory_values:
-            metrics["cloudflare"]["avg_memory_mb"] = sum(memory_values) / len(
-                memory_values
-            )
+            metrics["cloudflare"]["avg_memory_mb"] = sum(memory_values) / len(memory_values)
             metrics["cloudflare"]["min_memory_mb"] = min(memory_values)
             metrics["cloudflare"]["max_memory_mb"] = max(memory_values)
             metrics["cloudflare"]["memory_measurements"] = len(memory_values)
@@ -1472,7 +1422,7 @@ class Cloudflare(System):
             self.logging.info(f"Average wall time: {avg_wall_ms:.2f} ms")
 
     @staticmethod
-    def workflow_type() -> "Type[Function]":
+    def workflow_type() -> "Type[Workflow]":
         """Return the Workflow subclass used by this platform."""
         from sebs.cloudflare.workflow import CloudflareWorkflow
 
@@ -1483,7 +1433,7 @@ class Cloudflare(System):
         code_package: Benchmark,
         workflow_name: str,
         container_uri: str | None = None,
-    ) -> Function:
+    ) -> Workflow:
         """Deploy a Cloudflare Workflow: dispatcher + orchestrator.
 
         1. Deploys a dispatcher worker/container with all task functions.
@@ -1553,9 +1503,7 @@ class Cloudflare(System):
         if not os.path.exists(definition_path):
             raise ValueError(f"No workflow definition found at {definition_path}")
 
-        workflow_max_instances = self._workflow_max_instances(
-            code_package, definition_path
-        )
+        workflow_max_instances = self._workflow_max_instances(code_package, definition_path)
         workflow_instance_type = self._workflow_instance_type(code_package)
         self.logging.info(
             f"Cloudflare workflow {code_package.benchmark} instance_type="
@@ -1698,9 +1646,7 @@ class Cloudflare(System):
         if not os.path.exists(definition_path):
             raise ValueError(f"No workflow definition found at {definition_path}")
 
-        workflow_max_instances = self._workflow_max_instances(
-            code_package, definition_path
-        )
+        workflow_max_instances = self._workflow_max_instances(code_package, definition_path)
         workflow_instance_type = self._workflow_instance_type(code_package)
         self.logging.info(
             f"Cloudflare workflow {code_package.benchmark} instance_type="
@@ -1749,9 +1695,7 @@ class Cloudflare(System):
         cli.upload_package(orchestrator_dir, container_package_path)
 
         self.logging.info(f"Redeploying workflow orchestrator: {workflow.name}")
-        output = self._deploy_workflow_orchestrator(
-            cli, container_package_path, env, workflow.name
-        )
+        output = self._deploy_workflow_orchestrator(cli, container_package_path, env, workflow.name)
         if "no changes" not in output.lower():
             self._wait_for_container_rollout(
                 self._workflow_container_name(workflow.name),
@@ -1799,9 +1743,7 @@ class Cloudflare(System):
         from importlib.resources import files
 
         template_path = (
-            files("sebs.cloudflare")
-            .joinpath("templates")
-            .joinpath("wrangler-workflow.toml")
+            files("sebs.cloudflare").joinpath("templates").joinpath("wrangler-workflow.toml")
         )
         with template_path.open("rb") as f:
             config = tomllib.load(f)
@@ -1852,9 +1794,7 @@ class Cloudflare(System):
                     "Workflow benchmarks requiring file access will not work properly."
                 )
             config["r2_buckets"] = [{"binding": "R2", "bucket_name": bucket_name}]
-            self.logging.info(
-                f"R2 bucket '{bucket_name}' will be bound to workflow as 'R2'"
-            )
+            self.logging.info(f"R2 bucket '{bucket_name}' will be bound to workflow as 'R2'")
 
         toml_path = os.path.join(package_dir, "wrangler.toml")
         try:
@@ -1867,9 +1807,7 @@ class Cloudflare(System):
         self.logging.info(f"Generated workflow wrangler.toml at {toml_path}")
         return toml_path
 
-    def create_trigger(
-        self, function: Function, trigger_type: Trigger.TriggerType
-    ) -> Trigger:
+    def create_trigger(self, function: Function, trigger_type: Trigger.TriggerType) -> Trigger:
         """
         Create a trigger for a Cloudflare Worker.
 

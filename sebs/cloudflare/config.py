@@ -98,9 +98,7 @@ class CloudflareCredentials(Credentials):
         )
 
     @staticmethod
-    def deserialize(
-        config: dict, cache: Cache, handlers: LoggingHandlers
-    ) -> Credentials:
+    def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Credentials:
         """Load credentials from config dict, falling back to environment variables."""
         cached_config = cache.get_config("cloudflare")
         ret: CloudflareCredentials
@@ -135,11 +133,7 @@ class CloudflareCredentials(Credentials):
                 "or CLOUDFLARE_EMAIL, CLOUDFLARE_API_KEY, and CLOUDFLARE_ACCOUNT_ID"
             )
 
-        if (
-            account_id is not None
-            and ret.account_id is not None
-            and account_id != ret.account_id
-        ):
+        if account_id is not None and ret.account_id is not None and account_id != ret.account_id:
             ret.logging.error(
                 f"The account id {ret.account_id} from provided credentials is different "
                 f"from the account id {account_id} found in the cache! Please change "
@@ -275,9 +269,7 @@ class CloudflareConfig(Config):
     Configuration for Cloudflare Workers platform.
     """
 
-    def __init__(
-        self, credentials: CloudflareCredentials, resources: CloudflareResources
-    ):
+    def __init__(self, credentials: CloudflareCredentials, resources: CloudflareResources):
         """Initialize configuration with the given credentials and resources."""
         super().__init__(name="cloudflare")
         self._credentials = credentials

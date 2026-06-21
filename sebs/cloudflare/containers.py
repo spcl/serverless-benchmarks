@@ -321,9 +321,7 @@ class CloudflareContainersDeployment:
                         if requirements and requirements[-1].strip():
                             req.write("\n")
                         req.write("redis\n")
-                        self.logging.info(
-                            "Added redis dependency for workflow measurement export"
-                        )
+                        self.logging.info("Added redis dependency for workflow measurement export")
 
         # Build the image locally. cache.py requires docker_client.images.get() to
         # succeed for container deployments, and the local image is what we push to

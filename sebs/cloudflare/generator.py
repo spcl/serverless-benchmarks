@@ -209,7 +209,8 @@ async function dispatchWithRetry(
       if (isFetchTimeoutError(error)) {{
         throw new Error(
           `Dispatcher call timed out after ${{timeoutMs}}ms for ${{body?.function ?? "unknown"}} ` +
-          `on containerId=${{containerId}}. Not retrying because the container may still be running.`
+          `on containerId=${{containerId}}. ` +
+          "Not retrying because the container may still be running."
         );
       }}
       if (attempt < maxAttempts && isRetryableFetchError(error)) {{
@@ -363,13 +364,12 @@ export default {{
         states: Dict[str, State] = {}
 
         def add_state(state: State) -> None:
+            """Add a state and nested parallel branch states once."""
             if state.name not in states:
                 states[state.name] = state
             if isinstance(state, Parallel):
                 for branch in state.branches:
-                    branch_states = {
-                        n: State.deserialize(n, s) for n, s in branch.states.items()
-                    }
+                    branch_states = {n: State.deserialize(n, s) for n, s in branch.states.items()}
                     for branch_state in branch_states.values():
                         add_state(branch_state)
 
@@ -457,12 +457,8 @@ export default {{
         for case in state.cases:
             var_path = self._js_var_path("state", case.var)
             op = case.op
-            val = (
-                case.val if isinstance(case.val, (int, float)) else json.dumps(case.val)
-            )
-            conditions.append(
-                f'        if ({var_path} {op} {val}) {{ current = "{case.next}"; }}'
-            )
+            val = case.val if isinstance(case.val, (int, float)) else json.dumps(case.val)
+            conditions.append(f'        if ({var_path} {op} {val}) {{ current = "{case.next}"; }}')
 
         default = state.default if state.default else "__end__"
         else_clause = f'        else {{ current = "{default}"; }}'
@@ -578,7 +574,8 @@ export default {{
         const parentId_{var} = event.instanceId;
         await step.do("{state.name}_spawn", async () => {{
           console.log(
-            `[workflow-parallel-spawn] parentId=${{parentId_{var}}} state={state.name} branches={total}`
+            `[workflow-parallel-spawn] parentId=${{parentId_{var}}} ` +
+            `state={state.name} branches={total}`
           );
           await Promise.all([
 {spawn_body},
@@ -1046,8 +1043,7 @@ export class DispatcherContainer extends Container {
         """Return the JavaScript expression used as each Map dispatch input."""
         if state.common_params:
             param_spread = ", ".join(
-                f"{json.dumps(p)}: {self._js_var_path(root, p)}"
-                for p in state.common_params
+                f"{json.dumps(p)}: {self._js_var_path(root, p)}" for p in state.common_params
             )
             return f"({{ array_element: item, {param_spread} }})"
         return "item"

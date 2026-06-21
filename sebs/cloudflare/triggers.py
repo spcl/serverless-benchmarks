@@ -271,8 +271,10 @@ class WorkflowLibraryTrigger(Trigger):
         c = pycurl.Curl()
         c.setopt(
             pycurl.HTTPHEADER,
-            ["User-Agent: Mozilla/5.0 (compatible; SeBS/1.0; "
-             "+https://github.com/spcl/serverless-benchmarks)"],
+            [
+                "User-Agent: Mozilla/5.0 (compatible; SeBS/1.0; "
+                "+https://github.com/spcl/serverless-benchmarks)"
+            ],
         )
         c.setopt(pycurl.URL, url)
         data = BytesIO()
@@ -340,9 +342,7 @@ class WorkflowLibraryTrigger(Trigger):
                 if attempt < max_create_retries:
                     time.sleep(5)
                     continue
-                self.logging.error(
-                    f"Workflow creation non-JSON response: {text[:200]}"
-                )
+                self.logging.error(f"Workflow creation non-JSON response: {text[:200]}")
                 end = datetime.now()
                 result = ExecutionResult.from_times(begin, end)
                 result.stats.failure = True
