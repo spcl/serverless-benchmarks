@@ -1023,7 +1023,12 @@ class AWS(System):
 
         return SFNWorkflow
 
-    def create_workflow(self, code_package: Benchmark, workflow_name: str) -> "Function":
+    def create_workflow(
+        self,
+        code_package: Benchmark,
+        workflow_name: str,
+        container_uri: str | None = None,
+    ) -> "Function":
         import re
         from sebs.aws.workflow import SFNWorkflow
         from sebs.aws.generator import SFNGenerator
@@ -1042,7 +1047,7 @@ class AWS(System):
                 code_package,
                 workflow_name + "___" + fn,
                 code_package.system_variant,
-                None,
+                container_uri,
             )
             for fn in func_names
         ]
@@ -1080,7 +1085,7 @@ class AWS(System):
                     FunctionConfig.from_benchmark(code_package)
                 ),
             )
-            self._update_workflow_definition(workflow, code_package)
+            self._update_workflow_definition(workflow, code_package, container_uri)
             workflow.updated_code = True
 
         trigger = WorkflowLibraryTrigger(workflow.arn, self)
@@ -1088,15 +1093,20 @@ class AWS(System):
         workflow.add_trigger(trigger)
         return workflow
 
-    def update_workflow(self, workflow, code_package: Benchmark):
+    def update_workflow(
+        self,
+        workflow,
+        code_package: Benchmark,
+        container_uri: str | None = None,
+    ):
         from sebs.aws.workflow import SFNWorkflow
 
         workflow = cast(SFNWorkflow, workflow)
-        self._update_workflow_definition(workflow, code_package)
+        self._update_workflow_definition(workflow, code_package, container_uri)
 
-    def refresh_workflow_configuration(self, workflow, code_package: Benchmark) -> None:
+    def refresh_workflow_configuration(self, workflow, code_package: Benchmark) -> bool:
         if not code_package.has_input_processed:
-            return
+            return False
 
         from sebs.aws.workflow import SFNWorkflow
 
@@ -1107,12 +1117,18 @@ class AWS(System):
                 self.is_configuration_changed(function, code_package) or needs_refresh
             )
         if not needs_refresh:
-            return
+            return False
 
         for function in workflow.functions:
             self.update_function_configuration(function, code_package)
+        return True
 
-    def _update_workflow_definition(self, workflow, code_package: Benchmark):
+    def _update_workflow_definition(
+        self,
+        workflow,
+        code_package: Benchmark,
+        container_uri: str | None = None,
+    ):
         from sebs.aws.workflow import SFNWorkflow
         from sebs.aws.generator import SFNGenerator
 
@@ -1129,7 +1145,7 @@ class AWS(System):
                 code_package,
                 workflow.name + "___" + fn,
                 code_package.system_variant,
-                None,
+                container_uri,
             )
             for fn in func_names
         ]
