@@ -377,7 +377,7 @@ def invoke(
 @click.option(
     "--trigger",
     type=click.Choice(["library", "http"]),
-    default="http",
+    default="library",
     help="Workflow trigger to be used.",
 )
 @click.option(
