@@ -182,6 +182,7 @@ class System(ABC, LoggingBase):
 
     @staticmethod
     def workflow_type() -> "Type[Workflow]":
+        """Get the platform-specific workflow class type."""
         raise NotImplementedError("Workflows not supported on this platform")
 
     def create_workflow(
@@ -190,6 +191,7 @@ class System(ABC, LoggingBase):
         workflow_name: str,
         container_uri: str | None = None,
     ) -> Workflow:
+        """Create a workflow deployment for platforms that support workflows."""
         raise NotImplementedError("Workflows not supported on this platform")
 
     def update_workflow(
@@ -198,6 +200,7 @@ class System(ABC, LoggingBase):
         code_package: Benchmark,
         container_uri: str | None = None,
     ):
+        """Update an existing workflow deployment."""
         raise NotImplementedError("Workflows not supported on this platform")
 
     def refresh_workflow_configuration(self, workflow: Workflow, code_package: Benchmark) -> bool:
@@ -207,11 +210,14 @@ class System(ABC, LoggingBase):
     def get_workflow(
         self, code_package: Benchmark, workflow_name: Optional[str] = None
     ) -> Workflow:
+        """Build, create, update, or retrieve a workflow deployment."""
         if not workflow_name:
             workflow_name = self.default_function_name(code_package)
 
         rebuilt, _, system_variant, container_uri = code_package.build(
-            self.package_code, self.container_client, self.finalize_container_build(),
+            self.package_code,
+            self.container_client,
+            self.finalize_container_build(),
             is_workflow=True,
         )
 

@@ -387,6 +387,7 @@ class AWSResources(Resources):
         self._lambda_role = ""
         self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
         self._function_urls: Dict[str, AWSResources.FunctionURL] = {}
+        self._redis: Optional[Dict[str, str]] = None
         self._use_function_url: bool = True
         self._function_url_auth_type: FunctionURLAuthType = FunctionURLAuthType.NONE
 
@@ -1195,6 +1196,7 @@ class AWSConfig(Config):
 
     @property
     def redis_host(self) -> str | None:
+        """Redis host used for workflow measurement collection."""
         redis_cfg = getattr(self._resources, "_redis", None)
         if redis_cfg:
             return redis_cfg.get("host")
@@ -1202,6 +1204,7 @@ class AWSConfig(Config):
 
     @property
     def redis_username(self) -> str | None:
+        """Redis username used for workflow measurement collection."""
         redis_cfg = getattr(self._resources, "_redis", None)
         if redis_cfg:
             return redis_cfg.get("username")
@@ -1209,6 +1212,7 @@ class AWSConfig(Config):
 
     @property
     def redis_password(self) -> str | None:
+        """Redis password used for workflow measurement collection."""
         redis_cfg = getattr(self._resources, "_redis", None)
         if redis_cfg:
             return redis_cfg.get("password")

@@ -32,7 +32,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.experiments.config import SystemVariant
 from sebs.utils import LoggingHandlers
-from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
+from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig, Workflow
 from sebs.faas.system import System
 from sebs.sebs_types import Language
 
@@ -98,15 +98,15 @@ class AWS(System):
 
     @staticmethod
     def _effective_function_config(cfg: FunctionConfig) -> FunctionConfig:
+        """Clamp AWS Lambda configuration to provider limits."""
         if cfg.timeout > AWS_MAX_FUNCTION_TIMEOUT:
             return replace(cfg, timeout=AWS_MAX_FUNCTION_TIMEOUT)
         return cfg
 
     def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
+        """Update cached AWS function configuration if benchmark settings changed."""
         changed = False
-        expected_config = self._effective_function_config(
-            FunctionConfig.from_benchmark(benchmark)
-        )
+        expected_config = self._effective_function_config(FunctionConfig.from_benchmark(benchmark))
 
         for attr, new_val in [
             ("timeout", expected_config.timeout),
@@ -214,6 +214,7 @@ class AWS(System):
 
     @staticmethod
     def format_resource_name(name: str) -> str:
+        """Convert a benchmark name into an AWS Step Functions-safe name."""
         name = name.replace("-", "_")
         name = name.replace(".", "_")
         return name
@@ -233,6 +234,7 @@ class AWS(System):
         return self.client
 
     def get_sfn_client(self):
+        """Get or create an AWS Step Functions client."""
         if not hasattr(self, "_sfn_client"):
             self._sfn_client = self.session.client(
                 service_name="stepfunctions",
@@ -403,9 +405,7 @@ class AWS(System):
         code_size = code_package.code_size
         code_bucket: Optional[str] = None
         func_name = AWS.format_function_name(func_name)
-        function_cfg = self._effective_function_config(
-            FunctionConfig.from_benchmark(code_package)
-        )
+        function_cfg = self._effective_function_config(FunctionConfig.from_benchmark(code_package))
         timeout = function_cfg.timeout
         architecture = function_cfg.architecture.value
         # we can either check for exception or use list_functions
@@ -1018,7 +1018,8 @@ class AWS(System):
         return trigger
 
     @staticmethod
-    def workflow_type() -> "Type[Function]":
+    def workflow_type() -> "Type[Workflow]":
+        """Get the AWS workflow class type."""
         from sebs.aws.workflow import SFNWorkflow
 
         return SFNWorkflow
@@ -1028,7 +1029,8 @@ class AWS(System):
         code_package: Benchmark,
         workflow_name: str,
         container_uri: str | None = None,
-    ) -> "Function":
+    ) -> "Workflow":
+        """Create or update an AWS Step Functions workflow."""
         import re
         from sebs.aws.workflow import SFNWorkflow
         from sebs.aws.generator import SFNGenerator
@@ -1069,9 +1071,7 @@ class AWS(System):
                 code_package.benchmark,
                 ret["stateMachineArn"],
                 code_package.hash,
-                self._effective_function_config(
-                    FunctionConfig.from_benchmark(code_package)
-                ),
+                self._effective_function_config(FunctionConfig.from_benchmark(code_package)),
             )
         except self.get_sfn_client().exceptions.StateMachineAlreadyExists as e:
             match = re.search("'([^']*)'", str(e))
@@ -1080,10 +1080,12 @@ class AWS(System):
             arn = match.group()[1:-1]
             self.logging.info(f"Workflow {workflow_name} exists on AWS, updating.")
             workflow = SFNWorkflow(
-                workflow_name, funcs, code_package.benchmark, arn, code_package.hash,
-                self._effective_function_config(
-                    FunctionConfig.from_benchmark(code_package)
-                ),
+                workflow_name,
+                funcs,
+                code_package.benchmark,
+                arn,
+                code_package.hash,
+                self._effective_function_config(FunctionConfig.from_benchmark(code_package)),
             )
             self._update_workflow_definition(workflow, code_package, container_uri)
             workflow.updated_code = True
@@ -1099,12 +1101,14 @@ class AWS(System):
         code_package: Benchmark,
         container_uri: str | None = None,
     ):
+        """Update an existing AWS Step Functions workflow definition."""
         from sebs.aws.workflow import SFNWorkflow
 
         workflow = cast(SFNWorkflow, workflow)
         self._update_workflow_definition(workflow, code_package, container_uri)
 
     def refresh_workflow_configuration(self, workflow, code_package: Benchmark) -> bool:
+        """Refresh child Lambda configuration for a cached AWS workflow."""
         if not code_package.has_input_processed:
             return False
 
@@ -1113,9 +1117,7 @@ class AWS(System):
         workflow = cast(SFNWorkflow, workflow)
         needs_refresh = self.config.redis_host is not None
         for function in workflow.functions:
-            needs_refresh = (
-                self.is_configuration_changed(function, code_package) or needs_refresh
-            )
+            needs_refresh = self.is_configuration_changed(function, code_package) or needs_refresh
         if not needs_refresh:
             return False
 
@@ -1129,6 +1131,7 @@ class AWS(System):
         code_package: Benchmark,
         container_uri: str | None = None,
     ):
+        """Regenerate child functions and publish a Step Functions definition."""
         from sebs.aws.workflow import SFNWorkflow
         from sebs.aws.generator import SFNGenerator
 

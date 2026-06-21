@@ -498,9 +498,7 @@ class Azure(System):
                 if ".python_packages" in os.path.relpath(root, directory).split(os.sep):
                     continue
                 if not (
-                    file.endswith(".py")
-                    or file.endswith(".json")
-                    or file == "requirements.txt"
+                    file.endswith(".py") or file.endswith(".json") or file == "requirements.txt"
                 ):
                     continue
                 path = os.path.join(root, file)
@@ -510,7 +508,7 @@ class Azure(System):
                 with open(path, "rb") as fp:
                     task_hub_hash.update(fp.read())
                 task_hub_hash.update(b"\0")
-        durable_task_config = {
+        durable_task_config: Dict[str, object] = {
             "hubName": "sebs" + task_hub_hash.hexdigest()[:16],
         }
         if self._requires_high_cpu_workflow_plan(benchmark):
@@ -572,7 +570,9 @@ class Azure(System):
             self.logging.info(f"Function app not ready yet, retrying in {interval}s...")
             time.sleep(interval)
 
-        self.logging.warning(f"Function app did not become ready within {timeout}s, proceeding anyway.")
+        self.logging.warning(
+            f"Function app did not become ready within {timeout}s, proceeding anyway."
+        )
 
     def _execute_cli_with_retry(
         self,
@@ -1143,13 +1143,16 @@ class Azure(System):
             azure_trigger.data_storage_account = data_storage_account
 
     def _requires_high_cpu_workflow_plan(self, benchmark: str) -> bool:
+        """Return whether a workflow benchmark needs a Premium plan."""
         return benchmark in self.HIGH_CPU_WORKFLOW_BENCHMARKS
 
     def _high_cpu_workflow_plan_name(self) -> str:
+        """Build the deterministic Premium plan name for high-CPU workflows."""
         sku = self.HIGH_CPU_WORKFLOW_PLAN_SKU.lower()
         return f"sebs-{self.config.resources.resources_id}-workflow-{sku}"
 
     def _ensure_high_cpu_workflow_plan(self, resource_group: str, region: str) -> str:
+        """Create or reuse the Premium plan for high-CPU workflow benchmarks."""
         plan_name = self._high_cpu_workflow_plan_name()
 
         with self._workflow_plan_lock:
@@ -1189,12 +1192,9 @@ class Azure(System):
     def _ensure_function_app_plan(
         self, function_name: str, resource_group: str, plan_name: str
     ) -> None:
+        """Verify that an Azure Function App is assigned to the expected plan."""
         ret = self.cli_instance.execute(
-            (
-                "az functionapp show "
-                f"--resource-group {resource_group} "
-                f"--name {function_name}"
-            )
+            ("az functionapp show " f"--resource-group {resource_group} " f"--name {function_name}")
         )
         app = json.loads(ret.decode("utf-8"))
         current_plan_id = (
@@ -1341,6 +1341,7 @@ class Azure(System):
         self.update_function(workflow, code_package, code_package.system_variant, None)
 
     def refresh_workflow_configuration(self, workflow: Workflow, code_package: Benchmark) -> bool:
+        """Refresh runtime configuration for a cached Azure workflow."""
         if self.config.redis_host and code_package.has_input_processed:
             self.update_envs(workflow, code_package)
             return True
@@ -1488,7 +1489,7 @@ class Azure(System):
             NotImplementedError: If no HTTP trigger exists on the function.
         """
         from sebs.azure.function import AzureWorkflow
-        from sebs.azure.triggers import HTTPTrigger, WorkflowHTTPTrigger
+        from sebs.azure.triggers import WorkflowHTTPTrigger
 
         http_triggers = function.triggers(Trigger.TriggerType.HTTP)
         if trigger_type == Trigger.TriggerType.LIBRARY and isinstance(function, AzureWorkflow):
@@ -1496,8 +1497,9 @@ class Azure(System):
             if library_triggers:
                 return library_triggers[0]
             if http_triggers:
+                http_trigger = cast(HTTPTrigger, http_triggers[0])
                 trigger = WorkflowHTTPTrigger(
-                    http_triggers[0].url,
+                    http_trigger.url,
                     self.config.resources.data_storage_account(self.cli_instance),
                 )
                 trigger.logging_handlers = self.logging_handlers

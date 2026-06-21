@@ -639,6 +639,7 @@ class Benchmark(LoggingBase):
         self._hash_value = val
 
     def get_code_files(self, include_config=True):
+        """Yield benchmark source files for the selected language."""
         FILES = {
             "python": ["*.py"],
             "nodejs": ["*.js"],
@@ -745,7 +746,9 @@ class Benchmark(LoggingBase):
         ensure_benchmarks_data(self.logging)
 
         # Load input module — fall back to output dir for benchmarks without data files
-        self._benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data") or self._output_dir
+        self._benchmark_data_path = (
+            find_benchmark(self._benchmark, "benchmarks-data") or self._output_dir
+        )
         self._benchmark_input_module = load_benchmark_input(self._benchmark_path)
 
         # Check if input has been processed
