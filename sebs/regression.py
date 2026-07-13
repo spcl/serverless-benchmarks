@@ -84,8 +84,7 @@ benchmarks_workflows = [
     "670.auth",
     "680.excamera",
     "690.ml",
-    "6100.1000-genome",
-    "6101.1000-genome-individuals",
+    # 6100.1000-genome and 6101.1000-genome-individuals are disabled on Azure.
     "6200.trip-booking",
 ]
 

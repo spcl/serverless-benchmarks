@@ -41,7 +41,6 @@ import os
 import shlex
 import shutil
 import time
-import threading
 import uuid
 from typing import cast, Dict, List, Optional, Set, Tuple, Type  # noqa
 
@@ -88,14 +87,6 @@ class Azure(System):
 
     # runtime mapping
     AZURE_RUNTIMES = {"python": "python", "nodejs": "node", "java": "java"}
-    HIGH_CPU_WORKFLOW_BENCHMARKS = {
-        "6100.1000-genome",
-        "6101.1000-genome-individuals",
-    }
-    HIGH_CPU_WORKFLOW_PLAN_SKU = "EP3"
-    HIGH_CPU_WORKFLOW_NAME_SUFFIX = "ep3linux"
-    FUNCTION_APP_NAME_LIMIT = 60
-    _workflow_plan_lock = threading.Lock()
 
     @staticmethod
     def name() -> str:
@@ -511,8 +502,6 @@ class Azure(System):
         durable_task_config: Dict[str, object] = {
             "hubName": "sebs" + task_hub_hash.hexdigest()[:16],
         }
-        if self._requires_high_cpu_workflow_plan(benchmark):
-            durable_task_config["maxConcurrentActivityFunctions"] = 1
 
         # generate host.json
         host_json = {
@@ -996,21 +985,6 @@ class Azure(System):
             .replace(".", "-")
             .replace("_", "-")
         )
-        if self._requires_high_cpu_workflow_plan(code_package.benchmark):
-            func_name = f"{func_name}-{self.HIGH_CPU_WORKFLOW_NAME_SUFFIX}"
-            if len(func_name) > self.FUNCTION_APP_NAME_LIMIT:
-                benchmark_id = code_package.benchmark.split(".")[0]
-                func_name = (
-                    "sebs-{}-{}-{}-{}-{}".format(
-                        self.config.resources.resources_id,
-                        benchmark_id,
-                        code_package.language_name,
-                        code_package.language_version,
-                        self.HIGH_CPU_WORKFLOW_NAME_SUFFIX,
-                    )
-                    .replace(".", "-")
-                    .replace("_", "-")
-                )
         return func_name
 
     def create_function(
@@ -1142,76 +1116,6 @@ class Azure(System):
             azure_trigger.logging_handlers = self.logging_handlers
             azure_trigger.data_storage_account = data_storage_account
 
-    def _requires_high_cpu_workflow_plan(self, benchmark: str) -> bool:
-        """Return whether a workflow benchmark needs a Premium plan."""
-        return benchmark in self.HIGH_CPU_WORKFLOW_BENCHMARKS
-
-    def _high_cpu_workflow_plan_name(self) -> str:
-        """Build the deterministic Premium plan name for high-CPU workflows."""
-        sku = self.HIGH_CPU_WORKFLOW_PLAN_SKU.lower()
-        return f"sebs-{self.config.resources.resources_id}-workflow-{sku}"
-
-    def _ensure_high_cpu_workflow_plan(self, resource_group: str, region: str) -> str:
-        """Create or reuse the Premium plan for high-CPU workflow benchmarks."""
-        plan_name = self._high_cpu_workflow_plan_name()
-
-        with self._workflow_plan_lock:
-            try:
-                self.cli_instance.execute(
-                    (
-                        "az functionapp plan show "
-                        f"--resource-group {resource_group} --name {plan_name}"
-                    )
-                )
-                return plan_name
-            except RuntimeError:
-                pass
-
-            self.logging.info(
-                f"Creating Azure Functions Premium plan {plan_name} "
-                f"({self.HIGH_CPU_WORKFLOW_PLAN_SKU}) for high-CPU workflows"
-            )
-            try:
-                self.cli_instance.execute(
-                    (
-                        "az functionapp plan create "
-                        f"--resource-group {resource_group} "
-                        f"--name {plan_name} "
-                        f"--location {region} "
-                        f"--sku {self.HIGH_CPU_WORKFLOW_PLAN_SKU} "
-                        "--is-linux "
-                        "--number-of-workers 1"
-                    )
-                )
-            except RuntimeError as e:
-                if "already exists" not in str(e).lower():
-                    raise e from None
-
-        return plan_name
-
-    def _ensure_function_app_plan(
-        self, function_name: str, resource_group: str, plan_name: str
-    ) -> None:
-        """Verify that an Azure Function App is assigned to the expected plan."""
-        ret = self.cli_instance.execute(
-            ("az functionapp show " f"--resource-group {resource_group} " f"--name {function_name}")
-        )
-        app = json.loads(ret.decode("utf-8"))
-        current_plan_id = (
-            app.get("serverFarmId")
-            or app.get("appServicePlanId")
-            or app.get("properties", {}).get("serverFarmId")
-            or ""
-        ).lower()
-        if current_plan_id.endswith(f"/serverfarms/{plan_name.lower()}"):
-            return
-
-        raise RuntimeError(
-            f"Workflow app {function_name} is on plan {current_plan_id}, "
-            f"expected {plan_name}. Azure does not support migrating Linux "
-            "Consumption function apps to Premium; redeploy with a new app name."
-        )
-
     def create_workflow(
         self,
         code_package: Benchmark,
@@ -1243,15 +1147,9 @@ class Azure(System):
             "region": region,
             "runtime": self.AZURE_RUNTIMES[language],
             "runtime_version": language_runtime,
+            "plan_args": f"--consumption-plan-location {region}",
+            "os_args": "--os-type Linux",
         }
-        high_cpu_plan_name: Optional[str] = None
-        if self._requires_high_cpu_workflow_plan(code_package.benchmark):
-            high_cpu_plan_name = self._ensure_high_cpu_workflow_plan(resource_group, region)
-            config["plan_args"] = f"--plan {high_cpu_plan_name}"
-            config["os_args"] = ""
-        else:
-            config["plan_args"] = "--consumption-plan-location {region}".format(**config)
-            config["os_args"] = "--os-type Linux"
 
         # Check if function app already exists
         function_storage_account: Optional[AzureResources.Storage] = None
@@ -1277,8 +1175,6 @@ class Azure(System):
                     )
             assert function_storage_account is not None
             self.logging.info("Azure: Selected existing workflow app {}".format(workflow_name))
-            if high_cpu_plan_name:
-                self._ensure_function_app_plan(workflow_name, resource_group, high_cpu_plan_name)
 
         if function_storage_account is None:
             function_storage_account = self.config.resources.add_storage_account(self.cli_instance)
@@ -1334,10 +1230,6 @@ class Azure(System):
             workflow: Workflow instance to update
             code_package: New benchmark code package
         """
-        if self._requires_high_cpu_workflow_plan(code_package.benchmark):
-            resource_group = self.config.resources.resource_group(self.cli_instance)
-            plan_name = self._ensure_high_cpu_workflow_plan(resource_group, self.config.region)
-            self._ensure_function_app_plan(workflow.name, resource_group, plan_name)
         self.update_function(workflow, code_package, code_package.system_variant, None)
 
     def refresh_workflow_configuration(self, workflow: Workflow, code_package: Benchmark) -> bool:
