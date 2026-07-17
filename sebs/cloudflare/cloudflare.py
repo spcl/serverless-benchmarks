@@ -1550,7 +1550,6 @@ class Cloudflare(System):
             dispatcher_image,
             workflow_max_instances,
             workflow_instance_type,
-            orchestrator_url,
             code_package,
         )
 
@@ -1687,7 +1686,6 @@ class Cloudflare(System):
             dispatcher_image,
             workflow_max_instances,
             workflow_instance_type,
-            orchestrator_url,
             code_package,
         )
 
@@ -1713,7 +1711,6 @@ class Cloudflare(System):
         dispatcher_image: str,
         max_instances: int,
         instance_type: str,
-        worker_url: str,
         code_package: Optional[Benchmark] = None,
     ) -> str:
         """Generate wrangler.toml for the workflow orchestrator from template.
@@ -1725,7 +1722,6 @@ class Cloudflare(System):
             dispatcher_image: Cloudflare registry image for DispatcherContainer.
             max_instances: Maximum DispatcherContainer instances.
             instance_type: Cloudflare Container instance type.
-            worker_url: Public orchestrator URL used by containers for R2/KV proxy calls.
             code_package: Optional benchmark package for storage and nosql bindings.
 
         Returns:
@@ -1756,7 +1752,6 @@ class Cloudflare(System):
         config["containers"][0]["max_instances"] = max_instances
         config["containers"][0]["instance_type"] = instance_type
         config["vars"] = {
-            "WORKER_URL": worker_url,
             "WORKFLOW_NAME": orchestrator_name,
         }
         if code_package:

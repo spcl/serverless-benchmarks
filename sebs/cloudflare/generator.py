@@ -79,7 +79,6 @@ interface Env {{
   ITEM_WORKFLOW: Workflow;
   FANIN: DurableObjectNamespace;
   DISPATCHER: DurableObjectNamespace;
-  WORKER_URL: string;
   WORKFLOW_NAME?: string;
   REDIS_HOST?: string;
   REDIS_USERNAME?: string;
@@ -179,7 +178,6 @@ async function dispatchWithRetry(
     let r: Response;
     const headers: Record<string, string> = {{
       "Content-Type": "application/json",
-      "X-Worker-URL": env.WORKER_URL,
       "X-Dispatcher-Container-ID": containerId,
       "X-SEBS-Workflow-Request-ID": workflowRequestId,
     }};
@@ -852,36 +850,6 @@ async function handleR2Request(request: Request, env: Env): Promise<Response> {
       const prefix = url.searchParams.get("prefix") || "";
       const list = await env.R2.list({ prefix });
       return Response.json({ objects: list.objects || [] });
-    }
-
-    if (url.pathname === "/r2/multipart-init") {
-      if (!key) {
-        return Response.json({ error: "Missing key parameter" }, { status: 400 });
-      }
-      const multipart = await env.R2.createMultipartUpload(key);
-      return Response.json({ key: multipart.key, uploadId: multipart.uploadId });
-    }
-
-    if (url.pathname === "/r2/multipart-part") {
-      if (!key) {
-        return Response.json({ error: "Missing key parameter" }, { status: 400 });
-      }
-      const uploadId = url.searchParams.get("uploadId");
-      const partNumber = Number(url.searchParams.get("partNumber"));
-      const multipart = env.R2.resumeMultipartUpload(key, uploadId!);
-      const part = await multipart.uploadPart(partNumber, request.body!);
-      return Response.json({ partNumber: part.partNumber, etag: part.etag });
-    }
-
-    if (url.pathname === "/r2/multipart-complete") {
-      if (!key) {
-        return Response.json({ error: "Missing key parameter" }, { status: 400 });
-      }
-      const uploadId = url.searchParams.get("uploadId");
-      const { parts } = await request.json() as any;
-      const multipart = env.R2.resumeMultipartUpload(key, uploadId!);
-      await multipart.complete(parts);
-      return Response.json({ key });
     }
 
     if (!key) {

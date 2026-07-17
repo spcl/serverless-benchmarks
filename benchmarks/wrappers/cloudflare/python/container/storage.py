@@ -157,15 +157,15 @@ class storage:
             f.write(data)
 
     def download_within_range(self, bucket: str, key: str, start_bytes: int, end_bytes: int) -> str:
-        """Download a byte range of an object from R2 via the worker proxy."""
+        """Download a byte range of an object from R2 via the outbound handler."""
         if not self.r2_enabled:
             raise RuntimeError("R2 not configured")
 
-        if not storage.worker_url:
-            raise RuntimeError("Worker URL not set - cannot access R2")
+        if not storage.outbound_url:
+            raise RuntimeError("Outbound handler URL is not configured - cannot access R2")
 
         params = urllib.parse.urlencode({'bucket': bucket, 'key': key})
-        url = f"{storage.worker_url}/r2/download?{params}"
+        url = f"{storage.outbound_url}/r2/download?{params}"
 
         req = urllib.request.Request(url)
         req.add_header('Range', f'bytes={start_bytes}-{end_bytes}')
@@ -182,10 +182,10 @@ class storage:
 
     def list_directory(self, bucket, prefix):
         """List all object keys with a given prefix."""
-        if not storage.worker_url:
-            raise RuntimeError("Worker URL not set - cannot access R2")
+        if not storage.outbound_url:
+            raise RuntimeError("Outbound handler URL is not configured - cannot access R2")
         params = urllib.parse.urlencode({'bucket': bucket, 'prefix': prefix})
-        list_url = f"{storage.worker_url}/r2/list?{params}"
+        list_url = f"{storage.outbound_url}/r2/list?{params}"
         with urllib.request.urlopen(list_url) as response:
             result = json.loads(response.read().decode('utf-8'))
             return [obj['key'] for obj in result.get('objects', [])]
