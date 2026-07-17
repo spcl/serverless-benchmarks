@@ -65,26 +65,6 @@ const server = http.createServer(async (req, res) => {
     // Get unique request ID from Cloudflare (CF-Ray header)
     const reqId = req.headers['cf-ray'] || crypto.randomUUID();
     
-    // Extract Worker URL from header for R2 and NoSQL proxy.
-    //
-    // Containers run in a separate runtime from Workers and cannot access R2 or
-    // KV bindings directly — those bindings only exist in the Worker's `env`.
-    // To let the benchmark code reach storage, worker.js injects its own public
-    // origin into the X-Worker-URL header before forwarding the request here.
-    // The container-side storage/nosql modules use this URL to call back into
-    // the Worker over HTTP (e.g. POST ${workerUrl}/r2/upload), and worker.js
-    // intercepts those paths (/r2/*, /nosql/*) and performs the binding call
-    // on the container's behalf.
-    const workerUrl = req.headers['x-worker-url'];
-    if (workerUrl) {
-      if (storage && storage.storage && storage.storage.set_worker_url) {
-        storage.storage.set_worker_url(workerUrl);
-      }
-      if (nosql && nosql.nosql && nosql.nosql.set_worker_url) {
-        nosql.nosql.set_worker_url(workerUrl);
-      }
-      console.log(`Set worker URL for R2/NoSQL proxy: ${workerUrl}`);
-    }
 
     // Start timing measurements
     const begin = Date.now() / 1000;
