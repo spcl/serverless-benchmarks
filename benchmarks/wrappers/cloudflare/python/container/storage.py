@@ -8,16 +8,10 @@ import json
 import urllib.request
 import urllib.parse
 
-# Cloudflare Workers enforce a 100 MB request body limit at the edge.
-# Use multipart upload for payloads at or above this threshold so that
-# each individual request stays well below that limit.
-_MULTIPART_THRESHOLD = 10 * 1024 * 1024   # 10 MB
-_PART_SIZE          = 10 * 1024 * 1024   # 10 MB per part (R2 min is 5 MB)
 
 class storage:
     """R2 storage client for containers using a Worker outbound binding handler"""
     instance = None
-    worker_url = None  # Legacy public proxy URL, retained for compatibility
     outbound_url = "http://sebs.r2"
     
     def __init__(self):
@@ -39,11 +33,6 @@ class storage:
         return storage.instance
     
     @staticmethod
-    def set_worker_url(url):
-        """Retain the legacy public proxy URL for older handlers."""
-        storage.worker_url = url
-    
-    @staticmethod
     def unique_name(name):
         """Generate unique name for file"""
         import uuid
@@ -61,18 +50,9 @@ class storage:
         with urllib.request.urlopen(req) as resp:
             return json.loads(resp.read().decode('utf-8'))
 
+
     def _upload_bytes(self, key: str, data: bytes) -> str:
-        """Upload *data* to the exact R2 *key* via the outbound handler.
-
-        Uses a single PUT for small payloads and R2 multipart upload for
-        payloads at or above _MULTIPART_THRESHOLD (to stay under Cloudflare's
-        100 MB per-request edge limit).
-
-        Returns the R2 key.
-        """
-        if len(data) < _MULTIPART_THRESHOLD:
-            return self._single_upload(key, data)
-        return self._multipart_upload(key, data)
+        return self._single_upload(key, data)
 
     def _single_upload(self, key: str, data: bytes) -> str:
         params = urllib.parse.urlencode({'key': key})
@@ -80,41 +60,6 @@ class storage:
         result = self._post_json(url, data)
         return result['key']
 
-    def _multipart_upload(self, key: str, data: bytes) -> str:
-        """Split *data* into ≤_PART_SIZE chunks and use R2 multipart upload."""
-        # 1. Initiate
-        params = urllib.parse.urlencode({'key': key})
-        init_url = f"{storage.outbound_url}/r2/multipart-init?{params}"
-        init = self._post_json(init_url)
-        upload_id = init['uploadId']
-        upload_key = init['key']
-        print(f"[storage] multipart upload initiated: key={upload_key}, uploadId={upload_id}, "
-              f"total={len(data):,} bytes, parts={-(-len(data)//_PART_SIZE)}")
-
-        # 2. Upload parts
-        completed_parts = []
-        for part_num, offset in enumerate(range(0, len(data), _PART_SIZE), start=1):
-            chunk = data[offset:offset + _PART_SIZE]
-            params = urllib.parse.urlencode({
-                'key': upload_key,
-                'uploadId': upload_id,
-                'partNumber': part_num,
-            })
-            part_url = f"{storage.outbound_url}/r2/multipart-part?{params}"
-            part = self._post_json(part_url, chunk)
-            completed_parts.append({'partNumber': part['partNumber'], 'etag': part['etag']})
-            print(f"[storage] uploaded part {part_num}, etag={part['etag']}")
-
-        # 3. Complete
-        params = urllib.parse.urlencode({'key': upload_key, 'uploadId': upload_id})
-        complete_url = f"{storage.outbound_url}/r2/multipart-complete?{params}"
-        result = self._post_json(
-            complete_url,
-            json.dumps({'parts': completed_parts}).encode('utf-8'),
-            content_type='application/json',
-        )
-        print(f"[storage] multipart upload complete: key={result['key']}")
-        return result['key']
 
     # ------------------------------------------------------------------
     # Public API

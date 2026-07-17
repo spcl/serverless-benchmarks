@@ -3,36 +3,20 @@ const path = require('path');
 const uuid = require('uuid');
 const debug = require('util').debuglog('sebs');
 
-// Cloudflare Workers enforce a 100 MB request body limit at the edge.
-// Use multipart upload for payloads at or above this threshold so that
-// each individual request stays well below that limit. R2 requires parts
-// of at least 5 MB.
-const MULTIPART_THRESHOLD = 10 * 1024 * 1024;
-const PART_SIZE = 10 * 1024 * 1024;
-
-function isRetryableSingleUploadError(error) {
-  const message = error?.message || '';
-  return /HTTP 4(?:08|13|29)|request body|payload|too large|content length|body size|stream/i.test(message);
-}
 
 /**
  * Storage module for Cloudflare Node.js Containers.
  *
- * On Cloudflare, object storage (R2) is normally accessed through a Worker
- * binding (`env.R2_BUCKET`). That binding only exists inside the Worker
- * runtime, so a container uses the Workers outbound handler through the
- * `http://sebs.r2` virtual host. The handler holds the R2 binding and
- * performs the actual get/put/list/multipart calls.
+ * Cloudflare documents the Container-to-binding integration path through a
+ * Worker outbound handler and a virtual host (`http://sebs.r2`). The handler
+ * runs in the Worker, where the R2 binding is available, and performs the
+ * actual get/put/list calls.
  *
- * R2 does expose an S3-compatible HTTPS API that a container could call
- * without a Worker proxy, but that path requires provisioning and injecting
- * R2 access keys into the container and diverges from how the Worker-based
- * benchmarks access R2. Routing through the Worker keeps a single code path
- * and credential model for both deployment types.
+ * R2 also exposes a supported S3-compatible HTTPS API. A container can use
+ * that alternative directly, but it requires provisioning and injecting R2
+ * access keys into the container. It is separate from the documented
+ * Container-to-binding path used by these benchmarks.
  *
- * The legacy worker_url/set_worker_url members remain for compatibility with
- * older benchmark handlers, but the current path does not require a public
- * Worker URL or credentials in the container.
  */
 
 class storage {
@@ -40,7 +24,6 @@ class storage {
     this.r2_enabled = true;
   }
   
-  static worker_url = null; // Legacy public proxy URL, retained for compatibility
   static outbound_url = 'http://sebs.r2';
 
   static unique_name(name) {
@@ -56,9 +39,6 @@ class storage {
     return storage.instance;
   }
   
-  static set_worker_url(url) {
-    storage.worker_url = url;
-  }
   
   static get_instance() {
     if (!storage.instance) {
@@ -106,55 +86,10 @@ class storage {
     return result.key;
   }
 
-  async _multipart_upload(key, buffer) {
-    const initParams = new URLSearchParams({ key });
-    const initUrl = `${storage.outbound_url}/r2/multipart-init?${initParams}`;
-    const init = await this._postJson(initUrl);
-    const uploadId = init.uploadId;
-    const uploadKey = init.key;
-    const completedParts = [];
 
-    for (let offset = 0, partNumber = 1; offset < buffer.length; offset += PART_SIZE, partNumber += 1) {
-      const chunk = buffer.subarray(offset, offset + PART_SIZE);
-      const partParams = new URLSearchParams({
-        key: uploadKey,
-        uploadId,
-        partNumber: String(partNumber),
-      });
-      const partUrl = `${storage.outbound_url}/r2/multipart-part?${partParams}`;
-      const part = await this._postJson(partUrl, chunk, 'application/octet-stream');
-      completedParts.push({ partNumber: part.partNumber, etag: part.etag });
-    }
-
-    const completeParams = new URLSearchParams({ key: uploadKey, uploadId });
-    const completeUrl = `${storage.outbound_url}/r2/multipart-complete?${completeParams}`;
-    const result = await this._postJson(
-      completeUrl,
-      Buffer.from(JSON.stringify({ parts: completedParts }), 'utf-8'),
-      'application/json'
-    );
-    return result.key;
-  }
 
   async _upload_bytes(key, buffer) {
-    if (buffer.length >= MULTIPART_THRESHOLD) {
-      return this._multipart_upload(key, buffer);
-    }
-
-    try {
-      return await this._single_upload(key, buffer);
-    } catch (error) {
-      if (!isRetryableSingleUploadError(error)) {
-        throw error;
-      }
-
-      debug(
-        '[storage] single upload failed for %s; retrying with multipart upload: %s',
-        key,
-        error.message
-      );
-      return this._multipart_upload(key, buffer);
-    }
+    return this._single_upload(key, buffer);
   }
 
   async upload_stream(bucket, key, data) {

@@ -133,8 +133,6 @@ class ContainerHandler(BaseHTTPRequestHandler):
         try:
             # Get unique request ID from Cloudflare (CF-Ray header)
             req_id = self.headers.get('CF-Ray', str(uuid.uuid4()))
-            os.environ["STORAGE_UPLOAD_BYTES"] = "0"
-            os.environ["STORAGE_DOWNLOAD_BYTES"] = "0"
             
             # Read request body
             content_length = int(self.headers.get('Content-Length', 0))

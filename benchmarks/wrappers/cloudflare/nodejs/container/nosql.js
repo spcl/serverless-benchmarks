@@ -6,15 +6,11 @@
  * handler through the `http://sebs.kv` virtual host. The handler holds the
  * KV binding and performs the actual read/write.
  *
- * The legacy worker_url/set_worker_url members remain for compatibility with
- * older benchmark handlers, but the current path does not require a public
- * Worker URL or credentials in the container.
  */
 
 class nosql {
   constructor() {}
 
-  static worker_url = null; // Legacy public proxy URL, retained for compatibility
   static outbound_url = 'http://sebs.kv';
 
   static init_instance(entry) {
@@ -24,9 +20,6 @@ class nosql {
     return nosql.instance;
   }
   
-  static set_worker_url(url) {
-    nosql.worker_url = url;
-  }
 
   async _make_request(operation, params) {
 
