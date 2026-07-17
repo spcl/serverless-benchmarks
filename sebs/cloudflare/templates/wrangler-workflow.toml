@@ -3,7 +3,7 @@
 
 name = "PLACEHOLDER_WORKER_NAME"
 main = "workflow.ts"
-compatibility_date = "2025-06-01"
+compatibility_date = "2025-11-18"
 account_id = "PLACEHOLDER_ACCOUNT_ID"
 compatibility_flags = ["nodejs_compat"]
 

@@ -23,18 +23,8 @@ ContainerWorker.outboundByHost = {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
 
     try {
-      // Handle NoSQL proxy requests - intercept BEFORE forwarding to container
-      if (url.pathname.startsWith('/nosql/')) {
-        return await handleNoSQLRequest(request, env);
-      }
-      
-      // Handle R2 proxy requests - intercept BEFORE forwarding to container
-      if (url.pathname.startsWith('/r2/')) {
-        return await handleR2Request(request, env);
-      }
       
       // Get or create container instance
       const containerId = request.headers.get('x-container-id') || 'default';

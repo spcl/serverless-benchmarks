@@ -70,6 +70,7 @@ class CloudflareWorkflowGenerator(Generator):
  * - DISPATCHER: Durable Object namespace for DispatcherContainer
  * - [[containers]] class_name = "DispatcherContainer", max_instances = {self._max_instances}
  */
+export {{ ContainerProxy }} from "@cloudflare/containers";
 import {{ Container }} from "@cloudflare/containers";
 import {{ WorkflowEntrypoint, WorkflowEvent, WorkflowStep }} from "cloudflare:workers";
 
@@ -328,12 +329,6 @@ export class BenchmarkWorkflow extends WorkflowEntrypoint<Env, any> {{
 export default {{
   async fetch(request: Request, env: Env): Promise<Response> {{
     const url = new URL(request.url);
-    if (url.pathname.startsWith("/nosql/")) {{
-      return await handleNoSQLRequest(request, env);
-    }}
-    if (url.pathname.startsWith("/r2/")) {{
-      return await handleR2Request(request, env);
-    }}
     if (request.method === "GET" && url.searchParams.has("id")) {{
       const id = url.searchParams.get("id")!;
       const instance = await env.WORKFLOW.get(id);
@@ -1030,7 +1025,15 @@ export class FanInCoordinator {
 export class DispatcherContainer extends Container {
   defaultPort = 8080;
   sleepAfter = "5s";
-}"""
+
+}
+// Route container outbound requests through the workflow Worker bindings.
+// This is the same Container-to-binding path used by regular SeBS containers;
+// the workflow Worker does not expose public storage proxy routes.
+DispatcherContainer.outboundByHost = {
+  "sebs.r2": (request, env, ctx) => handleR2Request(request, env, ctx),
+  "sebs.kv": (request, env, ctx) => handleNoSQLRequest(request, env, ctx),
+};"""
 
     def _map_func_name(self, state: Map) -> str:
         """Return the task function name used by a Map state."""
