@@ -149,21 +149,11 @@ R2 configuration is handled automatically by SeBS when deploying to Cloudflare W
 **Limitations:**
 - Geographic location hints (locationHint) are not currently supported. R2 buckets are created with Cloudflare's automatic location selection, which places data near where it's most frequently accessed.
 
-### Container Upload Behavior (R2 Proxy)
+### Container Storage Access
 
-For Cloudflare container deployments, benchmark code does not talk to R2 directly. Instead, container wrappers call the Worker proxy endpoints (`/r2/upload`, `/r2/multipart-init`, `/r2/multipart-part`, `/r2/multipart-complete`).
+Container wrappers use the documented Cloudflare outbound-handler path through the `http://sebs.r2` and `http://sebs.kv` virtual hosts. The parent Worker holds the R2 and KV bindings and handles the internal requests, so containers do not need public Worker URLs or injected storage credentials.
 
-**Why a proxy (and not a direct storage wrapper like other platforms)?**
-On other platforms (AWS/GCP/Azure), the storage wrapper can be an SDK call because the function runtime and object store share a credential/SDK surface. Cloudflare R2 is different: the supported access path for Workers is the R2 **binding** (`env.R2_BUCKET`), which is a runtime object injected only inside the Worker runtime. A Cloudflare container runs in a separate runtime and has no access to that binding, so a container-side "storage wrapper" has nowhere to call. The only direct alternative is R2's S3-compatible HTTPS API, which would require provisioning R2 access keys and shipping them into each container — a second credential model that diverges from how the native Worker benchmarks talk to R2. Routing container storage calls through the parent Worker keeps a single code path and single credential model for both deployment types; the container-side `storage.js` wrapper still exists and still exposes the SeBS storage interface, it just implements those operations by forwarding to the Worker that holds the binding.
-
-**Upload strategy:**
-- Small payloads use a single upload request.
-- Large payloads use multipart upload (10 MB threshold, 10 MB part size in current wrappers).
-- Node.js container wrapper retries with multipart when single-upload fails with size/body-limit style errors.
-
-**Object keys and uniqueness:**
-- Container wrappers generate unique output keys (suffix based on UUID fragment) before upload.
-- This avoids collisions and keeps run-specific output objects distinct in regression and repeated invocations.
+R2 uploads use a single request through the outbound handler. Container wrappers generate unique output keys before uploading to avoid collisions between runs.
 
 ### KVStore for NoSQL
 
