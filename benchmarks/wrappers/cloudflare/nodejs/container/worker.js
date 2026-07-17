@@ -5,12 +5,21 @@
 // benchmarks/wrappers/cloudflare/nodejs/container/ into every container build
 // directory (Python builds included).
 import { Container, getContainer } from "@cloudflare/containers";
+export { ContainerProxy } from "@cloudflare/containers";
 
 // Container wrapper class
 export class ContainerWorker extends Container {
   defaultPort = 8080;
   sleepAfter = "30m";
 }
+
+// Cloudflare's supported Container-to-binding path. Requests sent by the
+// container to these virtual hosts are handled inside the Workers runtime,
+// where the R2 and KV bindings are available.
+ContainerWorker.outboundByHost = {
+  "sebs.r2": (request, env, ctx) => handleR2Request(request, env, ctx),
+  "sebs.kv": (request, env, ctx) => handleNoSQLRequest(request, env, ctx),
+};
 
 export default {
   async fetch(request, env) {
@@ -32,12 +41,9 @@ export default {
       const id = env.CONTAINER_WORKER.idFromName(containerId);
       const stub = env.CONTAINER_WORKER.get(id);
       
-      // Clone request and add Worker URL as header so container knows where to proxy R2 requests
-      const modifiedRequest = new Request(request);
-      modifiedRequest.headers.set('X-Worker-URL', url.origin);
-      
-      // Forward the request to the container
-      return await stub.fetch(modifiedRequest);
+      // Storage access uses outboundByHost virtual hosts inside the Workers
+      // runtime; the container does not need the public Worker URL.
+      return await stub.fetch(request);
       
     } catch (error) {
       console.error('Worker error:', error);
