@@ -5,12 +5,21 @@
 // benchmarks/wrappers/cloudflare/nodejs/container/ into every container build
 // directory (Python builds included).
 import { Container, getContainer } from "@cloudflare/containers";
+export { ContainerProxy } from "@cloudflare/containers";
 
 // Container wrapper class
 export class ContainerWorker extends Container {
   defaultPort = 8080;
   sleepAfter = "30m";
 }
+
+// Cloudflare's supported Container-to-binding path. Requests sent by the
+// container to these virtual hosts are handled inside the Workers runtime,
+// where the R2 and KV bindings are available.
+ContainerWorker.outboundByHost = {
+  "sebs.r2": (request, env, ctx) => handleR2Request(request, env, ctx),
+  "sebs.kv": (request, env, ctx) => handleNoSQLRequest(request, env, ctx),
+};
 
 export default {
   async fetch(request, env) {
@@ -32,12 +41,9 @@ export default {
       const id = env.CONTAINER_WORKER.idFromName(containerId);
       const stub = env.CONTAINER_WORKER.get(id);
       
-      // Clone request and add Worker URL as header so container knows where to proxy R2 requests
-      const modifiedRequest = new Request(request);
-      modifiedRequest.headers.set('X-Worker-URL', url.origin);
-      
-      // Forward the request to the container
-      return await stub.fetch(modifiedRequest);
+      // Storage access uses outboundByHost virtual hosts inside the Workers
+      // runtime; the container does not need the public Worker URL.
+      return await stub.fetch(request);
       
     } catch (error) {
       console.error('Worker error:', error);
@@ -283,42 +289,6 @@ async function handleR2Request(request, env) {
       }
     }
     
-    // Multipart upload routes only need 'key' (bucket is implicit in the R2 binding)
-    if (url.pathname === '/r2/multipart-init') {
-      // Initiate a multipart upload; returns { key, uploadId }
-      console.log(`[worker.js /r2/multipart-init] key=${key}`);
-      const multipart = await env.R2.createMultipartUpload(key);
-      console.log(`[worker.js /r2/multipart-init] uploadId=${multipart.uploadId}`);
-      return new Response(JSON.stringify({
-        key: multipart.key,
-        uploadId: multipart.uploadId
-      }), { headers: { 'Content-Type': 'application/json' } });
-
-    } else if (url.pathname === '/r2/multipart-part') {
-      // Upload one part; returns { partNumber, etag }
-      const uploadId = url.searchParams.get('uploadId');
-      const partNumber = parseInt(url.searchParams.get('partNumber'), 10);
-      console.log(`[worker.js /r2/multipart-part] key=${key}, uploadId=${uploadId}, partNumber=${partNumber}`);
-      const multipart = env.R2.resumeMultipartUpload(key, uploadId);
-      const part = await multipart.uploadPart(partNumber, request.body);
-      console.log(`[worker.js /r2/multipart-part] uploaded part ${part.partNumber}, etag=${part.etag}`);
-      return new Response(JSON.stringify({
-        partNumber: part.partNumber,
-        etag: part.etag
-      }), { headers: { 'Content-Type': 'application/json' } });
-
-    } else if (url.pathname === '/r2/multipart-complete') {
-      // Complete a multipart upload; body is JSON { parts: [{ partNumber, etag }] }
-      const uploadId = url.searchParams.get('uploadId');
-      console.log(`[worker.js /r2/multipart-complete] key=${key}, uploadId=${uploadId}`);
-      const { parts } = await request.json();
-      const multipart = env.R2.resumeMultipartUpload(key, uploadId);
-      const obj = await multipart.complete(parts);
-      console.log(`[worker.js /r2/multipart-complete] completed, size=${obj ? obj.size : '?'}`);
-      return new Response(JSON.stringify({ key: key }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
 
     // Download and upload require a key (bucket is implicit in the R2 binding)
     if (!key) {

@@ -1,22 +1,17 @@
 /**
  * NoSQL module for Cloudflare Node.js Containers.
  *
- * On Cloudflare, NoSQL storage is mapped to KVStore. KVStore 
- * bindings only exist inside the Worker runtime, so a container cannot talk
- * to them directly. Instead, the container forwards each operation over HTTP
- * to the parent Worker (see worker.js), which holds the KVStore
- * binding and performs the actual read/write.
+ * On Cloudflare, NoSQL storage is mapped to KVStore. KVStore bindings only
+ * exist inside the Worker runtime, so a container uses the Workers outbound
+ * handler through the `http://sebs.kv` virtual host. The handler holds the
+ * KV binding and performs the actual read/write.
  *
- * Because of this, the HTTP endpoint depends on the Worker's URL, which is
- * not known ahead of time. The handler receives it via the X-Worker-URL
- * header on the incoming request and installs it here through
- * set_worker_url() before any NoSQL call is made.
  */
 
 class nosql {
   constructor() {}
 
-  static worker_url = null; // Set by handler from X-Worker-URL header
+  static outbound_url = 'http://sebs.kv';
 
   static init_instance(entry) {
     if (!nosql.instance) {
@@ -25,16 +20,10 @@ class nosql {
     return nosql.instance;
   }
   
-  static set_worker_url(url) {
-    nosql.worker_url = url;
-  }
 
   async _make_request(operation, params) {
-    if (!nosql.worker_url) {
-      throw new Error('Worker URL not set - cannot access NoSQL');
-    }
 
-    const url = `${nosql.worker_url}/nosql/${operation}`;
+    const url = `${nosql.outbound_url}/nosql/${operation}`;
     const data = JSON.stringify(params);
 
     try {

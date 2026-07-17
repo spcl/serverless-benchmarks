@@ -3,39 +3,20 @@ const path = require('path');
 const uuid = require('uuid');
 const debug = require('util').debuglog('sebs');
 
-// Cloudflare Workers enforce a 100 MB request body limit at the edge.
-// Use multipart upload for payloads larger than this threshold so that
-// each individual request stays well below that limit. R2 requires parts
-// of at least 5 MB.
-const MULTIPART_THRESHOLD = 10 * 1024 * 1024;
-const PART_SIZE = 10 * 1024 * 1024;
-
-function isRetryableSingleUploadError(error) {
-  const message = error?.message || '';
-  return /HTTP 4(?:08|13|29)|request body|payload|too large|content length|body size|stream/i.test(message);
-}
 
 /**
  * Storage module for Cloudflare Node.js Containers.
  *
- * On Cloudflare, object storage (R2) is normally accessed through a Worker
- * binding (`env.R2_BUCKET`). That binding only exists inside the Worker
- * runtime, so a container cannot talk to R2 directly the way a Lambda or
- * Cloud Function talks to S3/GCS with a regular SDK. Instead, the container
- * forwards each storage operation over HTTP to the parent Worker (see
- * worker.js), which holds the R2 binding and performs the actual
- * get/put/list/multipart calls.
+ * Cloudflare documents the Container-to-binding integration path through a
+ * Worker outbound handler and a virtual host (`http://sebs.r2`). The handler
+ * runs in the Worker, where the R2 binding is available, and performs the
+ * actual get/put/list calls.
  *
- * R2 does expose an S3-compatible HTTPS API that a container could call
- * without a Worker proxy, but that path requires provisioning and injecting
- * R2 access keys into the container and diverges from how the Worker-based
- * benchmarks access R2. Routing through the Worker keeps a single code path
- * and credential model for both deployment types.
+ * R2 also exposes a supported S3-compatible HTTPS API. A container can use
+ * that alternative directly, but it requires provisioning and injecting R2
+ * access keys into the container. It is separate from the documented
+ * Container-to-binding path used by these benchmarks.
  *
- * Because of this, the HTTP endpoint depends on the Worker's URL, which is
- * not known ahead of time. The handler receives it via the X-Worker-URL
- * header on the incoming request and installs it here through
- * set_worker_url() before any storage call is made.
  */
 
 class storage {
@@ -43,7 +24,7 @@ class storage {
     this.r2_enabled = true;
   }
   
-  static worker_url = null; // Set by handler from X-Worker-URL header
+  static outbound_url = 'http://sebs.r2';
 
   static unique_name(name) {
     const parsed = path.parse(name);
@@ -58,9 +39,6 @@ class storage {
     return storage.instance;
   }
   
-  static set_worker_url(url) {
-    storage.worker_url = url;
-  }
   
   static get_instance() {
     if (!storage.instance) {
@@ -103,60 +81,15 @@ class storage {
 
   async _single_upload(key, buffer) {
     const params = new URLSearchParams({ key });
-    const url = `${storage.worker_url}/r2/upload?${params}`;
+    const url = `${storage.outbound_url}/r2/upload?${params}`;
     const result = await this._postJson(url, buffer);
     return result.key;
   }
 
-  async _multipart_upload(key, buffer) {
-    const initParams = new URLSearchParams({ key });
-    const initUrl = `${storage.worker_url}/r2/multipart-init?${initParams}`;
-    const init = await this._postJson(initUrl);
-    const uploadId = init.uploadId;
-    const uploadKey = init.key;
-    const completedParts = [];
 
-    for (let offset = 0, partNumber = 1; offset < buffer.length; offset += PART_SIZE, partNumber += 1) {
-      const chunk = buffer.subarray(offset, offset + PART_SIZE);
-      const partParams = new URLSearchParams({
-        key: uploadKey,
-        uploadId,
-        partNumber: String(partNumber),
-      });
-      const partUrl = `${storage.worker_url}/r2/multipart-part?${partParams}`;
-      const part = await this._postJson(partUrl, chunk, 'application/octet-stream');
-      completedParts.push({ partNumber: part.partNumber, etag: part.etag });
-    }
-
-    const completeParams = new URLSearchParams({ key: uploadKey, uploadId });
-    const completeUrl = `${storage.worker_url}/r2/multipart-complete?${completeParams}`;
-    const result = await this._postJson(
-      completeUrl,
-      Buffer.from(JSON.stringify({ parts: completedParts }), 'utf-8'),
-      'application/json'
-    );
-    return result.key;
-  }
 
   async _upload_bytes(key, buffer) {
-    if (buffer.length > MULTIPART_THRESHOLD) {
-      return this._multipart_upload(key, buffer);
-    }
-
-    try {
-      return await this._single_upload(key, buffer);
-    } catch (error) {
-      if (!isRetryableSingleUploadError(error)) {
-        throw error;
-      }
-
-      debug(
-        '[storage] single upload failed for %s; retrying with multipart upload: %s',
-        key,
-        error.message
-      );
-      return this._multipart_upload(key, buffer);
-    }
+    return this._single_upload(key, buffer);
   }
 
   async upload_stream(bucket, key, data) {
@@ -165,9 +98,6 @@ class storage {
       return key;
     }
 
-    if (!storage.worker_url) {
-      throw new Error('Worker URL not set - cannot access R2');
-    }
 
     const unique_key = storage.unique_name(key);
     const buffer = this._toBuffer(data);
@@ -185,13 +115,10 @@ class storage {
       throw new Error('R2 not configured');
     }
 
-    if (!storage.worker_url) {
-      throw new Error('Worker URL not set - cannot access R2');
-    }
 
-    // Download via worker proxy
+    // Download through the Worker outbound handler.
     const params = new URLSearchParams({ bucket, key });
-    const url = `${storage.worker_url}/r2/download?${params}`;
+    const url = `${storage.outbound_url}/r2/download?${params}`;
 
     try {
       const response = await fetch(url);
@@ -241,11 +168,8 @@ class storage {
       return key;
     }
 
-    if (!storage.worker_url) {
-      throw new Error('Worker URL not set - cannot access R2');
-    }
 
-    debug('[storage._upload_stream_with_key] Worker URL: %s', storage.worker_url);
+    debug('[storage._upload_stream_with_key] Outbound handler URL: %s', storage.outbound_url);
 
     const buffer = this._toBuffer(data);
     debug('[storage._upload_stream_with_key] Uploading key=%s, buffer size: %d', key, buffer.length);
@@ -279,13 +203,10 @@ class storage {
       return;
     }
 
-    if (!storage.worker_url) {
-      throw new Error('Worker URL not set - cannot access R2');
-    }
 
-    // List objects via worker proxy
+    // List objects through the Worker outbound handler.
     const listParams = new URLSearchParams({ bucket, prefix });
-    const listUrl = `${storage.worker_url}/r2/list?${listParams}`;
+    const listUrl = `${storage.outbound_url}/r2/list?${listParams}`;
     
     try {
       const response = await fetch(listUrl, {

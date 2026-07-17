@@ -1,7 +1,7 @@
 """
 NoSQL module for Cloudflare Python Containers.
 
-Issues HTTP POSTs to {worker_url}/nosql/<operation>. The server side is
+Issues HTTP POSTs to the sebs.kv virtual host, handled by the Worker outbound binding handler. The server side is
 implemented in benchmarks/wrappers/cloudflare/nodejs/container/worker.js
 (handleNoSQLRequest), which is copied into every container project at deploy
 time by sebs/cloudflare/containers.py because @cloudflare/containers is
@@ -14,10 +14,10 @@ from typing import List, Optional, Tuple
 
 
 class nosql:
-    """NoSQL client for containers using HTTP proxy to Worker's Durable Object"""
+    """NoSQL client for containers using the Worker's outbound KV handler."""
     
     instance: Optional["nosql"] = None
-    worker_url = None  # Set by handler from X-Worker-URL header
+    outbound_url = "http://sebs.kv"
 
     @staticmethod
     def init_instance(*args, **kwargs):
@@ -26,17 +26,12 @@ class nosql:
             nosql.instance = nosql()
         return nosql.instance
     
-    @staticmethod
-    def set_worker_url(url):
-        """Set worker URL for NoSQL proxy (called by handler)"""
-        nosql.worker_url = url
-
     def _make_request(self, operation: str, params: dict) -> dict:
-        """Make HTTP request to worker nosql proxy"""
-        if not nosql.worker_url:
-            raise RuntimeError("Worker URL not set - cannot access NoSQL")
+        """Make an HTTP request to the Worker outbound KV handler."""
+        if not nosql.outbound_url:
+            raise RuntimeError("Outbound handler URL is not configured - cannot access NoSQL")
         
-        url = f"{nosql.worker_url}/nosql/{operation}"
+        url = f"{nosql.outbound_url}/nosql/{operation}"
         data = json.dumps(params).encode('utf-8')
         
         req = urllib.request.Request(url, data=data, method='POST')

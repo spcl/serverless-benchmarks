@@ -89,15 +89,6 @@ class ContainerHandler(BaseHTTPRequestHandler):
             import uuid
             req_id = self.headers.get('CF-Ray', str(uuid.uuid4()))
             
-            # Extract Worker URL from header for R2 and NoSQL proxy
-            worker_url = self.headers.get('X-Worker-URL')
-            if worker_url:
-                if storage:
-                    storage.storage.set_worker_url(worker_url)
-                if nosql:
-                    nosql.nosql.set_worker_url(worker_url)
-                print(f"Set worker URL for R2/NoSQL proxy: {worker_url}")
-            
             # Read request body
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else ''
