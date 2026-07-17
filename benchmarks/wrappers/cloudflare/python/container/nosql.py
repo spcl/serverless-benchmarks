@@ -17,7 +17,6 @@ class nosql:
     """NoSQL client for containers using the Worker's outbound KV handler."""
     
     instance: Optional["nosql"] = None
-    worker_url = None  # Legacy public proxy URL, retained for compatibility
     outbound_url = "http://sebs.kv"
 
     @staticmethod
@@ -27,11 +26,6 @@ class nosql:
             nosql.instance = nosql()
         return nosql.instance
     
-    @staticmethod
-    def set_worker_url(url):
-        """Retain the legacy public proxy URL for older handlers."""
-        nosql.worker_url = url
-
     def _make_request(self, operation: str, params: dict) -> dict:
         """Make an HTTP request to the Worker outbound KV handler."""
         if not nosql.outbound_url:
