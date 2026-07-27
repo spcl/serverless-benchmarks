@@ -5,10 +5,10 @@
 | Webapps      | 010.sleep    | Python, Node.js, C++, Java | x64, arm64 | Customizable sleep microbenchmark. |
 | Webapps      | 110.dynamic-html    | Python, Node.js, Java | x64, arm64 | Generate dynamic HTML from a template. |
 | Webapps      | 120.uploader    | Python, Node.js    | x64, arm64 | Uploader file from provided URL to cloud storage. |
-| Webapps      | 130.crud-api    | Python    | x64, arm64 | Simple CRUD application using NoSQL to store application data. |
+| Webapps      | 130.crud-api    | Python, Node.js    | x64, arm64 | Simple CRUD application using NoSQL to store application data. |
 | Multimedia      | 210.thumbnailer    | Python, Node.js, C++ | x64, arm64 | Generate a thumbnail of an image. |
 | Multimedia      | 220.video-processing    | Python    | x64, arm64 | Add a watermark and generate gif of a video file. |
-| Utilities      | 311.compression    | Python   | x64, arm64 | Create a .zip file for a group of files in storage and return to user to download. |
+| Utilities      | 311.compression    | Python, Node.js   | x64, arm64 | Create a .zip file for a group of files in storage and return to user to download. |
 | Inference      | 411.image-recognition    | Python, C++ | x64 | Image recognition with ResNet and pytorch. |
 | Scientific      | 501.graph-pagerank    | Python, C++ | x64, arm64 | PageRank implementation with igraph. |
 | Scientific      | 502.graph-mst    | Python    | x64, arm64 | Minimum spanning tree (MST)  implementation with igraph. |
