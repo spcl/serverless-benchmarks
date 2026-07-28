@@ -1436,7 +1436,8 @@ class RunContainerStrategy(DeploymentStrategy):
 
         op_name = self._operation_response["name"]
         self.logging.info(f"Waiting for operation: {op_name}")
-        op_res = self.run_client.projects().locations().operations().wait(name=op_name).execute()
+        # mypy complains about missing `body` arg, which is fully optional here
+        op_res = self.run_client.projects().locations().operations().wait(name=op_name).execute() # type: ignore[call-arg]
 
         if "error" in op_res:
             raise RuntimeError(f"Cloud Run deployment failed: {op_res['error']}")
