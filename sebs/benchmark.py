@@ -118,6 +118,7 @@ class BenchmarkConfig:
         memory: Memory allocation in MB
         languages: List of supported programming languages
         modules: List of benchmark modules/features required
+        system_variants: Optional deployment-variant restrictions by platform
 
     """
 
@@ -128,6 +129,7 @@ class BenchmarkConfig:
         language_specs: List["LanguageSpec"],
         modules: List[BenchmarkModule],
         cpp_dependencies: Optional[List[CppDependencies]] = None,
+        system_variants: Optional[Dict[str, List[str]]] = None,
     ):
         """
         Initialize a benchmark configuration.
@@ -137,12 +139,14 @@ class BenchmarkConfig:
             memory: Memory allocation in MB
             languages: List of supported programming languages
             modules: List of benchmark modules/features required
+            system_variants: Optional deployment-variant restrictions by platform
         """
         self._timeout = timeout
         self._memory = memory
         self._language_specs = language_specs
         self._modules = modules
         self._cpp_dependencies = cpp_dependencies or []
+        self._system_variants = system_variants or {}
 
     @property
     def timeout(self) -> int:
@@ -225,6 +229,15 @@ class BenchmarkConfig:
         """Return True when language + variant combination is declared in config.json."""
         return variant in self.supported_variants(language)
 
+    def supported_system_variants(self, deployment: str) -> Optional[List[str]]:
+        """Return a platform restriction, or None when every variant is supported."""
+        return self._system_variants.get(deployment)
+
+    def supports_system_variant(self, deployment: str, variant: str) -> bool:
+        """Return whether a deployment variant is supported on the platform."""
+        supported = self.supported_system_variants(deployment)
+        return supported is None or variant in supported
+
     @staticmethod
     def deserialize(json_object: dict) -> BenchmarkConfig:
         """
@@ -244,6 +257,7 @@ class BenchmarkConfig:
             cpp_dependencies=[
                 CppDependencies.deserialize(x) for x in json_object.get("cpp_dependencies", [])
             ],
+            system_variants=json_object.get("system_variants"),
         )
 
 
@@ -619,6 +633,18 @@ class Benchmark(LoggingBase):
             raise RuntimeError(
                 "Benchmark {} not available for language {} variant {}".format(
                     self.benchmark, self.language, self._language_variant
+                )
+            )
+        if not self.benchmark_config.supports_system_variant(
+            self._deployment_name, self._system_variant.value
+        ):
+            supported = self.benchmark_config.supported_system_variants(self._deployment_name)
+            raise RuntimeError(
+                "Benchmark {} does not support system variant {} on {}; use {}".format(
+                    self.benchmark,
+                    self._system_variant.value,
+                    self._deployment_name,
+                    ", ".join(supported or []),
                 )
             )
         self._cache_client = cache_client

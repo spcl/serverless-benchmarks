@@ -65,6 +65,18 @@ You can provide a [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-int
 with permissions to access AWS Lambda and S3; otherwise, one will be created automatically.
 To use a user-defined lambda role, set the name in config JSON - see an example in `configs/example.json`.
 
+Benchmarks with the `nosql` module, such as `130.crud-api`, also use DynamoDB.
+Prepare both permission layers before running these benchmarks; SeBS does not
+grant DynamoDB permissions automatically:
+
+| Principal | Required actions | Resource |
+| --- | --- | --- |
+| Identity running SeBS (for example, the `sebs` IAM user) | `dynamodb:CreateTable`, `dynamodb:DescribeTable`, `dynamodb:PutItem`; add `dynamodb:DeleteTable` for cleanup | `arn:aws:dynamodb:<region>:<account-id>:table/sebs-benchmarks-*` |
+| Lambda execution role (the default is `sebs-lambda-role`) | `dynamodb:PutItem`, `dynamodb:GetItem`, `dynamodb:Query` | `arn:aws:dynamodb:<region>:<account-id>:table/sebs-benchmarks-*` |
+
+The default role created by SeBS only receives S3 and CloudWatch Logs access,
+so attach the second set of actions to that role explicitly.
+
 You can pass the credentials either using the default AWS-specific environment variables:
 
 ```
