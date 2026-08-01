@@ -46,16 +46,9 @@ A benchmark can restrict deployment variants for a platform in `config.json`:
 "system_variants": {"aws": ["container"]}
 ```
 
-This restriction reuses the existing provider-neutral `--system-variant` CLI
-option. The selected platform interprets its value: AWS supports `package` and
-`container`, while GCP supports `function-gen1`, `function-gen2`, and
-`container`. It is therefore not named `--aws-system-variant`.
+This restriction reuses the existing provider-neutral `--system-variant` CLI option. The selected platform interprets its value: AWS supports `package` and `container`, while GCP supports `function-gen1`, `function-gen2`, and `container`. It is therefore not named `--aws-system-variant`.
 
-When this optional mapping is absent, the benchmark accepts every variant
-supported by the platform. When present, SeBS rejects unsupported combinations
-before building or allocating cloud resources and reports the allowed variant.
-For example, `411.image-recognition` is container-only on AWS because its Python
-and C++ dependencies exceed Lambda's uncompressed ZIP limit.
+When this optional mapping is absent, the benchmark accepts every variant supported by the platform. When present, SeBS rejects unsupported combinations before building or allocating cloud resources and reports the allowed variant. For example, `411.image-recognition` is container-only on AWS because its Python and C++ dependencies exceed Lambda's uncompressed ZIP limit.
 
 ## Docker Image Deployment
 
