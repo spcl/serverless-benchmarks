@@ -4,7 +4,14 @@ ARG VERSION
 ENV JAVA_VERSION=${VERSION}
 ARG TARGET_ARCHITECTURE
 
-RUN dnf install -y shadow-utils unzip tar gzip zip
+RUN if command -v dnf >/dev/null 2>&1; then \
+      dnf install -y findutils shadow-utils unzip tar gzip zip && dnf clean all; \
+    elif command -v yum >/dev/null 2>&1; then \
+      yum install -y findutils shadow-utils unzip tar gzip zip && yum clean all; \
+    else \
+      echo "No supported package manager found" >&2; \
+      exit 1; \
+    fi
 # Install Maven 3.x (maven package may be old, install from Apache directly)
 RUN curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz | tar -xz -C /opt && \
     ln -s /opt/apache-maven-3.9.6 /opt/maven && \
