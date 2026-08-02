@@ -16,14 +16,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class AWSMatrixFixesTest(unittest.TestCase):
-    def test_cached_default_lambda_role_receives_dynamodb_access(self):
+    def test_new_default_lambda_role_receives_dynamodb_access(self):
         resources = AWSResources()
         resources.region = "us-east-1"
-        AWSResources.initialize(
-            resources,
-            {"lambda-role": "arn:aws:iam::123456789012:role/sebs-lambda-role"},
-        )
         iam_client = Mock()
+        iam_client.get_role.return_value = {
+            "Role": {"Arn": "arn:aws:iam::123456789012:role/sebs-lambda-role"}
+        }
         session = Mock()
         session.client.return_value = iam_client
 
@@ -49,7 +48,7 @@ class AWSMatrixFixesTest(unittest.TestCase):
         resources.lambda_role(session)
         self.assertEqual(iam_client.put_role_policy.call_count, 1)
 
-    def test_explicit_custom_lambda_role_is_not_modified(self):
+    def test_configured_lambda_role_is_not_modified(self):
         role_arn = "arn:aws:iam::123456789012:role/sebs-lambda-role"
         cache = Mock()
         cache.get_config.return_value = None

@@ -225,8 +225,6 @@ class AWSResources(Resources):
         _docker_password: Docker registry password
         _container_repository: ECR repository name
         _lambda_role: IAM role ARN for Lambda execution
-        _lambda_role_user_provided: Whether the role came from explicit configuration
-        _lambda_role_permissions_configured: Whether default role permissions were configured
         _http_apis: Dictionary of HTTP API configurations
     """
 
@@ -387,8 +385,6 @@ class AWSResources(Resources):
         self._docker_password: Optional[str] = password if password != "" else None
         self._container_repository: Optional[str] = None
         self._lambda_role = ""
-        self._lambda_role_user_provided: bool = False
-        self._lambda_role_permissions_configured: bool = False
         self._http_apis: Dict[str, AWSResources.HTTPApi] = {}
         self._function_urls: Dict[str, AWSResources.FunctionURL] = {}
         self._use_function_url: bool = True
@@ -478,8 +474,7 @@ class AWSResources(Resources):
 
         Creates a Lambda execution role with S3, DynamoDB, and basic execution
         permissions if it doesn't already exist. The role allows Lambda functions
-        to access SeBS resources and write CloudWatch logs. Explicitly configured
-        roles are returned unchanged.
+        to access SeBS resources and write CloudWatch logs.
 
         Args:
             boto3_session: Boto3 session for AWS API calls
@@ -490,16 +485,8 @@ class AWSResources(Resources):
         Raises:
             ClientError: If IAM operations fail
         """
-        role_name = "sebs-lambda-role"
-        if (
-            self._lambda_role_user_provided
-            or self._lambda_role_permissions_configured
-            or (self._lambda_role and not self._lambda_role.endswith(f":role/{role_name}"))
-        ):
-            return self._lambda_role
-
-        iam_client = boto3_session.client(service_name="iam")
         if not self._lambda_role:
+            iam_client = boto3_session.client(service_name="iam")
             trust_policy = {
                 "Version": "2012-10-17",
                 "Statement": [
@@ -510,6 +497,7 @@ class AWSResources(Resources):
                     }
                 ],
             }
+            role_name = "sebs-lambda-role"
             try:
                 out = iam_client.get_role(RoleName=role_name)
                 self._lambda_role = out["Role"]["Arn"]
@@ -526,42 +514,41 @@ class AWSResources(Resources):
                 )
                 time.sleep(10)
 
-        arn_parts = self._lambda_role.split(":", 5)
-        if (
-            len(arn_parts) != 6
-            or arn_parts[0] != "arn"
-            or arn_parts[2] != "iam"
-            or not arn_parts[4]
-        ):
-            raise RuntimeError(f"Invalid Lambda execution role ARN: {self._lambda_role}")
-        partition = arn_parts[1]
-        account_id = arn_parts[4]
+            arn_parts = self._lambda_role.split(":", 5)
+            if (
+                len(arn_parts) != 6
+                or arn_parts[0] != "arn"
+                or arn_parts[2] != "iam"
+                or not arn_parts[4]
+            ):
+                raise RuntimeError(f"Invalid Lambda execution role ARN: {self._lambda_role}")
+            partition = arn_parts[1]
+            account_id = arn_parts[4]
 
-        for policy in (
-            "arn:aws:iam::aws:policy/AmazonS3FullAccess",
-            "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
-        ):
-            iam_client.attach_role_policy(RoleName=role_name, PolicyArn=policy)
+            for policy in (
+                "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+            ):
+                iam_client.attach_role_policy(RoleName=role_name, PolicyArn=policy)
 
-        dynamodb_policy = {
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"],
-                    "Resource": (
-                        f"arn:{partition}:dynamodb:{self.region}:{account_id}:"
-                        "table/sebs-benchmarks-*"
-                    ),
-                }
-            ],
-        }
-        iam_client.put_role_policy(
-            RoleName=role_name,
-            PolicyName="sebs-dynamodb-access",
-            PolicyDocument=json.dumps(dynamodb_policy),
-        )
-        self._lambda_role_permissions_configured = True
+            dynamodb_policy = {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"],
+                        "Resource": (
+                            f"arn:{partition}:dynamodb:{self.region}:{account_id}:"
+                            "table/sebs-benchmarks-*"
+                        ),
+                    }
+                ],
+            }
+            iam_client.put_role_policy(
+                RoleName=role_name,
+                PolicyName="sebs-dynamodb-access",
+                PolicyDocument=json.dumps(dynamodb_policy),
+            )
         return self._lambda_role
 
     def http_api(
@@ -1179,7 +1166,6 @@ class AWSResources(Resources):
         )
         if configured_lambda_role:
             ret._lambda_role = configured_lambda_role
-            ret._lambda_role_user_provided = True
 
         return ret
 

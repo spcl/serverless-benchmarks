@@ -105,16 +105,19 @@ AWS documents the image-push actions in [IAM permissions for pushing an image](h
 
 You can provide a [Lambda execution role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
 or let SeBS create and manage the default `sebs-lambda-role`. To use a custom role, set
-its ARN as `lambda-role` in the config JSON. SeBS does not modify a custom role, so it
-must already provide S3, CloudWatch Logs, and benchmark-specific permissions.
+its ARN as `lambda-role` in the config JSON. SeBS reuses a role ARN loaded from the
+configuration or cache without modifying it, so that role must already provide S3,
+CloudWatch Logs, and benchmark-specific permissions.
 The IAM identity running SeBS always needs `iam:PassRole` on the selected execution
 role.
 
-When SeBS manages the default role, the IAM identity running SeBS must allow
-`iam:GetRole`, `iam:CreateRole`, `iam:AttachRolePolicy`, and `iam:PutRolePolicy` on
+When no role ARN is loaded, SeBS resolves the default role. The IAM identity running
+SeBS must allow `iam:GetRole`, `iam:CreateRole`, `iam:AttachRolePolicy`, and
+`iam:PutRolePolicy` on
 `arn:aws:iam::<account-id>:role/sebs-lambda-role`. SeBS attaches `AmazonS3FullAccess`
 and `AWSLambdaBasicExecutionRole`, and adds an inline policy for the DynamoDB item
-operations used by the bundled NoSQL benchmark.
+operations used by the bundled NoSQL benchmark. A cached default role is reused without
+updating its policies.
 
 Benchmarks with the `nosql` module, such as `130.crud-api`, also use DynamoDB.
 The IAM identity running SeBS performs table management and input seeding itself, so
@@ -128,9 +131,9 @@ The AWS-managed [`AmazonDynamoDBFullAccess_v2`](https://docs.aws.amazon.com/aws-
 policy covers these caller-side DynamoDB actions but grants broader access than SeBS
 requires.
 
-SeBS grants `dynamodb:PutItem`, `dynamodb:GetItem`, and `dynamodb:Query` on the same
-table prefix to the default execution role. Add those actions yourself when using a
-custom execution role.
+When it resolves the default execution role, SeBS grants `dynamodb:PutItem`,
+`dynamodb:GetItem`, and `dynamodb:Query` on the same table prefix. Add those actions
+yourself when using a configured or cached execution role.
 
 You can pass the credentials either using the default AWS-specific environment variables:
 
