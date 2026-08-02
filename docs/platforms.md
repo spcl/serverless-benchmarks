@@ -59,11 +59,49 @@ jq 'del(.config.deployment.credentials)' <file.json> | sponge <file.json>
 AWS provides one year of free services, including a significant amount of computing time in AWS Lambda.
 To work with AWS, provide access and secret keys for an IAM identity with permissions
 sufficient to manage Lambda functions and S3 resources. Container deployments also
-require ECR permissions. `AmazonAPIGatewayAdministrator` is needed only when using API
-Gateway instead of the default Lambda Function URLs.
+require the ECR permissions listed below. `AmazonAPIGatewayAdministrator` is needed only
+when using API Gateway instead of the default Lambda Function URLs.
 Collecting server-side metrics and invocation errors requires `logs:StartQuery` and
 `logs:GetQueryResults`. Resource cleanup additionally uses `logs:DescribeLogGroups`
 and `logs:DeleteLogGroup`.
+
+For a `container` deployment, the IAM identity running SeBS creates and inspects the
+`sebs-benchmarks-*` ECR repository, pushes images, and creates Lambda functions from
+those images. The following policy covers the required repository and image operations:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:CreateRepository",
+        "ecr:DescribeImages",
+        "ecr:DescribeRepositories",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:GetRepositoryPolicy",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:SetRepositoryPolicy",
+        "ecr:UploadLayerPart"
+      ],
+      "Resource": "arn:aws:ecr:<region>:<account-id>:repository/sebs-benchmarks-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+Add `ecr:DeleteRepository` on the same repository ARN when using SeBS resource cleanup.
+AWS documents the image-push actions in [IAM permissions for pushing an image](https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-push-iam.html) and the additional image-access and repository-policy actions in [Create a Lambda function using a container image](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html). The AWS-managed [`AmazonEC2ContainerRegistryFullAccess`](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonEC2ContainerRegistryFullAccess.html) policy also covers these operations but grants broader access than SeBS requires.
 
 You can provide a [Lambda execution role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
 or let SeBS create and manage the default `sebs-lambda-role`. To use a custom role, set
