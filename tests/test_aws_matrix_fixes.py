@@ -7,8 +7,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
+from sebs.aws.aws import AWS
 from sebs.aws.config import AWSResources
 from sebs.benchmark import BenchmarkConfig
+from sebs.faas.function import ExecutionResult
 from sebs.utils import LoggingHandlers
 
 
@@ -16,6 +18,27 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class AWSMatrixFixesTest(unittest.TestCase):
+    def test_aws_report_parser_ignores_application_log_fields(self):
+        request_id = "1ebf703c-b814-4eb8-b26e-788f53d5e328"
+        log = (
+            f"START RequestId: {request_id} Version: $LATEST\n"
+            f"2026-08-02T09:33:20.853Z\t{request_id}\tERROR\t"
+            "(node:8) [DEP0040] DeprecationWarning: The `punycode` module is deprecated.\n"
+            f"END RequestId: {request_id}\n"
+            f"REPORT RequestId: {request_id}\tDuration: 9467.75 ms\t"
+            "Billed Duration: 10014 ms\tMemory Size: 128 MB\t"
+            "Max Memory Used: 112 MB\tInit Duration: 546.19 ms\n"
+        )
+        result = ExecutionResult()
+
+        self.assertEqual(AWS.parse_aws_report(log, result), request_id)
+        self.assertEqual(result.request_id, request_id)
+        self.assertEqual(result.provider_times.execution, 9467750)
+        self.assertEqual(result.provider_times.initialization, 546190)
+        self.assertEqual(result.stats.memory_used, 112.0)
+        self.assertEqual(result.billing.billed_time, 10014)
+        self.assertEqual(result.billing.memory, 128)
+
     def test_new_default_lambda_role_receives_dynamodb_access(self):
         resources = AWSResources()
         resources.region = "us-east-1"

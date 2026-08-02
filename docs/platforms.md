@@ -158,6 +158,8 @@ or in the JSON input configuration:
 }
 ```
 
+Direct library invocations obtain provider duration and billing metrics from AWS `START` and `REPORT` log records. Application log lines may be interleaved with these records; SeBS ignores unstructured fields while parsing the provider metrics.
+
 ### Lambda Function URLs vs API Gateway
 
 SeBS supports two methods for HTTP-based function invocation on AWS Lambda:
