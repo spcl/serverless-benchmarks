@@ -4,7 +4,7 @@ ARG VERSION
 ENV JAVA_VERSION=${VERSION}
 ARG TARGET_ARCHITECTURE
 
-RUN yum install -y shadow-utils unzip tar gzip zip
+RUN dnf install -y shadow-utils unzip tar gzip zip
 # Install Maven 3.x (maven package may be old, install from Apache directly)
 RUN curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz | tar -xz -C /opt && \
     ln -s /opt/apache-maven-3.9.6 /opt/maven && \
