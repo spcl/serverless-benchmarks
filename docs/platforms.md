@@ -57,25 +57,42 @@ jq 'del(.config.deployment.credentials)' <file.json> | sponge <file.json>
 ## AWS Lambda
 
 AWS provides one year of free services, including a significant amount of computing time in AWS Lambda.
-To work with AWS, you need to provide access and secret keys to a role with permissions
-sufficient to manage functions and S3 resources.
-Additionally, the account must have `AmazonAPIGatewayAdministrator` permission to set up
-automatically AWS HTTP trigger.
-You can provide a [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
-with permissions to access AWS Lambda and S3; otherwise, one will be created automatically.
-To use a user-defined lambda role, set the name in config JSON - see an example in `configs/example.json`.
+To work with AWS, provide access and secret keys for an IAM identity with permissions
+sufficient to manage Lambda functions and S3 resources. Container deployments also
+require ECR permissions. `AmazonAPIGatewayAdministrator` is needed only when using API
+Gateway instead of the default Lambda Function URLs.
+Collecting server-side metrics and invocation errors requires `logs:StartQuery` and
+`logs:GetQueryResults`. Resource cleanup additionally uses `logs:DescribeLogGroups`
+and `logs:DeleteLogGroup`.
+
+You can provide a [Lambda execution role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
+or let SeBS create and manage the default `sebs-lambda-role`. To use a custom role, set
+its ARN as `lambda-role` in the config JSON. SeBS does not modify a custom role, so it
+must already provide S3, CloudWatch Logs, and benchmark-specific permissions.
+The IAM identity running SeBS always needs `iam:PassRole` on the selected execution
+role.
+
+When SeBS manages the default role, the IAM identity running SeBS must allow
+`iam:GetRole`, `iam:CreateRole`, `iam:AttachRolePolicy`, and `iam:PutRolePolicy` on
+`arn:aws:iam::<account-id>:role/sebs-lambda-role`. SeBS attaches `AmazonS3FullAccess`
+and `AWSLambdaBasicExecutionRole`, and adds an inline policy for the DynamoDB item
+operations used by the bundled NoSQL benchmark.
 
 Benchmarks with the `nosql` module, such as `130.crud-api`, also use DynamoDB.
-Prepare both permission layers before running these benchmarks; SeBS does not
-grant DynamoDB permissions automatically:
+The IAM identity running SeBS performs table management and input seeding itself, so
+prepare these permissions manually:
 
 | Principal | Required actions | Resource |
 | --- | --- | --- |
 | Identity running SeBS (for example, the `sebs` IAM user) | `dynamodb:CreateTable`, `dynamodb:DescribeTable`, `dynamodb:PutItem`; add `dynamodb:DeleteTable` for cleanup | `arn:aws:dynamodb:<region>:<account-id>:table/sebs-benchmarks-*` |
-| Lambda execution role (the default is `sebs-lambda-role`) | `dynamodb:PutItem`, `dynamodb:GetItem`, `dynamodb:Query` | `arn:aws:dynamodb:<region>:<account-id>:table/sebs-benchmarks-*` |
 
-The default role created by SeBS only receives S3 and CloudWatch Logs access,
-so attach the second set of actions to that role explicitly.
+The AWS-managed [`AmazonDynamoDBFullAccess_v2`](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonDynamoDBFullAccess_v2.html)
+policy covers these caller-side DynamoDB actions but grants broader access than SeBS
+requires.
+
+SeBS grants `dynamodb:PutItem`, `dynamodb:GetItem`, and `dynamodb:Query` on the same
+table prefix to the default execution role. Add those actions yourself when using a
+custom execution role.
 
 You can pass the credentials either using the default AWS-specific environment variables:
 

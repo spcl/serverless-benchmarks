@@ -5,14 +5,63 @@ import json
 import runpy
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
+from sebs.aws.config import AWSResources
 from sebs.benchmark import BenchmarkConfig
+from sebs.utils import LoggingHandlers
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class AWSMatrixFixesTest(unittest.TestCase):
+    def test_cached_default_lambda_role_receives_dynamodb_access(self):
+        resources = AWSResources()
+        resources.region = "us-east-1"
+        AWSResources.initialize(
+            resources,
+            {"lambda-role": "arn:aws:iam::123456789012:role/sebs-lambda-role"},
+        )
+        iam_client = Mock()
+        session = Mock()
+        session.client.return_value = iam_client
+
+        resources.lambda_role(session)
+
+        self.assertEqual(
+            iam_client.put_role_policy.call_args.kwargs["RoleName"], "sebs-lambda-role"
+        )
+        self.assertEqual(
+            iam_client.put_role_policy.call_args.kwargs["PolicyName"],
+            "sebs-dynamodb-access",
+        )
+        policy = json.loads(iam_client.put_role_policy.call_args.kwargs["PolicyDocument"])
+        self.assertEqual(
+            policy["Statement"][0]["Action"],
+            ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"],
+        )
+        self.assertEqual(
+            policy["Statement"][0]["Resource"],
+            "arn:aws:dynamodb:us-east-1:123456789012:table/sebs-benchmarks-*",
+        )
+
+        resources.lambda_role(session)
+        self.assertEqual(iam_client.put_role_policy.call_count, 1)
+
+    def test_explicit_custom_lambda_role_is_not_modified(self):
+        role_arn = "arn:aws:iam::123456789012:role/sebs-lambda-role"
+        cache = Mock()
+        cache.get_config.return_value = None
+        resources = AWSResources.deserialize(
+            {"lambda-role": role_arn, "resources": {}}, cache, LoggingHandlers()
+        )
+        session = Mock()
+
+        self.assertEqual(resources.lambda_role(session), role_arn)
+
+        session.client.assert_not_called()
+
     def test_411_is_container_only_on_aws(self):
         with (ROOT / "benchmarks/400.inference/411.image-recognition/config.json").open() as f:
             config = BenchmarkConfig.deserialize(json.load(f))
