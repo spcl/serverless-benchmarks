@@ -58,82 +58,32 @@ jq 'del(.config.deployment.credentials)' <file.json> | sponge <file.json>
 
 AWS provides one year of free services, including a significant amount of computing time in AWS Lambda.
 To work with AWS, provide access and secret keys for an IAM identity with permissions
-sufficient to manage Lambda functions and S3 resources. Container deployments also
-require the ECR permissions listed below. `AmazonAPIGatewayAdministrator` is needed only
-when using API Gateway instead of the default Lambda Function URLs.
-Collecting server-side metrics and invocation errors requires `logs:StartQuery` and
-`logs:GetQueryResults`. Resource cleanup additionally uses `logs:DescribeLogGroups`
-and `logs:DeleteLogGroup`.
+sufficient to manage functions and S3 resources.
 
-For a `container` deployment, the IAM identity running SeBS creates and inspects the
-`sebs-benchmarks-*` ECR repository, pushes images, and creates Lambda functions from
-those images. The following policy covers the required repository and image operations:
+### Quick Start Permissions
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ecr:BatchCheckLayerAvailability",
-        "ecr:BatchGetImage",
-        "ecr:CompleteLayerUpload",
-        "ecr:CreateRepository",
-        "ecr:DescribeImages",
-        "ecr:DescribeRepositories",
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:GetRepositoryPolicy",
-        "ecr:InitiateLayerUpload",
-        "ecr:PutImage",
-        "ecr:SetRepositoryPolicy",
-        "ecr:UploadLayerPart"
-      ],
-      "Resource": "arn:aws:ecr:<region>:<account-id>:repository/sebs-benchmarks-*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": "ecr:GetAuthorizationToken",
-      "Resource": "*"
-    }
-  ]
-}
-```
+For package and container deployments, NoSQL benchmarks, log queries, and cleanup,
+attach these AWS managed policies to the IAM identity running SeBS:
 
-Add `ecr:DeleteRepository` on the same repository ARN when using SeBS resource cleanup.
-AWS documents the image-push actions in [IAM permissions for pushing an image](https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-push-iam.html) and the additional image-access and repository-policy actions in [Create a Lambda function using a container image](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html). The AWS-managed [`AmazonEC2ContainerRegistryFullAccess`](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonEC2ContainerRegistryFullAccess.html) policy also covers these operations but grants broader access than SeBS requires.
+* `AWSLambda_FullAccess`
+* `AmazonS3FullAccess`
+* `IAMFullAccess`
+* `CloudWatchLogsFullAccess`
+* `AmazonDynamoDBFullAccess_v2`
+* `AmazonEC2ContainerRegistryFullAccess`
 
-You can provide a [Lambda execution role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
-or let SeBS create and manage the default `sebs-lambda-role`. To use a custom role, set
-its ARN as `lambda-role` in the config JSON. SeBS reuses a role ARN loaded from the
-configuration or cache without modifying it, so that role must already provide S3,
-CloudWatch Logs, and benchmark-specific permissions.
-The IAM identity running SeBS always needs `iam:PassRole` on the selected execution
-role.
+This bundle is intentionally broad and should be used only in a dedicated experiment
+account. Add `AmazonAPIGatewayAdministrator` only when using API Gateway instead of the
+default Lambda Function URLs.
 
-When no role ARN is loaded, SeBS resolves the default role. The IAM identity running
-SeBS must allow `iam:GetRole`, `iam:CreateRole`, `iam:AttachRolePolicy`, and
-`iam:PutRolePolicy` on
-`arn:aws:iam::<account-id>:role/sebs-lambda-role`. SeBS attaches `AmazonS3FullAccess`
-and `AWSLambdaBasicExecutionRole`, and adds an inline policy for the DynamoDB item
-operations used by the bundled NoSQL benchmark. A cached default role is reused without
-updating its policies.
+The [Lambda execution role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
+is separate from the IAM identity running SeBS. Set its ARN as `lambda-role` in the config
+JSON, or let SeBS resolve `sebs-lambda-role`.
 
-Benchmarks with the `nosql` module, such as `130.crud-api`, also use DynamoDB.
-The IAM identity running SeBS performs table management and input seeding itself, so
-prepare these permissions manually:
-
-| Principal | Required actions | Resource |
-| --- | --- | --- |
-| Identity running SeBS (for example, the `sebs` IAM user) | `dynamodb:CreateTable`, `dynamodb:DescribeTable`, `dynamodb:PutItem`; add `dynamodb:DeleteTable` for cleanup | `arn:aws:dynamodb:<region>:<account-id>:table/sebs-benchmarks-*` |
-
-The AWS-managed [`AmazonDynamoDBFullAccess_v2`](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonDynamoDBFullAccess_v2.html)
-policy covers these caller-side DynamoDB actions but grants broader access than SeBS
-requires.
-
-When it resolves the default execution role, SeBS grants `dynamodb:PutItem`,
-`dynamodb:GetItem`, and `dynamodb:Query` on the same table prefix. Add those actions
-yourself when using a configured or cached execution role.
+SeBS does not modify an execution role loaded from the configuration or cache. When SeBS
+resolves the default role itself, it attaches `AmazonS3FullAccess` and
+`AWSLambdaBasicExecutionRole`, then adds the DynamoDB item permissions used by NoSQL
+benchmarks.
 
 You can pass the credentials either using the default AWS-specific environment variables:
 
@@ -158,7 +108,7 @@ or in the JSON input configuration:
 }
 ```
 
-Direct library invocations obtain provider duration and billing metrics from AWS `START` and `REPORT` log records. Application log lines may be interleaved with these records; SeBS ignores unstructured fields while parsing the provider metrics.
+Direct library invocations parse AWS `START` and `REPORT` records for provider metrics and tolerate interleaved application log fields.
 
 ### Lambda Function URLs vs API Gateway
 

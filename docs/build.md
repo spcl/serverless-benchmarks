@@ -38,7 +38,7 @@ and `nosql` for NoSQL databases. Each module corresponds to a set of packages th
 **Package Code** - we move files to create the directory structure expected on each cloud platform and create a final deployment package. An example of a customization is Azure Functions, where additional
 JSON configuration files are needed.
 
-### Benchmark-specific system variants
+### Benchmark-Specific System Variants
 
 A benchmark can restrict deployment variants for a platform in `config.json`:
 
@@ -46,9 +46,7 @@ A benchmark can restrict deployment variants for a platform in `config.json`:
 "system_variants": {"aws": ["container"]}
 ```
 
-This restriction reuses the existing provider-neutral `--system-variant` CLI option. The selected platform interprets its value: AWS supports `package` and `container`, while GCP supports `function-gen1`, `function-gen2`, and `container`. It is therefore not named `--aws-system-variant`.
-
-When this optional mapping is absent, the benchmark accepts every variant supported by the platform. When present, SeBS rejects unsupported combinations before building or allocating cloud resources and reports the allowed variant. For example, `411.image-recognition` is container-only on AWS because its Python and C++ dependencies exceed Lambda's uncompressed ZIP limit.
+The values match the platform's `--system-variant` choices. Without this mapping, all platform variants are allowed. SeBS checks the restriction before building the benchmark or creating cloud resources.
 
 ## Docker Image Deployment
 
@@ -247,3 +245,4 @@ the variant code invalidates the cached package automatically.
 | **Add Dockerfile** | Create `dockerfiles/<system>/<lang>/<variant>/Dockerfile.run`. |
 | **Register in systems.json** | Add the variant name to `variant_images` for the appropriate language and system. |
 | **Build image** | Run `python tools/build_docker_images.py --deployment <system> --language <lang> --language-variant <variant>`. |
+

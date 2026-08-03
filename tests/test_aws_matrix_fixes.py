@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class AWSMatrixFixesTest(unittest.TestCase):
-    def test_aws_report_parser_ignores_application_log_fields(self):
+    def test_aws_report_parser_tolerates_application_log_fields(self):
         request_id = "1ebf703c-b814-4eb8-b26e-788f53d5e328"
         log = (
             f"START RequestId: {request_id} Version: $LATEST\n"
@@ -71,18 +71,21 @@ class AWSMatrixFixesTest(unittest.TestCase):
         resources.lambda_role(session)
         self.assertEqual(iam_client.put_role_policy.call_count, 1)
 
-    def test_configured_lambda_role_is_not_modified(self):
+    def test_configured_or_cached_lambda_role_is_not_modified(self):
         role_arn = "arn:aws:iam::123456789012:role/sebs-lambda-role"
-        cache = Mock()
-        cache.get_config.return_value = None
-        resources = AWSResources.deserialize(
-            {"lambda-role": role_arn, "resources": {}}, cache, LoggingHandlers()
+        cases = (
+            ({"lambda-role": role_arn, "resources": {}}, None),
+            ({}, {"resources": {"lambda-role": role_arn}}),
         )
-        session = Mock()
+        for config, cached_config in cases:
+            with self.subTest(config=config, cached_config=cached_config):
+                cache = Mock()
+                cache.get_config.return_value = cached_config
+                resources = AWSResources.deserialize(config, cache, LoggingHandlers())
+                session = Mock()
 
-        self.assertEqual(resources.lambda_role(session), role_arn)
-
-        session.client.assert_not_called()
+                self.assertEqual(resources.lambda_role(session), role_arn)
+                session.client.assert_not_called()
 
     def test_411_is_container_only_on_aws(self):
         with (ROOT / "benchmarks/400.inference/411.image-recognition/config.json").open() as f:
@@ -93,9 +96,7 @@ class AWSMatrixFixesTest(unittest.TestCase):
         self.assertTrue(config.supports_system_variant("local", "package"))
 
     def test_igraph_root_parent_conventions_validate_equally(self):
-        module = runpy.run_path(
-            str(ROOT / "benchmarks/500.scientific/503.graph-bfs/input.py")
-        )
+        module = runpy.run_path(str(ROOT / "benchmarks/500.scientific/503.graph-bfs/input.py"))
         validate_output = module["validate_output"]
         result = [list(range(10)), [0, 1, 10], [0] * 10]
 
