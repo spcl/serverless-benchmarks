@@ -68,9 +68,9 @@ exports.handler = async function(event) {
 		const uploadKey = await storage_handler.upload(bucket, path.join(output_prefix, filename), upload_path);
 		const uploadStop = Date.now();
 
-		const downloadTime = (downloadStop - downloadBegin) / 1000;
-		const uploadTime = (uploadStop - uploadBegin) / 1000;
-		const processTime = (processEnd - processBegin) / 1000;
+		const downloadTime = (downloadStop - downloadBegin) * 1000;
+		const uploadTime = (uploadStop - uploadBegin) * 1000;
+		const processTime = (processEnd - processBegin) * 1000;
 
 		console.log({
 			download_time: downloadTime,
