@@ -1,7 +1,7 @@
 # 501.graph-pagerank - Graph PageRank
 
 **Type:** Scientific
-**Languages:** Python
+**Languages:** Python, Node.js, C++
 **Architecture:** x64, arm64
 
 ## Description

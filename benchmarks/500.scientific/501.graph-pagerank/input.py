@@ -10,7 +10,7 @@ size_generators = {
 # Computed with igraph using Python's random.seed(42) before graph generation.
 # Note: Values may vary slightly due to floating-point precision and igraph version differences
 #
-# For Node.js, we use a different library and random number generatork so the expected values differ slightly.
+# For Node.js, we use a different library and random number generator so the expected values differ slightly.
 expected_pagerank = {
     "python": {
         10: 0.1,
