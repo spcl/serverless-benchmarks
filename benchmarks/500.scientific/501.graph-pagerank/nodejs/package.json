@@ -2,6 +2,7 @@
   "dependencies": {
     "ngraph.generators": "^20.1.0",
     "ngraph.graph": "^20.1.2",
-    "ngraph.pagerank": "^2.1.1"
+    "ngraph.pagerank": "^2.1.1",
+    "pure-rand": "^8.4.0"
   }
 }

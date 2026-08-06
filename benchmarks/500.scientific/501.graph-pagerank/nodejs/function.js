@@ -1,7 +1,15 @@
 const createGraph = require('ngraph.graph');
 const pagerank = require('ngraph.pagerank');
 
-function generateBarabasiAlbertGraph(size, m) {
+const { xoroshiro128plus } = require('pure-rand/generator/xoroshiro128plus');
+const { uniformFloat64 } = require('pure-rand/distribution/uniformFloat64');
+const { uniformInt } = require('pure-rand/distribution/uniformInt');
+
+function generateBarabasiAlbertGraph(seed, size, m) {
+
+  // Use the default recommended PRNG choice
+  let prng = xoroshiro128plus(seed);
+
 	const graph = createGraph();
 
 	for (let i = 0; i < m; i++) {
@@ -22,7 +30,9 @@ function generateBarabasiAlbertGraph(size, m) {
 		graph.forEachNode(node => {
 			const degree = (graph.getLinks(node.id) || []).length;
 			const probability = degree / totalDegree;
-			if (Math.random() < probability && targets.length < m) {
+
+      let random_number = uniformFloat64(prng);
+			if (random_number < probability && targets.length < m) {
 				targets.push(node.id);
 			}
 		});
@@ -30,7 +40,7 @@ function generateBarabasiAlbertGraph(size, m) {
 		while (targets.length < m) {
 			let randomNode;
 			do {
-				randomNode = Math.floor(Math.random() * i);
+				randomNode = uniformInt(prng, 0, i - 1);
 			} while (targets.includes(randomNode));
 			targets.push(randomNode);
 		}
@@ -47,7 +57,7 @@ exports.handler = async function(event) {
 	const size = event.size;
 
 	const graphGeneratingBegin = new Date();
-	const graph = generateBarabasiAlbertGraph(size, 10);
+	const graph = generateBarabasiAlbertGraph(event.seed, size, 10);
 	const graphGeneratingEnd = new Date();
 
 	const processBegin = new Date();
