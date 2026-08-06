@@ -88,4 +88,3 @@ Creates a visualization data for DNA sequence. [Details →](../benchmarks/500.s
 ## Applications
 
 **(WiP)** Coming soon!
-
