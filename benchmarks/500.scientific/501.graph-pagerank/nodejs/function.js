@@ -5,50 +5,67 @@ const { xoroshiro128plus } = require('pure-rand/generator/xoroshiro128plus');
 const { uniformFloat64 } = require('pure-rand/distribution/uniformFloat64');
 const { uniformInt } = require('pure-rand/distribution/uniformInt');
 
+function randomDistinctSubset(pool, k, prng) {
+  // Perform successive weighted sampling without replacement.
+  //
+  // Pick `k` distinct elements from `pool`, sampling uniformly with replacement
+  // and rejecting duplicates (via a Set). Uniform draws over the repeated-nodes
+  // bag yield degree-proportional selection.
+  const chosen = new Set();
+  while (chosen.size < k) {
+    const idx = uniformInt(prng, 0, pool.length - 1);
+    chosen.add(pool[idx]);
+  }
+  return [...chosen];
+}
+
 function generateBarabasiAlbertGraph(seed, size, m) {
+
+  if (m < 1 || m >= size) {
+    throw new Error('require 1 <= m < size');
+  }
 
   // Use the default recommended PRNG choice
   let prng = xoroshiro128plus(seed);
 
 	const graph = createGraph();
 
-	for (let i = 0; i < m; i++) {
-		graph.addNode(i);
-		for (let j = 0; j < i; j++) {
-			graph.addLink(i, j);
-		}
-	}
-
-	for (let i = m; i < size; i++) {
-		graph.addNode(i);
-		let targets = [];
-		let totalDegree = 0;
-		graph.forEachNode(node => {
-			totalDegree += (graph.getLinks(node.id) || []).length;
-		});
-
-		graph.forEachNode(node => {
-			const degree = (graph.getLinks(node.id) || []).length;
-			const probability = degree / totalDegree;
-
-      let random_number = uniformFloat64(prng);
-			if (random_number < probability && targets.length < m) {
-				targets.push(node.id);
-			}
-		});
-
-		while (targets.length < m) {
-			let randomNode;
-			do {
-				randomNode = uniformInt(prng, 0, i - 1);
-			} while (targets.includes(randomNode));
-			targets.push(randomNode);
-		}
-
-		targets.forEach(target => {
-			graph.addLink(i, target);
-		});
-	}
+  for (let i = 0; i < m; i++) {
+    graph.addNode(i);
+  }
+ 
+  // initial attachment targets: the m seed nodes
+  let targets = [];
+  for (let i = 0; i < m; i++) {
+    targets.push(i);
+  }
+ 
+  // bag of edge endpoints (empty until the first source is wired up)
+  const repeatedNodes = [];
+ 
+  for (let source = m; source < size; source++) {
+    graph.addNode(source);
+ 
+    // connect source to its m distinct targets
+    // since other benchmark versions (Python, C++) are undirected,
+    // we add links in both directions
+    for (const t of targets) {
+      graph.addLink(source, t);
+      graph.addLink(t, source);
+    }
+ 
+    // every new edge contributes both endpoints to the bag
+    for (const t of targets) {
+      repeatedNodes.push(t);
+      repeatedNodes.push(source);
+    }
+ 
+    // choose m DISTINCT targets for the next source, degree-proportionally
+    // skip at the last iteration since it will not be used.
+    if (source + 1 < size) {
+      targets = randomDistinctSubset(repeatedNodes, m, prng);
+    }
+  }
 
 	return graph;
 }
