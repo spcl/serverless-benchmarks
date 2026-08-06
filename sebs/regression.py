@@ -55,7 +55,9 @@ benchmarks_nodejs = [
     "120.uploader",
     "130.crud-api",
     "210.thumbnailer",
+    "220.video-processing",
     "311.compression",
+    "501.graph-pagerank",
 ]
 
 benchmarks_java = ["010.sleep", "110.dynamic-html"]
