@@ -21,8 +21,20 @@ function randomDistinctSubset(pool, k, prng) {
 
 function generateBarabasiAlbertGraph(seed, size, m) {
 
-  if (m < 1 || m >= size) {
-    throw new Error('require 1 <= m < size');
+  if (size < 1) throw new Error('require size >= 1');
+  if (m < 1) throw new Error('require m >= 1');
+
+  // This is a "hack" to make our implemnetation match the reference implementation in igraph.
+  // We do not use the same approach as igraph.
+  //
+  // We verified that when size == m, igraph returns complete graph with N nodes
+  // and N*(N-1)/2 edges. So we do the same here.
+  if (m >= size - 1) {
+    const complete = createGraph();
+    for (let i = 0; i < size; i++) complete.addNode(i);
+    for (let i = 0; i < size; i++)
+      for (let j = 0; j < i; j++) complete.addLink(i, j);
+    return complete;
   }
 
   // Use the default recommended PRNG choice
