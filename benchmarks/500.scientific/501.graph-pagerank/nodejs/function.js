@@ -31,9 +31,18 @@ function generateBarabasiAlbertGraph(seed, size, m) {
   // and N*(N-1)/2 edges. So we do the same here.
   if (m >= size - 1) {
     const complete = createGraph();
-    for (let i = 0; i < size; i++) complete.addNode(i);
-    for (let i = 0; i < size; i++)
-      for (let j = 0; j < i; j++) complete.addLink(i, j);
+    for (let i = 0; i < size; i++) {
+      complete.addNode(i);
+    }
+    for (let i = 0; i < size; i++) {
+      for (let j = 0; j < i; j++) {
+        // connect source to its m distinct targets
+        // since other benchmark versions (Python, C++) are undirected,
+        // we add links in both directions
+        complete.addLink(i, j);
+        complete.addLink(j, i);
+      }
+    }
     return complete;
   }
 
