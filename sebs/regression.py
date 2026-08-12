@@ -1292,7 +1292,7 @@ def filter_out_benchmarks(
 
     # Filter out image recognition on newer Python versions on AWS
     if (deployment_name == "aws" and language == "python"
-            and language_version in ["3.9", "3.10", "3.11"]
+            and language_version in ["3.10", "3.11", "3.12", "3.13", "3.14"]
             and deployment_type == "package"):
         return "411.image-recognition" not in benchmark
 
