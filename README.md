@@ -246,3 +246,4 @@ However, they can be missing some of the features from the `master` branch.
 * [toooadi (ETH Zurich)](https://github.com/toooadi) - container support for Google Cloud.
 * [Anders Nõu](https://github.com/andersnou) - benchmarks in Node.js.
 * [Zisen Liu](https://github.com/rabbull) - multiple improvements and bugfixes to benchmarks and local, AWS, and GCP deployments.
+* [Valentin Kaas (ETH Zurich)](https://github.com/valentinkaas) - support for new versions of Python and Java on AWS.

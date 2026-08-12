@@ -4,9 +4,13 @@
 
 ### Bug Fixes
 
+* Change to input of 120.uploader benchmark to conform with new Wikipedia policies (#308)
+
 ### Improvements
 
 * Support for multiple variants of the same programming language (#286).
+
+* Support for new versions of Python and Java on AWS (#311).
 
 ### Deprecations
 
@@ -14,6 +18,7 @@
 
 This release includes contributions from:
 * @userlaurin - language variant support (#286)
+* @valentinkaas - support for AL2023 images with new Python and Java versions (#2311)
 
 ## [1.2.0](https://github.com/spcl/serverless-benchmarks/compare/v1.1...v1.2) (2026-03-16)
 
