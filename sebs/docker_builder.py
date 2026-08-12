@@ -358,7 +358,7 @@ class DockerImageBuilder(LoggingBase):
         if self._should_use_multiplatform(system, image_type, language):
             image_name = self.config.docker_image_name(system, image_type, language, version)
             self.logging.info(
-                f"Skipping push for multi-platform image (already pushed): {image_name}"
+                f"Skipping push for multi-platform image (already pushed during build): {image_name}"
             )
             return True
 
