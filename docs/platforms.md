@@ -393,6 +393,10 @@ or in the JSON configuration file:
 
 **Note**: The `resources_id` is used to uniquely identify and track resources created by SeBS for a specific deployment.
 
+> [!NOTE]
+> On Cloudflare, SeBS needs the following permissions: Workers Scripts (Worker usage), Workers R2 Storage (access to R2 buckets), Workers KV Storage (access to KV namespaces), Workers Containers (containers). When creating an API token, ensure that these permissions are included.
+**Terminology mapping**: SeBS uses the term *function* throughout its CLI and configuration. On Cloudflare, the equivalent unit of deployment is a **Worker**. Wherever SeBS refers to a function (e.g. `--function-name`, `create_function`, `CloudflareWorker`), it refers to a Cloudflare Worker script deployed to `{name}.{account}.workers.dev`.
+
 ### Language Support
 
 Cloudflare Workers support multiple languages through different deployment methods:
