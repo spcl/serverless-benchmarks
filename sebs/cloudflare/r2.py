@@ -45,7 +45,6 @@ class R2(PersistentStorage):
         """Initialize R2 storage with Cloudflare credentials."""
         super().__init__(region, cache_client, resources, replace_existing)
         self._credentials = credentials
-        self._s3_client = None
 
     def _get_auth_headers(self) -> dict[str, str]:
         """Get authentication headers for Cloudflare API requests."""
@@ -63,44 +62,9 @@ class R2(PersistentStorage):
         else:
             raise RuntimeError("Invalid Cloudflare credentials configuration")
 
-    def _get_s3_client(self):
-        """
-        Get or initialize the S3-compatible client for R2 operations.
-
-        :return: boto3 S3 client or None if credentials not available
-        """
-        if self._s3_client is not None:
-            return self._s3_client
-
-        # Check if we have S3-compatible credentials
-        if not self._credentials.r2_access_key_id or not self._credentials.r2_secret_access_key:
-            self.logging.warning(
-                "R2 S3-compatible API credentials not configured. "
-                "Set CLOUDFLARE_R2_ACCESS_KEY_ID and "
-                "CLOUDFLARE_R2_SECRET_ACCESS_KEY environment variables."
-            )
-            return None
-
-        try:
-            import boto3
-            from botocore.config import Config
-
-            account_id = self._credentials.account_id
-
-            self._s3_client = boto3.client(
-                "s3",
-                endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
-                aws_access_key_id=self._credentials.r2_access_key_id,
-                aws_secret_access_key=self._credentials.r2_secret_access_key,
-                config=Config(signature_version="s3v4"),
-                region_name="auto",
-            )
-
-            return self._s3_client
-
-        except ImportError:
-            self.logging.warning("boto3 not available. Install with: pip install boto3")
-            return None
+    def _get_api_base_url(self) -> str:
+        """Get the base URL for R2 API operations."""
+        return f"https://api.cloudflare.com/client/v4/accounts/{self._credentials.account_id}/r2/buckets"
 
     def correct_name(self, name: str) -> str:
         """Return the bucket name unchanged; R2 does not require name transformations."""
@@ -169,108 +133,152 @@ class R2(PersistentStorage):
 
     def download(self, bucket_name: str, key: str, filepath: str) -> None:
         """
-        Download a file from a bucket.
+        Download a file from a bucket using the Cloudflare REST API.
 
         :param bucket_name:
         :param key: storage source filepath
         :param filepath: local destination filepath
-        :raises RuntimeError: if S3 client is not available or download fails
+        :raises RuntimeError: if download fails
         """
-        s3_client = self._get_s3_client()
-        if s3_client is None:
-            raise RuntimeError(
-                f"Cannot download {key} from R2 - S3 client not available. "
-                "Ensure CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY are set."
-            )
+        # URL-encode the key for the API path
+        from urllib.parse import quote
+
+        encoded_key = quote(key, safe="")
+        url = f"{self._get_api_base_url()}/{bucket_name}/objects/{encoded_key}"
 
         try:
             dirname = os.path.dirname(filepath)
             if dirname:
                 os.makedirs(dirname, exist_ok=True)
-            s3_client.download_file(bucket_name, key, filepath)
+
+            response = requests.get(url, headers=self._get_auth_headers(), stream=True)
+            response.raise_for_status()
+
+            with open(filepath, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
             self.logging.debug(f"Downloaded {key} from R2 bucket {bucket_name} to {filepath}")
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Failed to download {key} from R2: {e}") from e
 
     def upload(self, bucket_name: str, filepath: str, key: str):
         """
-        Upload a file to R2 bucket using the S3-compatible API.
+        Upload a file to R2 bucket using the Cloudflare REST API.
 
-        Requires S3 credentials to be configured for the R2 bucket.
+        Note: REST API has a 300MB file size limit. Benchmark data files
+        exceeding this limit should be split or uploaded via Workers bindings.
 
         :param bucket_name: R2 bucket name
         :param filepath: local source filepath
         :param key: R2 destination key/path
-        :raises RuntimeError: if S3 client is not available or upload fails
+        :raises RuntimeError: if upload fails
         """
-        s3_client = self._get_s3_client()
-        if s3_client is None:
-            raise RuntimeError(
-                f"Cannot upload {filepath} to R2 - S3 client not available. "
-                "Ensure CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY are set."
-            )
+        from urllib.parse import quote
+
+        encoded_key = quote(key, safe="")
+        url = f"{self._get_api_base_url()}/{bucket_name}/objects/{encoded_key}"
 
         try:
+            file_size = os.path.getsize(filepath)
+            if file_size > 300 * 1024 * 1024:  # 300MB limit
+                raise RuntimeError(
+                    f"File {filepath} is {file_size / 1024 / 1024:.1f}MB, "
+                    "which exceeds the 300MB REST API limit."
+                )
+
             with open(filepath, "rb") as f:
-                s3_client.put_object(Bucket=bucket_name, Key=key, Body=f)
+                # Use content-type based on file extension
+                import mimetypes
+
+                content_type = mimetypes.guess_type(filepath)[0] or "application/octet-stream"
+                headers = self._get_auth_headers()
+                headers["Content-Type"] = content_type
+
+                response = requests.put(url, headers=headers, data=f)
+                response.raise_for_status()
 
             self.logging.debug(f"Uploaded {filepath} to R2 bucket {bucket_name} as {key}")
 
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Failed to upload {filepath} to R2: {e}") from e
 
     def upload_bytes(self, bucket_name: str, key: str, data: bytes):
         """
-        Upload bytes directly to R2 bucket using the S3-compatible API.
+        Upload bytes directly to R2 bucket using the Cloudflare REST API.
 
         :param bucket_name: R2 bucket name
         :param key: R2 destination key/path
         :param data: bytes to upload
-        :raises RuntimeError: if S3 client is not available or upload fails
+        :raises RuntimeError: if upload fails
         """
-        s3_client = self._get_s3_client()
-        if s3_client is None:
-            raise RuntimeError(
-                "Cannot upload bytes to R2 - S3 client not available. "
-                "Ensure CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY are set."
-            )
+        from urllib.parse import quote
+
+        encoded_key = quote(key, safe="")
+        url = f"{self._get_api_base_url()}/{bucket_name}/objects/{encoded_key}"
 
         try:
-            s3_client.put_object(Bucket=bucket_name, Key=key, Body=data)
+            if len(data) > 300 * 1024 * 1024:  # 300MB limit
+                raise RuntimeError(
+                    f"Data is {len(data) / 1024 / 1024:.1f}MB, "
+                    "which exceeds the 300MB REST API limit."
+                )
+
+            headers = self._get_auth_headers()
+            headers["Content-Type"] = "application/octet-stream"
+
+            response = requests.put(url, headers=headers, data=data)
+            response.raise_for_status()
 
             self.logging.debug(f"Uploaded {len(data)} bytes to R2 bucket {bucket_name} as {key}")
 
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Failed to upload bytes to R2: {e}") from e
 
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         """
-        Retrieves list of files in a bucket using S3-compatible API.
+        Retrieves list of files in a bucket using the Cloudflare REST API.
 
         :param bucket_name:
         :param prefix: optional prefix filter
         :return: list of files in a given bucket
         """
-        s3_client = self._get_s3_client()
-        if s3_client is None:
-            raise RuntimeError(
-                f"Cannot list R2 bucket {bucket_name} - S3 client not available. "
-                "Ensure CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY are set."
-            )
+        url = f"{self._get_api_base_url()}/{bucket_name}/objects"
+        files = []
+        cursor = None
 
         try:
-            paginator = s3_client.get_paginator("list_objects_v2")
-            page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+            while True:
+                params = {}
+                if prefix:
+                    params["prefix"] = prefix
+                if cursor:
+                    params["cursor"] = cursor
 
-            files = []
-            for page in page_iterator:
-                if "Contents" in page:
-                    for obj in page["Contents"]:
-                        files.append(obj["Key"])
+                response = requests.get(url, headers=self._get_auth_headers(), params=params)
+                response.raise_for_status()
+
+                data = response.json()
+                if not data.get("success"):
+                    raise RuntimeError(f"Failed to list R2 bucket: {data.get('errors')}")
+
+                # The result is a list of objects directly
+                objects = data.get("result", [])
+                if objects is None:
+                    objects = []
+
+                for obj in objects:
+                    files.append(obj["key"])
+
+                # Check for pagination via result_info
+                result_info = data.get("result_info", {})
+                cursor = result_info.get("cursor")
+                if not cursor:
+                    break
 
             return files
 
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Failed to list R2 bucket {bucket_name}: {str(e)}") from e
 
     def list_buckets(self, bucket_name: Optional[str] = None) -> List[str]:

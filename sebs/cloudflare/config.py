@@ -24,8 +24,9 @@ class CloudflareCredentials(Credentials):
       ``CLOUDFLARE_API_KEY``.
 
     Both methods additionally require ``CLOUDFLARE_ACCOUNT_ID``.
-    Optional R2 S3-compatible credentials (``CLOUDFLARE_R2_ACCESS_KEY_ID``,
-    ``CLOUDFLARE_R2_SECRET_ACCESS_KEY``) are needed for file uploads.
+
+    R2 storage operations use the Cloudflare REST API with the same API token,
+    so no separate S3-compatible credentials are needed.
 
     See ``docs/platforms.md`` (Cloudflare Workers → Credentials) for full
     setup instructions.
@@ -37,8 +38,6 @@ class CloudflareCredentials(Credentials):
         email: Optional[str] = None,
         api_key: Optional[str] = None,
         account_id: Optional[str] = None,
-        r2_access_key_id: Optional[str] = None,
-        r2_secret_access_key: Optional[str] = None,
     ):
         """Store Cloudflare API credentials supplied at construction time."""
         super().__init__()
@@ -47,8 +46,6 @@ class CloudflareCredentials(Credentials):
         self._email = email
         self._api_key = api_key
         self._account_id = account_id
-        self._r2_access_key_id = r2_access_key_id
-        self._r2_secret_access_key = r2_secret_access_key
 
     @staticmethod
     def typename() -> str:
@@ -75,16 +72,6 @@ class CloudflareCredentials(Credentials):
         """Cloudflare account ID required for all API operations."""
         return self._account_id
 
-    @property
-    def r2_access_key_id(self) -> Optional[str]:
-        """S3-compatible access key ID for R2 bucket operations."""
-        return self._r2_access_key_id
-
-    @property
-    def r2_secret_access_key(self) -> Optional[str]:
-        """S3-compatible secret access key for R2 bucket operations."""
-        return self._r2_secret_access_key
-
     @staticmethod
     def initialize(dct: dict) -> "CloudflareCredentials":
         """Build a CloudflareCredentials instance from a plain dictionary."""
@@ -93,8 +80,6 @@ class CloudflareCredentials(Credentials):
             dct.get("email"),
             dct.get("api_key"),
             dct.get("account_id"),
-            dct.get("r2_access_key_id"),
-            dct.get("r2_secret_access_key"),
         )
 
     @staticmethod
@@ -115,16 +100,12 @@ class CloudflareCredentials(Credentials):
             ret = CloudflareCredentials(
                 api_token=os.environ["CLOUDFLARE_API_TOKEN"],
                 account_id=os.environ.get("CLOUDFLARE_ACCOUNT_ID"),
-                r2_access_key_id=os.environ.get("CLOUDFLARE_R2_ACCESS_KEY_ID"),
-                r2_secret_access_key=os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY"),
             )
         elif "CLOUDFLARE_EMAIL" in os.environ and "CLOUDFLARE_API_KEY" in os.environ:
             ret = CloudflareCredentials(
                 email=os.environ["CLOUDFLARE_EMAIL"],
                 api_key=os.environ["CLOUDFLARE_API_KEY"],
                 account_id=os.environ.get("CLOUDFLARE_ACCOUNT_ID"),
-                r2_access_key_id=os.environ.get("CLOUDFLARE_R2_ACCESS_KEY_ID"),
-                r2_secret_access_key=os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY"),
             )
         else:
             raise RuntimeError(
