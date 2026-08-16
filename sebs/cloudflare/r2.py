@@ -64,7 +64,8 @@ class R2(PersistentStorage):
 
     def _get_api_base_url(self) -> str:
         """Get the base URL for R2 API operations."""
-        return f"https://api.cloudflare.com/client/v4/accounts/{self._credentials.account_id}/r2/buckets"
+        id = self._credentials.account_id
+        return f"https://api.cloudflare.com/client/v4/accounts/{id}/r2/buckets"
 
     def correct_name(self, name: str) -> str:
         """Return the bucket name unchanged; R2 does not require name transformations."""
