@@ -111,7 +111,7 @@ class Cloudflare(System):
     # (e.g. "110" matches "110.dynamic-html").
     SUPPORTED_BENCHMARKS: Dict[Tuple[str, bool], Optional[List[str]]] = {
         ("python", False): ["110", "120", "130", "210", "311", "501", "502", "503"],
-        ("nodejs", False): ["110", "120", "130", "311"],
+        ("nodejs", False): ["110", "120", "130", "311", "501"],
         ("python", True): None,  # all benchmarks supported
         ("nodejs", True): ["110", "120", "130", "210", "311"],
     }
