@@ -174,11 +174,14 @@ class R2(PersistentStorage):
         :param bucket_name:
         :param key: storage source filepath
         :param filepath: local destination filepath
+        :raises RuntimeError: if S3 client is not available or download fails
         """
         s3_client = self._get_s3_client()
         if s3_client is None:
-            self.logging.warning(f"Cannot download {key} from R2 - S3 client not available")
-            return
+            raise RuntimeError(
+                f"Cannot download {key} from R2 - S3 client not available. "
+                "Ensure CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY are set."
+            )
 
         try:
             dirname = os.path.dirname(filepath)
@@ -187,7 +190,7 @@ class R2(PersistentStorage):
             s3_client.download_file(bucket_name, key, filepath)
             self.logging.debug(f"Downloaded {key} from R2 bucket {bucket_name} to {filepath}")
         except Exception as e:
-            self.logging.warning(f"Failed to download {key} from R2: {e}")
+            raise RuntimeError(f"Failed to download {key} from R2: {e}") from e
 
     def upload(self, bucket_name: str, filepath: str, key: str):
         """
@@ -198,11 +201,14 @@ class R2(PersistentStorage):
         :param bucket_name: R2 bucket name
         :param filepath: local source filepath
         :param key: R2 destination key/path
+        :raises RuntimeError: if S3 client is not available or upload fails
         """
         s3_client = self._get_s3_client()
         if s3_client is None:
-            self.logging.warning(f"Cannot upload {filepath} to R2 - S3 client not available")
-            return
+            raise RuntimeError(
+                f"Cannot upload {filepath} to R2 - S3 client not available. "
+                "Ensure CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY are set."
+            )
 
         try:
             with open(filepath, "rb") as f:
@@ -211,7 +217,7 @@ class R2(PersistentStorage):
             self.logging.debug(f"Uploaded {filepath} to R2 bucket {bucket_name} as {key}")
 
         except Exception as e:
-            self.logging.warning(f"Failed to upload {filepath} to R2: {e}")
+            raise RuntimeError(f"Failed to upload {filepath} to R2: {e}") from e
 
     def upload_bytes(self, bucket_name: str, key: str, data: bytes):
         """
@@ -220,11 +226,14 @@ class R2(PersistentStorage):
         :param bucket_name: R2 bucket name
         :param key: R2 destination key/path
         :param data: bytes to upload
+        :raises RuntimeError: if S3 client is not available or upload fails
         """
         s3_client = self._get_s3_client()
         if s3_client is None:
-            self.logging.warning("Cannot upload bytes to R2 - S3 client not available")
-            return
+            raise RuntimeError(
+                "Cannot upload bytes to R2 - S3 client not available. "
+                "Ensure CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY are set."
+            )
 
         try:
             s3_client.put_object(Bucket=bucket_name, Key=key, Body=data)
@@ -232,7 +241,7 @@ class R2(PersistentStorage):
             self.logging.debug(f"Uploaded {len(data)} bytes to R2 bucket {bucket_name} as {key}")
 
         except Exception as e:
-            self.logging.warning(f"Failed to upload bytes to R2: {e}")
+            raise RuntimeError(f"Failed to upload bytes to R2: {e}") from e
 
     def list_bucket(self, bucket_name: str, prefix: str = "") -> List[str]:
         """
@@ -329,6 +338,7 @@ class R2(PersistentStorage):
         Delete a bucket.
 
         :param bucket:
+        :raises RuntimeError: if bucket deletion fails
         """
         account_id = self._credentials.account_id
 
@@ -345,10 +355,10 @@ class R2(PersistentStorage):
             if data.get("success"):
                 self.logging.info(f"Successfully deleted R2 bucket {bucket}")
             else:
-                self.logging.error(f"Failed to delete R2 bucket {bucket}: {data.get('errors')}")
+                raise RuntimeError(f"Failed to delete R2 bucket {bucket}: {data.get('errors')}")
 
         except requests.exceptions.RequestException as e:
-            self.logging.error(f"Error deleting R2 bucket {bucket}: {e}")
+            raise RuntimeError(f"Error deleting R2 bucket {bucket}: {e}") from e
 
     def uploader_func(self, bucket_idx: int, file: str, filepath: str) -> None:
         """
