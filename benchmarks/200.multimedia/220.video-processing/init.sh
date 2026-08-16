@@ -7,6 +7,8 @@ TARGET_ARCHITECTURE=$3
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
+set -euo pipefail
+
 # This currently points to 7.0.2 - will likely change in the future, but we do not have
 # a persistent link.
 if [[ "${TARGET_ARCHITECTURE}" == "arm64" ]]; then
@@ -16,9 +18,12 @@ else
 fi
 
 if command -v wget &>/dev/null; then
-    wget -q "${FFMPEG_URL}" -P "${DIR}"
+    wget "${FFMPEG_URL}" -P "${DIR}"
+elif command -v curl &>/dev/null; then
+    curl -fsL "${FFMPEG_URL}" -o "${DIR}/$(basename ${FFMPEG_URL})"
 else
-    curl -sL "${FFMPEG_URL}" -o "${DIR}/$(basename ${FFMPEG_URL})"
+    echo "ERROR: neither wget nor curl available" >&2
+    exit 1
 fi
 
 pushd "${DIR}" >/dev/null
@@ -29,6 +34,13 @@ rm -f ffmpeg/ffprobe
 # make the binary executable
 chmod 755 ffmpeg/ffmpeg
 popd >/dev/null
+
+# Fail loudly if the binary isn't actually there.
+# Sanity check - avoid issues where download silently fails.
+if [ ! -x "${DIR}/ffmpeg/ffmpeg" ]; then
+    echo "ERROR: ffmpeg binary missing after packaging" >&2
+    exit 1
+fi
 
 # copy watermark
 cp -r "${SCRIPT_DIR}/resources" "${DIR}"

@@ -55,7 +55,10 @@ benchmarks_nodejs = [
     "120.uploader",
     "130.crud-api",
     "210.thumbnailer",
+    # FIXME: Reenable after merging PR 312
+    # "220.video-processing",
     "311.compression",
+    "501.graph-pagerank",
 ]
 
 benchmarks_java = ["010.sleep", "110.dynamic-html"]
@@ -1422,7 +1425,7 @@ def filter_out_benchmarks(
 
     # Filter out image recognition on newer Python versions on AWS
     if (deployment_name == "aws" and language == "python"
-            and language_version in ["3.9", "3.10", "3.11"]
+            and language_version in ["3.10", "3.11", "3.12", "3.13", "3.14"]
             and deployment_type == "package"):
         return "411.image-recognition" not in benchmark
 

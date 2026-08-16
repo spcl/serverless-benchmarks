@@ -9,6 +9,13 @@
         "cloudflare": "default"
       }
     },
+    {
+      "language": "nodejs",
+      "variants": {
+        "default": "default",
+        "cloudflare": "default"
+      }
+    },
     "cpp"
   ],
   "modules": [],
