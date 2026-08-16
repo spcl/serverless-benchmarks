@@ -225,6 +225,8 @@ class Cloudflare(System):
         )
         # Adapter so benchmark.build() can call container_client.build_base_image()
         self._container_adapter = _CloudflareContainerAdapter(self._containers_deployment)
+        # Track R2 storage availability (set during initialize_resources)
+        self._r2_available = False
 
     def initialize(
         self,
@@ -275,12 +277,15 @@ class Cloudflare(System):
         try:
             self.system_resources.get_storage().get_bucket(Resources.StorageBucketType.BENCHMARKS)
             self.logging.info("R2 storage initialized successfully")
+            self._r2_available = True
         except Exception as e:
-            self.logging.warning(
+            self._r2_available = False
+            self.logging.error(
                 f"R2 storage initialization failed: {e}. "
-                "R2 must be enabled in your Cloudflare dashboard "
-                "to use storage-dependent benchmarks. "
-                "Continuing without R2 - only benchmarks that don't require storage will work."
+                "R2 must be enabled in your Cloudflare dashboard and your API token "
+                "must have R2 read/write permissions. "
+                "Storage-dependent benchmarks will fail. "
+                "Only benchmarks that don't require storage (e.g., 110.dynamic-html) will work."
             )
 
     @property
@@ -555,22 +560,50 @@ class Cloudflare(System):
         return worker
 
     def _get_worker(self, worker_name: str, account_id: str) -> Optional[dict]:
-        """Get information about an existing worker."""
+        """Get information about an existing worker.
+
+        Returns:
+            Worker info dict if worker exists, None if worker doesn't exist.
+
+        Raises:
+            RuntimeError: if API call fails with unexpected status code or response parsing fails.
+        """
         headers = self._get_auth_headers()
         url = f"{self._api_base_url}/accounts/{account_id}/workers/scripts/{worker_name}"
 
         response = requests.get(url, headers=headers)
 
         if response.status_code == 200:
+            # When the worker exists, the API returns the script content as multipart/form-data
+            # (not JSON). We just need to know if it exists, so return a simple dict.
+            content_type = response.headers.get("Content-Type", "")
+            if "multipart/form-data" in content_type or "application/javascript" in content_type:
+                # Worker exists - return minimal info indicating existence
+                return {"script_exists": True}
+
+            # Handle empty response body (if returned instead of 404)
+            body = response.text
+            if not body or not body.strip():
+                self.logging.debug(
+                    f"Empty response body for worker {worker_name}, treating as not found"
+                )
+                return None
+
+            # for non-existing worker, we get a JSON with result -> null
             try:
                 return response.json().get("result")
             except Exception:
-                return None
+                raise RuntimeError(
+                    f"Unclear how to interpret Cloudflare API response for worker {worker_name}: "
+                    f"{response.text[:200]}"
+                )
         elif response.status_code == 404:
             return None
         else:
-            self.logging.warning(f"Unexpected response checking worker: {response.status_code}")
-            return None
+            raise RuntimeError(
+                f"Unexpected API response checking worker {worker_name}: "
+                f"status={response.status_code}, body={response.text[:200]}"
+            )
 
     def _create_or_update_worker(
         self,
