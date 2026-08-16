@@ -331,7 +331,17 @@ class Cloudflare(System):
                 f"Using Email + API Key authentication (email: {self.config.credentials.email})"
             )
 
-        response = requests.get(f"{self._api_base_url}/user/tokens/verify", headers=headers)
+        account_id = self.config.credentials.account_id
+        # cfat - account API token, cfut - user API token
+        # https://developers.cloudflare.com/fundamentals/api/get-started/token-formats/
+        token = self.config.credentials.api_token
+        if token.startswith("cfat_"):
+            url = f"{self._api_base_url}/accounts/{account_id}/tokens/verify"
+        elif token.startswith("cfut_"):
+            url = f"{self._api_base_url}/user/tokens/verify"
+        else:
+            raise RuntimeError("Unknown Cloudflare API token format. Must start with 'cfat_' or 'cfut_'.")
+        response = requests.get(url, headers=headers)
 
         if response.status_code != 200:
             raise RuntimeError(
