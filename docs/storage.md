@@ -127,7 +127,6 @@ Server: Seastar httpd
 
 healthy: 192.168.0.20:9012
 ```
-```
 
 ## Lifecycle Management
 
