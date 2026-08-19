@@ -66,6 +66,7 @@ class CloudflareContainersDeployment:
         self.max_instances: int = 10
         self.instance_type: Optional[str] = None
         self.sleep_after: Union[str, int] = "30m"
+        self.placement: dict = {}
 
     @staticmethod
     def _sleep_after_js_literal(value: Union[str, int]) -> str:
@@ -140,6 +141,9 @@ class CloudflareContainersDeployment:
         config["account_id"] = account_id
         container_config = config["containers"][0]
         container_config["max_instances"] = self.max_instances
+        if self.placement:
+            container_config["constraints"] = dict(self.placement)
+            self.logging.info(f"Configured container placement constraints: {self.placement}")
 
         if container_uri and container_uri.startswith("registry.cloudflare.com"):
             # Pre-built image already pushed to Cloudflare registry — point wrangler
@@ -208,7 +212,11 @@ class CloudflareContainersDeployment:
                 "R2 bucket binding not configured: benchmarks bucket name is empty. "
                 "Benchmarks requiring file access will not work properly."
             )
-        config["r2_buckets"] = [{"binding": "R2", "bucket_name": bucket_name}]
+        platform_config = self.system_resources.config
+        r2_binding = {"binding": "R2", "bucket_name": bucket_name}
+        if platform_config.r2_jurisdiction:
+            r2_binding["jurisdiction"] = platform_config.r2_jurisdiction
+        config["r2_buckets"] = [r2_binding]
         self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
 
         # Write wrangler.toml to package directory

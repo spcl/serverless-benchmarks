@@ -41,10 +41,14 @@ class R2(PersistentStorage):
         resources: Resources,
         replace_existing: bool,
         credentials: CloudflareCredentials,
+        location_hint: Optional[str] = None,
+        jurisdiction: Optional[str] = None,
     ):
         """Initialize R2 storage with Cloudflare credentials."""
         super().__init__(region, cache_client, resources, replace_existing)
         self._credentials = credentials
+        self._location_hint = location_hint
+        self._jurisdiction = jurisdiction
 
     def _get_auth_headers(self) -> dict[str, str]:
         """Get authentication headers for Cloudflare API requests."""
@@ -86,21 +90,29 @@ class R2(PersistentStorage):
 
         create_bucket_uri = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/r2/buckets"
 
-        # R2 API only accepts "name" parameter - locationHint is optional and must be one of:
-        # "apac", "eeur", "enam", "weur", "wnam"
-        # WARNING: locationHint is not currently supported by SeBS. Buckets are created
-        # with Cloudflare's automatic location selection.
         params = {"name": name}
+        if self._location_hint:
+            params["locationHint"] = self._location_hint
 
-        self.logging.warning(
-            f"Creating R2 bucket '{name}' without locationHint. "
-            "Geographic location is determined automatically by Cloudflare."
-        )
+        headers = self._get_auth_headers()
+        if self._jurisdiction:
+            headers["cf-r2-jurisdiction"] = self._jurisdiction
+
+        placement = []
+        if self._location_hint:
+            placement.append(f"locationHint={self._location_hint}")
+        if self._jurisdiction:
+            placement.append(f"jurisdiction={self._jurisdiction}")
+        if placement:
+            self.logging.info(f"Creating R2 bucket '{name}' with {', '.join(placement)}")
+        else:
+            self.logging.warning(
+                f"Creating R2 bucket '{name}' without locationHint or jurisdiction. "
+                "Geographic location is determined automatically by Cloudflare."
+            )
 
         try:
-            create_bucket_response = requests.post(
-                create_bucket_uri, json=params, headers=self._get_auth_headers()
-            )
+            create_bucket_response = requests.post(create_bucket_uri, json=params, headers=headers)
 
             # Log the response for debugging
             if create_bucket_response.status_code >= 400:

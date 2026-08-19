@@ -1,7 +1,7 @@
 """Configuration classes for the Cloudflare Workers platform."""
 
 import os
-from typing import Optional, Union, cast
+from typing import Any, Dict, Optional, Union, cast
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
@@ -233,6 +233,10 @@ class CloudflareConfig(Config):
         self._max_instances: int = 10
         self._instance_type: Optional[str] = None
         self._sleep_after: Union[str, int] = "30m"
+        self._worker_placement: Dict[str, Any] = {}
+        self._container_placement: Dict[str, Any] = {}
+        self._r2_location_hint: Optional[str] = None
+        self._r2_jurisdiction: Optional[str] = None
 
     @staticmethod
     def typename() -> str:
@@ -264,6 +268,26 @@ class CloudflareConfig(Config):
         """Idle timeout for Cloudflare container instances."""
         return self._sleep_after
 
+    @property
+    def worker_placement(self) -> Dict[str, Any]:
+        """Wrangler placement configuration for native Workers."""
+        return dict(self._worker_placement)
+
+    @property
+    def container_placement(self) -> Dict[str, Any]:
+        """Cloudflare Container placement constraints."""
+        return dict(self._container_placement)
+
+    @property
+    def r2_location_hint(self) -> Optional[str]:
+        """R2 bucket location hint for newly created buckets."""
+        return self._r2_location_hint
+
+    @property
+    def r2_jurisdiction(self) -> Optional[str]:
+        """R2 jurisdiction for newly created buckets and Worker bindings."""
+        return self._r2_jurisdiction
+
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         """Apply region and other fields from a config dictionary to an existing instance."""
@@ -281,6 +305,21 @@ class CloudflareConfig(Config):
             config._sleep_after = dct["sleep_after"]
         elif "sleepAfter" in dct:
             config._sleep_after = dct["sleepAfter"]
+
+        placement = dct.get("placement", {}) or {}
+        worker_placement = placement.get("worker", dct.get("worker_placement"))
+        if worker_placement:
+            config._worker_placement = dict(worker_placement)
+        container_placement = placement.get("container", dct.get("container_placement"))
+        if container_placement:
+            config._container_placement = dict(container_placement)
+        r2_placement = placement.get("r2", dct.get("r2", {})) or {}
+        if "location_hint" in r2_placement:
+            config._r2_location_hint = r2_placement["location_hint"]
+        elif "locationHint" in r2_placement:
+            config._r2_location_hint = r2_placement["locationHint"]
+        if "jurisdiction" in r2_placement:
+            config._r2_jurisdiction = r2_placement["jurisdiction"]
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
@@ -314,6 +353,21 @@ class CloudflareConfig(Config):
         if self.instance_type is not None:
             cache.update_config(val=self.instance_type, keys=["cloudflare", "instance_type"])
         cache.update_config(val=self.sleep_after, keys=["cloudflare", "sleep_after"])
+        if self.worker_placement:
+            cache.update_config(
+                val=self.worker_placement, keys=["cloudflare", "placement", "worker"]
+            )
+        if self.container_placement:
+            cache.update_config(
+                val=self.container_placement, keys=["cloudflare", "placement", "container"]
+            )
+        r2_placement = {}
+        if self.r2_location_hint is not None:
+            r2_placement["location_hint"] = self.r2_location_hint
+        if self.r2_jurisdiction is not None:
+            r2_placement["jurisdiction"] = self.r2_jurisdiction
+        if r2_placement:
+            cache.update_config(val=r2_placement, keys=["cloudflare", "placement", "r2"])
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)
 
@@ -329,4 +383,18 @@ class CloudflareConfig(Config):
         }
         if self._instance_type is not None:
             out["instance_type"] = self._instance_type
+        placement = {}
+        if self._worker_placement:
+            placement["worker"] = dict(self._worker_placement)
+        if self._container_placement:
+            placement["container"] = dict(self._container_placement)
+        r2_placement = {}
+        if self._r2_location_hint is not None:
+            r2_placement["location_hint"] = self._r2_location_hint
+        if self._r2_jurisdiction is not None:
+            r2_placement["jurisdiction"] = self._r2_jurisdiction
+        if r2_placement:
+            placement["r2"] = r2_placement
+        if placement:
+            out["placement"] = placement
         return out

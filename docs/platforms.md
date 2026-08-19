@@ -389,7 +389,12 @@ or in the JSON configuration file:
     },
     "max_instances": 10,
     "instance_type": "standard-4",
-    "sleep_after": "30m"
+    "sleep_after": "30m",
+    "placement": {
+      "worker": {"mode": "smart"},
+      "container": {"regions": ["WEUR"], "jurisdiction": "eu"},
+      "r2": {"location_hint": "weur", "jurisdiction": "eu"}
+    }
   }
 }
 ```
@@ -516,6 +521,40 @@ To use a different Docker Hub repository, change `['general']['docker_repository
   | standard-4 | 4 | 12 GiB | 20 GB |
   Set `deployment.cloudflare.instance_type` to select a tier for container deployments. High-resource benchmarks (`411.image-recognition`, `311.compression`, and `504.dna-visualisation`) require `standard-4`; SeBS fails early if they are run with a smaller or unspecified instance type.
 - **Container Idle Timeout**: Set `deployment.cloudflare.sleep_after` to configure the `sleepAfter` property on the generated `@cloudflare/containers` Worker class. The default is `"30m"`, matching the previous hardcoded wrapper behavior. Strings such as `"5m"`, `"30s"`, or `"1h"` are passed through as Cloudflare duration values; integers are emitted as seconds.
+- **Placement and Data Location**: Set `deployment.cloudflare.placement.worker` to write a Wrangler `[placement]` block for native Workers, `deployment.cloudflare.placement.container` to write Cloudflare Container `constraints`, and `deployment.cloudflare.placement.r2` to pass `locationHint`/jurisdiction when creating new R2 buckets and binding jurisdictional buckets. Omit a placement object, or leave it empty, to use Cloudflare's automatic placement.
+
+  Worker placement options:
+
+  | Option | Values | Meaning |
+  |--------|--------|---------|
+  | `mode` | `smart` | Enables Smart Placement for the Worker. |
+  | `region` | External cloud-region hint with prefix `aws:`, `gcp:`, or `azure:` | Runs the Worker in the Cloudflare data center nearest to that external cloud region. Cloudflare does not expose fixed Worker region codes here. |
+  | `host` | hostname | Places the Worker close to the given host. |
+  | `hostname` | hostname | Alias accepted by Wrangler for host-based placement. |
+
+  Container placement options:
+
+  | Option | Values | Meaning |
+  |--------|--------|---------|
+  | `regions` | `ENAM` (Eastern North America), `WNAM` (Western North America), `EEUR` (Eastern Europe), `WEUR` (Western Europe), `APAC` (Asia Pacific), `SAM` (South America), `ME` (Middle East), `OC` (Oceania), `AFR` (Africa) | Restricts containers to one or more Cloudflare geographic regions. `ME`, `OC`, and `AFR` currently have limited capacity and cannot be used as the only selected region. |
+  | `jurisdiction` | `eu`, `fedramp` | Restricts containers to a compliance boundary. `eu` maps to `EEUR`/`WEUR`; `fedramp` maps to `ENAM`/`WNAM`. If both `regions` and `jurisdiction` are set, the regions must be inside the selected jurisdiction. |
+
+  R2 data-location options:
+
+  | Option | Values | Meaning |
+  |--------|--------|---------|
+  | `location_hint` | `apac`, `eeur`, `enam`, `weur`, `wnam`, `oc` | Hints where Cloudflare should create a new bucket while still using normal R2 global access. |
+  | `jurisdiction` | `eu`, `fedramp` | Creates and binds a jurisdictional bucket. Jurisdictional buckets require the matching jurisdiction header/API endpoint when accessed outside Worker bindings. |
+
+  Example:
+
+  ```json
+  "placement": {
+    "worker": {"mode": "smart"},
+    "container": {"regions": ["WEUR"], "jurisdiction": "eu"},
+    "r2": {"location_hint": "weur", "jurisdiction": "eu"}
+  }
+  ```
 - **Wall-Clock Timing**: Cloudflare Workers freezes `Date.now()` and `performance.now()` between I/O operations as a timing side-channel mitigation, so the clock does not advance inside pure-compute sections. To record a meaningful wall-clock `compute_time`, the handler issues a throwaway self-fetch (a `HEAD /favicon` request) before sampling the end time. This I/O call unfreezes the timer. See the [Cloudflare security model docs](https://developers.cloudflare.com/workers/reference/security-model/#step-1-disallow-timers-and-multi-threading) for details.
 - **Metrics Collection**: Uses response-based per-invocation metrics. During each function invocation, the worker handler measures performance metrics (CPU time, wall time, memory usage) and embeds them directly in the JSON response. SeBS extracts these metrics immediately from each response. When `download_metrics()` is called for postprocessing, it only aggregates the metrics that were already collected during invocations—no additional data is fetched from external services. This approach provides immediate per-invocation granularity without delays. Note that while Cloudflare does expose an Analytics Engine, it only provides aggregated metrics without individual request-level data, making it unsuitable for detailed benchmarking purposes.
 
