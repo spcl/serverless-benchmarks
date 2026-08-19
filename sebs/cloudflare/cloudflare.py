@@ -668,6 +668,7 @@ class Cloudflare(System):
         # Generate wrangler.toml for this worker (uses registry URI if available)
         if container_deployment:
             self._containers_deployment.max_instances = self.config.max_instances
+            self._containers_deployment.instance_type = self.config.instance_type
         self._generate_wrangler_toml(
             worker_name,
             package_dir,

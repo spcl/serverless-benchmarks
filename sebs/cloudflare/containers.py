@@ -32,6 +32,21 @@ from sebs.utils import get_resource_path
 class CloudflareContainersDeployment:
     """Handles Cloudflare container worker deployment operations."""
 
+    SUPPORTED_INSTANCE_TYPES = (
+        "lite",
+        "basic",
+        "standard-1",
+        "standard-2",
+        "standard-3",
+        "standard-4",
+    )
+    HIGH_RESOURCE_BENCHMARKS = (
+        "411.image-recognition",
+        "311.compression",
+        "504.dna-visualisation",
+    )
+    HIGH_RESOURCE_INSTANCE_TYPE = "standard-4"
+
     def __init__(self, logging, system_config, docker_client, system_resources):
         """
         Initialize CloudflareContainersDeployment.
@@ -49,6 +64,7 @@ class CloudflareContainersDeployment:
         self._base_image: Optional[str] = None
         self._cli: Optional[CloudflareCLI] = None
         self.max_instances: int = 10
+        self.instance_type: Optional[str] = None
 
     def _get_cli(self) -> CloudflareCLI:
         """Get or initialize the Cloudflare CLI container."""
@@ -95,25 +111,40 @@ class CloudflareContainersDeployment:
         # Update basic configuration
         config["name"] = worker_name
         config["account_id"] = account_id
-        config["containers"][0]["max_instances"] = self.max_instances
+        container_config = config["containers"][0]
+        container_config["max_instances"] = self.max_instances
 
         if container_uri and container_uri.startswith("registry.cloudflare.com"):
             # Pre-built image already pushed to Cloudflare registry — point wrangler
             # at it directly so it skips the Docker build step entirely.
-            config["containers"][0]["image"] = container_uri
+            container_config["image"] = container_uri
         else:
             # Fallback: let wrangler build from the local Dockerfile.
             if self._base_image:
-                config["containers"][0]["build_args"] = {"BASE_IMAGE": self._base_image}
+                container_config["build_args"] = {"BASE_IMAGE": self._base_image}
 
-        # Update container configuration with instance type if needed
-        if benchmark_name and (
-            "411.image-recognition" in benchmark_name
-            or "311.compression" in benchmark_name
-            or "504.dna-visualisation" in benchmark_name
-        ):
-            self.logging.warning("Using standard-4 instance type for high resource benchmark")
-            config["containers"][0]["instance_type"] = "standard-4"
+        instance_type = self.instance_type
+        if instance_type is not None and instance_type not in self.SUPPORTED_INSTANCE_TYPES:
+            supported = ", ".join(self.SUPPORTED_INSTANCE_TYPES)
+            raise RuntimeError(
+                f"Unsupported Cloudflare container instance_type '{instance_type}'. "
+                f"Supported values are: {supported}."
+            )
+
+        is_high_resource_benchmark = benchmark_name and any(
+            benchmark in benchmark_name for benchmark in self.HIGH_RESOURCE_BENCHMARKS
+        )
+        if is_high_resource_benchmark and instance_type != self.HIGH_RESOURCE_INSTANCE_TYPE:
+            configured = instance_type or "Cloudflare default"
+            raise RuntimeError(
+                f"Benchmark '{benchmark_name}' requires Cloudflare container "
+                f"instance_type '{self.HIGH_RESOURCE_INSTANCE_TYPE}', but '{configured}' "
+                "is configured. Set deployment.cloudflare.instance_type to "
+                f"'{self.HIGH_RESOURCE_INSTANCE_TYPE}' in the SeBS config."
+            )
+
+        if instance_type is not None:
+            container_config["instance_type"] = instance_type
 
         # Add nosql KV namespace bindings if benchmark uses them
         if code_package and code_package.uses_nosql:

@@ -231,6 +231,7 @@ class CloudflareConfig(Config):
         self._credentials = credentials
         self._resources = resources
         self._max_instances: int = 10
+        self._instance_type: Optional[str] = None
 
     @staticmethod
     def typename() -> str:
@@ -252,14 +253,24 @@ class CloudflareConfig(Config):
         """Maximum number of container instances for container deployments."""
         return self._max_instances
 
+    @property
+    def instance_type(self) -> Optional[str]:
+        """Cloudflare container instance type for container deployments."""
+        return self._instance_type
+
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         """Apply region and other fields from a config dictionary to an existing instance."""
         config = cast(CloudflareConfig, cfg)
         # Cloudflare Workers are globally distributed, no region needed
-        config._region = dct.get("region", "global")
+        if "region" in dct:
+            config._region = dct["region"]
+        elif not config._region:
+            config._region = "global"
         if "max_instances" in dct:
             config._max_instances = int(dct["max_instances"])
+        if "instance_type" in dct:
+            config._instance_type = dct["instance_type"]
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
@@ -278,8 +289,9 @@ class CloudflareConfig(Config):
         if cached_config:
             config_obj.logging.info("Using cached config for Cloudflare")
             CloudflareConfig.initialize(config_obj, cached_config)
-        else:
-            config_obj.logging.info("Using user-provided config for Cloudflare")
+
+        if config:
+            config_obj.logging.info("Applying user-provided config for Cloudflare")
             CloudflareConfig.initialize(config_obj, config)
 
         resources.region = config_obj.region
@@ -288,6 +300,9 @@ class CloudflareConfig(Config):
     def update_cache(self, cache: Cache):
         """Persist region, credentials, and resources to the local cache."""
         cache.update_config(val=self.region, keys=["cloudflare", "region"])
+        cache.update_config(val=self.max_instances, keys=["cloudflare", "max_instances"])
+        if self.instance_type is not None:
+            cache.update_config(val=self.instance_type, keys=["cloudflare", "instance_type"])
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)
 
@@ -296,7 +311,10 @@ class CloudflareConfig(Config):
         out = {
             "name": "cloudflare",
             "region": self._region,
+            "max_instances": self._max_instances,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }
+        if self._instance_type is not None:
+            out["instance_type"] = self._instance_type
         return out
