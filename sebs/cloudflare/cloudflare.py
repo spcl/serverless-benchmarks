@@ -191,6 +191,11 @@ class Cloudflare(System):
         if func_name is not None:
             func_name = self.format_function_name(func_name, container_deployment)
 
+        if container_deployment:
+            self._containers_deployment.max_instances = self.config.max_instances
+            self._containers_deployment.instance_type = self.config.instance_type
+            self._containers_deployment.sleep_after = self.config.sleep_after
+
         return super().get_function(code_package, func_name)
 
     def __init__(
@@ -669,6 +674,7 @@ class Cloudflare(System):
         if container_deployment:
             self._containers_deployment.max_instances = self.config.max_instances
             self._containers_deployment.instance_type = self.config.instance_type
+            self._containers_deployment.sleep_after = self.config.sleep_after
         self._generate_wrangler_toml(
             worker_name,
             package_dir,

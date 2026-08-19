@@ -388,7 +388,8 @@ or in the JSON configuration file:
       "resources_id": "unique-resource-id"
     },
     "max_instances": 10,
-    "instance_type": "standard-4"
+    "instance_type": "standard-4",
+    "sleep_after": "30m"
   }
 }
 ```
@@ -514,6 +515,7 @@ To use a different Docker Hub repository, change `['general']['docker_repository
   | standard-3 | 2 | 8 GiB | 16 GB |
   | standard-4 | 4 | 12 GiB | 20 GB |
   Set `deployment.cloudflare.instance_type` to select a tier for container deployments. High-resource benchmarks (`411.image-recognition`, `311.compression`, and `504.dna-visualisation`) require `standard-4`; SeBS fails early if they are run with a smaller or unspecified instance type.
+- **Container Idle Timeout**: Set `deployment.cloudflare.sleep_after` to configure the `sleepAfter` property on the generated `@cloudflare/containers` Worker class. The default is `"30m"`, matching the previous hardcoded wrapper behavior. Strings such as `"5m"`, `"30s"`, or `"1h"` are passed through as Cloudflare duration values; integers are emitted as seconds.
 - **Wall-Clock Timing**: Cloudflare Workers freezes `Date.now()` and `performance.now()` between I/O operations as a timing side-channel mitigation, so the clock does not advance inside pure-compute sections. To record a meaningful wall-clock `compute_time`, the handler issues a throwaway self-fetch (a `HEAD /favicon` request) before sampling the end time. This I/O call unfreezes the timer. See the [Cloudflare security model docs](https://developers.cloudflare.com/workers/reference/security-model/#step-1-disallow-timers-and-multi-threading) for details.
 - **Metrics Collection**: Uses response-based per-invocation metrics. During each function invocation, the worker handler measures performance metrics (CPU time, wall time, memory usage) and embeds them directly in the JSON response. SeBS extracts these metrics immediately from each response. When `download_metrics()` is called for postprocessing, it only aggregates the metrics that were already collected during invocations—no additional data is fetched from external services. This approach provides immediate per-invocation granularity without delays. Note that while Cloudflare does expose an Analytics Engine, it only provides aggregated metrics without individual request-level data, making it unsuitable for detailed benchmarking purposes.
 

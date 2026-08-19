@@ -21,7 +21,7 @@ try:
     import tomli_w
 except ImportError:
     import toml as tomli_w  # type: ignore[no-redef, import-untyped]
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 
 from sebs.benchmark import Benchmark
@@ -65,6 +65,33 @@ class CloudflareContainersDeployment:
         self._cli: Optional[CloudflareCLI] = None
         self.max_instances: int = 10
         self.instance_type: Optional[str] = None
+        self.sleep_after: Union[str, int] = "30m"
+
+    @staticmethod
+    def _sleep_after_js_literal(value: Union[str, int]) -> str:
+        """Return a safe JavaScript literal for Container.sleepAfter."""
+        if isinstance(value, bool):
+            raise RuntimeError("Cloudflare container sleep_after must be a string or integer")
+        if isinstance(value, int):
+            if value < 0:
+                raise RuntimeError("Cloudflare container sleep_after cannot be negative")
+            return str(value)
+        if isinstance(value, str):
+            if not value.strip():
+                raise RuntimeError("Cloudflare container sleep_after cannot be empty")
+            return json.dumps(value)
+        raise RuntimeError("Cloudflare container sleep_after must be a string or integer")
+
+    def _configure_worker_sleep_after(self, worker_js_path: str) -> None:
+        """Write the configured sleepAfter value into the generated worker wrapper."""
+        marker = '  sleepAfter = "30m";'
+        content = open(worker_js_path, "r", encoding="utf-8").read()
+        if marker not in content:
+            raise RuntimeError(f"Could not find sleepAfter setting in {worker_js_path}")
+        replacement = f"  sleepAfter = {self._sleep_after_js_literal(self.sleep_after)};"
+        with open(worker_js_path, "w", encoding="utf-8") as f:
+            f.write(content.replace(marker, replacement, 1))
+        self.logging.info(f"Configured container sleepAfter to {self.sleep_after}")
 
     def _get_cli(self) -> CloudflareCLI:
         """Get or initialize the Cloudflare CLI container."""
@@ -294,7 +321,9 @@ class CloudflareContainersDeployment:
         nodejs_wrapper_dir = os.path.join(wrapper_base, "nodejs", "container")
         worker_js_src = os.path.join(nodejs_wrapper_dir, "worker.js")
         if os.path.exists(worker_js_src):
-            shutil.copy2(worker_js_src, os.path.join(directory, "worker.js"))
+            worker_js_dest = os.path.join(directory, "worker.js")
+            shutil.copy2(worker_js_src, worker_js_dest)
+            self._configure_worker_sleep_after(worker_js_dest)
             self.logging.info("Copied worker.js orchestration file from nodejs/container")
 
         # Copy init.sh if the benchmark needs it (e.g. video-processing downloads ffmpeg)
@@ -381,19 +410,23 @@ class CloudflareContainersDeployment:
 
         self.logging.info(f"Building container image {image_tag} for linux/amd64...")
 
+        build_cmd = [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/amd64",
+            "--load",
+            "--no-cache",
+            "-t",
+            image_tag,
+        ]
+        if self._base_image:
+            build_cmd.extend(["--build-arg", f"BASE_IMAGE={self._base_image}"])
+        build_cmd.append(directory)
+
         result = subprocess.run(
-            [
-                "docker",
-                "buildx",
-                "build",
-                "--platform",
-                "linux/amd64",
-                "--load",
-                "--no-cache",
-                "-t",
-                image_tag,
-                directory,
-            ],
+            build_cmd,
             capture_output=True,
             text=True,
         )

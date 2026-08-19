@@ -1,7 +1,7 @@
 """Configuration classes for the Cloudflare Workers platform."""
 
 import os
-from typing import Optional, cast
+from typing import Optional, Union, cast
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
@@ -232,6 +232,7 @@ class CloudflareConfig(Config):
         self._resources = resources
         self._max_instances: int = 10
         self._instance_type: Optional[str] = None
+        self._sleep_after: Union[str, int] = "30m"
 
     @staticmethod
     def typename() -> str:
@@ -258,6 +259,11 @@ class CloudflareConfig(Config):
         """Cloudflare container instance type for container deployments."""
         return self._instance_type
 
+    @property
+    def sleep_after(self) -> Union[str, int]:
+        """Idle timeout for Cloudflare container instances."""
+        return self._sleep_after
+
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         """Apply region and other fields from a config dictionary to an existing instance."""
@@ -271,6 +277,10 @@ class CloudflareConfig(Config):
             config._max_instances = int(dct["max_instances"])
         if "instance_type" in dct:
             config._instance_type = dct["instance_type"]
+        if "sleep_after" in dct:
+            config._sleep_after = dct["sleep_after"]
+        elif "sleepAfter" in dct:
+            config._sleep_after = dct["sleepAfter"]
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
@@ -303,6 +313,7 @@ class CloudflareConfig(Config):
         cache.update_config(val=self.max_instances, keys=["cloudflare", "max_instances"])
         if self.instance_type is not None:
             cache.update_config(val=self.instance_type, keys=["cloudflare", "instance_type"])
+        cache.update_config(val=self.sleep_after, keys=["cloudflare", "sleep_after"])
         self.credentials.update_cache(cache)
         self.resources.update_cache(cache)
 
@@ -312,6 +323,7 @@ class CloudflareConfig(Config):
             "name": "cloudflare",
             "region": self._region,
             "max_instances": self._max_instances,
+            "sleep_after": self._sleep_after,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }
