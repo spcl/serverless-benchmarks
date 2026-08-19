@@ -57,13 +57,33 @@ jq 'del(.config.deployment.credentials)' <file.json> | sponge <file.json>
 ## AWS Lambda
 
 AWS provides one year of free services, including a significant amount of computing time in AWS Lambda.
-To work with AWS, you need to provide access and secret keys to a role with permissions
+To work with AWS, provide access and secret keys for an IAM identity with permissions
 sufficient to manage functions and S3 resources.
-Additionally, the account must have `AmazonAPIGatewayAdministrator` permission to set up
-automatically AWS HTTP trigger.
-You can provide a [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
-with permissions to access AWS Lambda and S3; otherwise, one will be created automatically.
-To use a user-defined lambda role, set the name in config JSON - see an example in `configs/example.json`.
+
+### Quick Start Permissions
+
+For package and container deployments, NoSQL benchmarks, log queries, and cleanup,
+attach these AWS managed policies to the IAM identity running SeBS:
+
+* `AWSLambda_FullAccess`
+* `AmazonS3FullAccess`
+* `IAMFullAccess`
+* `CloudWatchLogsFullAccess`
+* `AmazonDynamoDBFullAccess_v2`
+* `AmazonEC2ContainerRegistryFullAccess`
+
+This bundle is intentionally broad and should be used only in a dedicated experiment
+account. Add `AmazonAPIGatewayAdministrator` only when using API Gateway instead of the
+default Lambda Function URLs.
+
+The [Lambda execution role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
+is separate from the IAM identity running SeBS. Set its ARN as `lambda-role` in the config
+JSON, or let SeBS resolve `sebs-lambda-role`.
+
+SeBS does not modify an execution role loaded from the configuration or cache. When SeBS
+resolves the default role itself, it attaches `AmazonS3FullAccess` and
+`AWSLambdaBasicExecutionRole`, then adds the DynamoDB item permissions used by NoSQL
+benchmarks.
 
 You can pass the credentials either using the default AWS-specific environment variables:
 
@@ -87,6 +107,8 @@ or in the JSON input configuration:
   }
 }
 ```
+
+Direct library invocations parse AWS `START` and `REPORT` records for provider metrics and tolerate interleaved application log fields.
 
 ### Lambda Function URLs vs API Gateway
 

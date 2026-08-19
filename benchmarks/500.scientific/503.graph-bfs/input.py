@@ -45,7 +45,24 @@ def validate_output(data_dir: str | None, input_config: dict, output: dict, lang
     seed = input_config.get('seed')
     if seed == 42 and size in expected_checksums[language]:
 
-        serialized = json.dumps(result, separators=(',', ':'))
+        # igraph 0.9 uses the root itself as its parent, while igraph 0.11
+        # uses -1. Both represent the same BFS tree, so canonicalize the root
+        # sentinel before comparing deterministic output checksums.
+        normalized_result = [
+            list(value) if isinstance(value, (list, tuple)) else value
+            for value in result
+        ]
+        order, parents = normalized_result[0], normalized_result[2]
+        if isinstance(order, list) and order and isinstance(parents, list):
+            root = order[0]
+            if (
+                isinstance(root, int)
+                and 0 <= root < len(parents)
+                and parents[root] in (-1, root)
+            ):
+                parents[root] = -1
+
+        serialized = json.dumps(normalized_result, separators=(',', ':'))
         actual_checksum = hashlib.md5(serialized.encode()).hexdigest()
         expected_checksum = expected_checksums[language][size]
         if actual_checksum != expected_checksum:

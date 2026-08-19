@@ -1,7 +1,7 @@
 # 130.crud-api - CRUD API
 
 **Type:** Webapps
-**Languages:** Python
+**Languages:** Python, Node.js
 **Architecture:** x64, arm64
 
 ## Description
