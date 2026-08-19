@@ -210,6 +210,13 @@ export default {
         });
       }
 
+      // Cold start detection is not possible on Cloudflare Workers.
+      // Unlike AWS Lambda or Azure Functions, Cloudflare does not provide
+      // any API or mechanism to detect whether an invocation is a cold start.
+      // The V8 isolate model used by Workers differs fundamentally from
+      // container-based FaaS platforms - isolates can be reused across
+      // requests but this reuse is not exposed to user code.
+      // As a result, is_cold always returns false.
       const responseBody = JSON.stringify({
         begin: begin,
         end: end,

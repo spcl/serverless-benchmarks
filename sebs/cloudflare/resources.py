@@ -78,6 +78,8 @@ class CloudflareSystemResources(SystemResources):
             resources=self._config.resources,
             replace_existing=replace_existing,
             credentials=cast(CloudflareCredentials, self._config.credentials),
+            location_hint=self.config.r2_location_hint,
+            jurisdiction=self.config.r2_jurisdiction,
         )
 
     def get_nosql_storage(self) -> NoSQLStorage:

@@ -170,7 +170,11 @@ def parse_common_params(
         (configuration object, output directory, logging filename, sebs client, deployment client)
     """
     global sebs_client, deployment_client
-    config_obj = json.load(open(config, "r"))
+    try:
+        config_obj = json.load(open(config, "r"))
+    except FileNotFoundError:
+        raise RuntimeError(f"Configuration file {config} not found.") from None
+
     os.makedirs(output_dir, exist_ok=True)
     logging_filename = os.path.abspath(os.path.join(output_dir, output_file))
 
@@ -190,10 +194,18 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "system_variant"], system_variant)
 
     selected_deployment = config_obj.get("deployment", {}).get("name")
-    if selected_deployment and "system_variant" not in config_obj.get("experiments", {}):
-        config_obj["experiments"]["system_variant"] = sebs_client.config.default_system_variant(
-            selected_deployment
-        )
+    if selected_deployment:
+        current_variant = config_obj.get("experiments", {}).get("system_variant")
+        supported_variants = sebs_client.config.supported_system_variants(selected_deployment)
+        # Use platform default if no variant specified or if current variant is not supported
+        if current_variant is None or current_variant not in supported_variants:
+
+            default_variant = sebs_client.config.default_system_variant(selected_deployment)
+            sebs_client.logging.warning(
+                f"Specified system variant {current_variant} not supported. "
+                f"Using default variant: {default_variant}; for deployment: {selected_deployment}."
+            )
+            config_obj.setdefault("experiments", {})["system_variant"] = default_variant
 
     # set the path the configuration was loaded from
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)

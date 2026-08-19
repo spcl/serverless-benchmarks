@@ -8,6 +8,13 @@
         "default": "default",
         "cloudflare": "default"
       }
+    },
+    {
+      "language": "nodejs",
+      "variants": {
+        "default": "default",
+        "cloudflare": "default"
+      }
     }
   ],
   "modules": ["storage"]
