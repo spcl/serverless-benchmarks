@@ -107,6 +107,12 @@ class CloudflareWorkersDeployment:
         else:
             config["main"] = "dist/handler.js" if language == "nodejs" else "handler.py"
 
+        platform_config = self.system_resources.config
+        worker_placement = platform_config.worker_placement
+        if worker_placement:
+            config["placement"] = worker_placement
+            self.logging.info(f"Configured Worker placement: {worker_placement}")
+
         # Add NoSQL KV namespace bindings if benchmark uses them
         if code_package and code_package.uses_nosql:
             benchmark_for_nosql = benchmark_name or code_package.benchmark
@@ -138,7 +144,10 @@ class CloudflareWorkersDeployment:
             storage = self.system_resources.get_storage()
             bucket_name = storage.get_bucket(Resources.StorageBucketType.BENCHMARKS)
             if bucket_name:
-                config["r2_buckets"] = [{"binding": "R2", "bucket_name": bucket_name}]
+                r2_binding = {"binding": "R2", "bucket_name": bucket_name}
+                if platform_config.r2_jurisdiction:
+                    r2_binding["jurisdiction"] = platform_config.r2_jurisdiction
+                config["r2_buckets"] = [r2_binding]
                 self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
         except Exception as e:
             self.logging.warning(

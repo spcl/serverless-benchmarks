@@ -124,15 +124,18 @@ class Default(WorkerEntrypoint):
             headers = {"Content-Type" : "text/html; charset=utf-8"}
             return Response(str(ret["result"]), headers = headers)
         else:
-            # Trigger a fetch request to update the timer before measuring
-            # Time measurements only update after a fetch request or R2 operation
+            # Trigger a fetch request to update the timer before measuring.
+            # Cloudflare Workers freezes Date.now() and time.perf_counter() between
+            # I/O operations as a timing-sidechannel mitigation. To record a meaningful
+            # compute_time, we issue a throwaway self-fetch that triggers I/O and
+            # unfreezes the clock before sampling the end time.
             try:
                 # Fetch the worker's own URL with favicon to minimize overhead
                 final_url = URL.new(request.url)
                 final_url.pathname = '/favicon'
                 await js_fetch(str(final_url), method='HEAD')
-            except:
-                # Ignore fetch errors
+            except Exception:
+                # Ignore fetch errors - this is a best-effort timer unfreeze
                 pass
             
             # Calculate timestamps
@@ -140,6 +143,13 @@ class Default(WorkerEntrypoint):
             elapsed = time.perf_counter() - start
             micro = elapsed * 1_000_000  # Convert seconds to microseconds
             
+            # Cold start detection is not possible on Cloudflare Workers.
+            # Unlike AWS Lambda or Azure Functions, Cloudflare does not provide
+            # any API or mechanism to detect whether an invocation is a cold start.
+            # The V8 isolate model used by Workers differs fundamentally from
+            # container-based FaaS platforms - isolates can be reused across
+            # requests but this reuse is not exposed to user code.
+            # As a result, is_cold always returns False.
             return Response(json.dumps({
                 'begin': begin,
                 'end': end,

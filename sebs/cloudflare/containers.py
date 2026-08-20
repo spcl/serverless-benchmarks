@@ -21,7 +21,7 @@ try:
     import tomli_w
 except ImportError:
     import toml as tomli_w  # type: ignore[no-redef, import-untyped]
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 
 from sebs.benchmark import Benchmark
@@ -31,6 +31,25 @@ from sebs.utils import get_resource_path
 
 class CloudflareContainersDeployment:
     """Handles Cloudflare container worker deployment operations."""
+
+    SUPPORTED_INSTANCE_TYPES = (
+        "lite",
+        "basic",
+        "standard-1",
+        "standard-2",
+        "standard-3",
+        "standard-4",
+    )
+    HIGH_RESOURCE_BENCHMARKS = (
+        "411.image-recognition",
+        "311.compression",
+        "504.dna-visualisation",
+        "6100.1000-genome",
+        "6101.1000-genome-individuals",
+        "650.vid",
+        "680.excamera"
+    )
+    HIGH_RESOURCE_INSTANCE_TYPE = "standard-4"
 
     def __init__(self, logging, system_config, docker_client, system_resources):
         """
@@ -49,6 +68,35 @@ class CloudflareContainersDeployment:
         self._base_image: Optional[str] = None
         self._cli: Optional[CloudflareCLI] = None
         self.max_instances: int = 10
+        self.instance_type: Optional[str] = None
+        self.sleep_after: Union[str, int] = "30m"
+        self.placement: dict = {}
+
+    @staticmethod
+    def _sleep_after_js_literal(value: Union[str, int]) -> str:
+        """Return a safe JavaScript literal for Container.sleepAfter."""
+        if isinstance(value, bool):
+            raise RuntimeError("Cloudflare container sleep_after must be a string or integer")
+        if isinstance(value, int):
+            if value < 0:
+                raise RuntimeError("Cloudflare container sleep_after cannot be negative")
+            return str(value)
+        if isinstance(value, str):
+            if not value.strip():
+                raise RuntimeError("Cloudflare container sleep_after cannot be empty")
+            return json.dumps(value)
+        raise RuntimeError("Cloudflare container sleep_after must be a string or integer")
+
+    def _configure_worker_sleep_after(self, worker_js_path: str) -> None:
+        """Write the configured sleepAfter value into the generated worker wrapper."""
+        marker = '  sleepAfter = "30m";'
+        content = open(worker_js_path, "r", encoding="utf-8").read()
+        if marker not in content:
+            raise RuntimeError(f"Could not find sleepAfter setting in {worker_js_path}")
+        replacement = f"  sleepAfter = {self._sleep_after_js_literal(self.sleep_after)};"
+        with open(worker_js_path, "w", encoding="utf-8") as f:
+            f.write(content.replace(marker, replacement, 1))
+        self.logging.info(f"Configured container sleepAfter to {self.sleep_after}")
 
     def _get_cli(self) -> CloudflareCLI:
         """Get or initialize the Cloudflare CLI container."""
@@ -95,29 +143,43 @@ class CloudflareContainersDeployment:
         # Update basic configuration
         config["name"] = worker_name
         config["account_id"] = account_id
-        config["containers"][0]["max_instances"] = self.max_instances
+        container_config = config["containers"][0]
+        container_config["max_instances"] = self.max_instances
+        if self.placement:
+            container_config["constraints"] = dict(self.placement)
+            self.logging.info(f"Configured container placement constraints: {self.placement}")
 
         if container_uri and container_uri.startswith("registry.cloudflare.com"):
             # Pre-built image already pushed to Cloudflare registry — point wrangler
             # at it directly so it skips the Docker build step entirely.
-            config["containers"][0]["image"] = container_uri
+            container_config["image"] = container_uri
         else:
             # Fallback: let wrangler build from the local Dockerfile.
             if self._base_image:
-                config["containers"][0]["build_args"] = {"BASE_IMAGE": self._base_image}
+                container_config["build_args"] = {"BASE_IMAGE": self._base_image}
 
-        # Update container configuration with instance type if needed
-        if benchmark_name and (
-            "411.image-recognition" in benchmark_name
-            or "311.compression" in benchmark_name
-            or "504.dna-visualisation" in benchmark_name
-            or "6100.1000-genome" in benchmark_name
-            or "6101.1000-genome-individuals" in benchmark_name
-            or "650.vid" in benchmark_name
-            or "680.excamera" in benchmark_name
-        ):
-            self.logging.warning("Using standard-4 instance type for high resource benchmark")
-            config["containers"][0]["instance_type"] = "standard-4"
+        instance_type = self.instance_type
+        if instance_type is not None and instance_type not in self.SUPPORTED_INSTANCE_TYPES:
+            supported = ", ".join(self.SUPPORTED_INSTANCE_TYPES)
+            raise RuntimeError(
+                f"Unsupported Cloudflare container instance_type '{instance_type}'. "
+                f"Supported values are: {supported}."
+            )
+
+        is_high_resource_benchmark = benchmark_name and any(
+            benchmark in benchmark_name for benchmark in self.HIGH_RESOURCE_BENCHMARKS
+        )
+        if is_high_resource_benchmark and instance_type != self.HIGH_RESOURCE_INSTANCE_TYPE:
+            configured = instance_type or "Cloudflare default"
+            raise RuntimeError(
+                f"Benchmark '{benchmark_name}' requires Cloudflare container "
+                f"instance_type '{self.HIGH_RESOURCE_INSTANCE_TYPE}', but '{configured}' "
+                "is configured. Set deployment.cloudflare.instance_type to "
+                f"'{self.HIGH_RESOURCE_INSTANCE_TYPE}' in the SeBS config."
+            )
+
+        if instance_type is not None:
+            container_config["instance_type"] = instance_type
 
         # Add nosql KV namespace bindings if benchmark uses them
         if code_package and code_package.uses_nosql:
@@ -154,7 +216,11 @@ class CloudflareContainersDeployment:
                 "R2 bucket binding not configured: benchmarks bucket name is empty. "
                 "Benchmarks requiring file access will not work properly."
             )
-        config["r2_buckets"] = [{"binding": "R2", "bucket_name": bucket_name}]
+        platform_config = self.system_resources.config
+        r2_binding = {"binding": "R2", "bucket_name": bucket_name}
+        if platform_config.r2_jurisdiction:
+            r2_binding["jurisdiction"] = platform_config.r2_jurisdiction
+        config["r2_buckets"] = [r2_binding]
         self.logging.info(f"R2 bucket '{bucket_name}' will be bound to worker as 'R2'")
 
         # Write wrangler.toml to package directory
@@ -267,7 +333,9 @@ class CloudflareContainersDeployment:
         nodejs_wrapper_dir = os.path.join(wrapper_base, "nodejs", "container")
         worker_js_src = os.path.join(nodejs_wrapper_dir, "worker.js")
         if os.path.exists(worker_js_src):
-            shutil.copy2(worker_js_src, os.path.join(directory, "worker.js"))
+            worker_js_dest = os.path.join(directory, "worker.js")
+            shutil.copy2(worker_js_src, worker_js_dest)
+            self._configure_worker_sleep_after(worker_js_dest)
             self.logging.info("Copied worker.js orchestration file from nodejs/container")
 
         # Copy init.sh if the benchmark needs it (e.g. video-processing downloads ffmpeg)
@@ -366,19 +434,23 @@ class CloudflareContainersDeployment:
 
         self.logging.info(f"Building container image {image_tag} for linux/amd64...")
 
+        build_cmd = [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/amd64",
+            "--load",
+            "--no-cache",
+            "-t",
+            image_tag,
+        ]
+        if self._base_image:
+            build_cmd.extend(["--build-arg", f"BASE_IMAGE={self._base_image}"])
+        build_cmd.append(directory)
+
         result = subprocess.run(
-            [
-                "docker",
-                "buildx",
-                "build",
-                "--platform",
-                "linux/amd64",
-                "--load",
-                "--no-cache",
-                "-t",
-                image_tag,
-                directory,
-            ],
+            build_cmd,
             capture_output=True,
             text=True,
         )

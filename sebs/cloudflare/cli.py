@@ -6,6 +6,7 @@ import logging
 import os
 import tarfile
 import threading
+import time
 from typing import Optional
 
 import docker
@@ -83,18 +84,21 @@ class CloudflareCLI(LoggingBase):
             stderr=True,
             detach=True,
             tty=True,
+            stdin_open=True,  # Keep stdin open so bash doesn't exit immediately
         )
 
         self.logging.info(f"Started Cloudflare CLI container: {self.docker_instance.id}.")
 
-        # Wait for container to be ready
-        while True:
-            try:
-                dkg = self.docker_instance.logs(stream=True, follow=True)
-                next(dkg).decode("utf-8")
+        # Wait for container to be ready by checking its status
+        for _ in range(30):  # Wait up to 3 seconds
+            self.docker_instance.reload()
+            if self.docker_instance.status == "running":
                 break
-            except StopIteration:
-                pass
+            time.sleep(0.1)
+        else:
+            raise RuntimeError(
+                f"CLI container failed to start. Status: {self.docker_instance.status}"
+            )
 
     @staticmethod
     def typename() -> str:

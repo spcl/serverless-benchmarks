@@ -147,6 +147,17 @@
         "output_buckets": [],
         "type": "minio"
       }
+    },
+    "cloudflare": {
+      "region": "global",
+      "max_instances": 1,
+      "instance_type": "standard-4",
+      "sleep_after": "30m",
+      "placement": {
+        "worker": {},
+        "container": {},
+        "r2": {}
+      }
     }
   }
 }

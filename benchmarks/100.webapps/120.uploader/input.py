@@ -4,8 +4,10 @@ import os
 import tempfile
 
 url_generators = {
-    # source: mlperf fake_imagenet.sh. 230 kB
-    'test' : 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Jammlich_crop.jpg/800px-Jammlich_crop.jpg',
+    # source: mlperf fake_imagenet.sh. 261.6 kB thumbnail at 960px (previously 230 kB) at 800px
+    # Wikimedia now only serves direct thumbnail URLs at standard widths.
+    # 960px is the standard thumbnail corresponding to the former 800px input.
+    'test': 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Jammlich_crop.jpg/960px-Jammlich_crop.jpg',
     # video: HPX source code, 6.7 MB
     'small': 'https://github.com/STEllAR-GROUP/hpx/archive/refs/tags/1.4.0.zip',
     # resnet model from pytorch. 98M
@@ -16,7 +18,7 @@ url_generators = {
 # These are computed from the objects at the URLs above and must be updated
 # if the remote files change.
 expected_checksums = {
-    'test': '91799b8ca818598fc5b8790f3b338150',
+    'test': '4a1c793ab4b876213eaebdee937c9320',
     'small': 'baf7ea99128aa3e5c2d0c8b8f61cce1b',
     'large': '9e9c86b324d80e65229fab49b8d9a8e8'
 }

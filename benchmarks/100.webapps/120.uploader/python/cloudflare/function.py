@@ -19,8 +19,13 @@ async def do_request(url, download_path):
     headers = {'User-Agent': SEBS_USER_AGENT}
 
     res = await pyfetch(url, headers=headers)
+
+    # pyfetch doesn't raise exceptions for HTTP errors, so we check manually
+    if not res.ok:
+        raise RuntimeError(f"HTTP Error {res.status}: Failed to download {url}")
+
     bs = await res.bytes()
-    
+
     with open(download_path, 'wb') as f:
         f.write(bs)
 

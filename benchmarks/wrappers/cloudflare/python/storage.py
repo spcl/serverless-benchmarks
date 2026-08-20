@@ -118,4 +118,3 @@ class storage:
         if storage.instance is None:
             raise RuntimeError("must init storage singleton first")
         return storage.instance
-        return storage.instance
