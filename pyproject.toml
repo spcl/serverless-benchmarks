@@ -69,8 +69,10 @@ dependencies = [
 
     # benchmark verification - process image
     "Pillow",
-    # benchmrak verification - video processing
-    "imageio-ffmpeg>=0.4.9"
+    # benchmark verification - video processing
+    "imageio-ffmpeg>=0.4.9",
+    # benchmark verification - auth workflow
+    "pyaes==1.6.1"
 ]
 
 # True Optional dependencies (Only installed if explicitly requested)
