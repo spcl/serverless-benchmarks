@@ -303,6 +303,8 @@ class CloudflareConfig(Config):
     def redis_password(self) -> Optional[str]:
         """Get Redis password for workflow measurements."""
         return self._resources.redis_password
+
+    @property
     def instance_type(self) -> Optional[str]:
         """Cloudflare container instance type for container deployments."""
         return self._instance_type
