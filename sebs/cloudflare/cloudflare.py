@@ -1723,7 +1723,6 @@ class Cloudflare(System):
 
             json_mod.dump(package_json, f, indent=2)
 
-        orchestrator_url = self._build_workers_dev_url(workflow.name, account_id)
         self._generate_workflow_wrangler_toml(
             workflow.name,
             orchestrator_dir,
