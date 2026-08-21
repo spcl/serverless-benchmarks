@@ -29,13 +29,21 @@ class storage:
                     random=str(uuid.uuid4()).split('-')[0]
                 )
 
-    def upload(self, bucket, file, filepath):
-        key_name = storage.unique_name(file)
+    def upload(self, bucket, file, filepath, unique_name=True):
+        key_name = storage.unique_name(file) if unique_name else file
         self.client.fput_object(bucket, key_name, filepath)
         return key_name
 
     def download(self, bucket, file, filepath):
         self.client.fget_object(bucket, file, filepath)
+
+    def download_within_range(self, bucket, file, start_bytes, end_bytes):
+        data = self.client.get_object(bucket, file, offset=start_bytes, length=end_bytes - start_bytes + 1)
+        return data.read().decode("utf-8")
+
+    def list_directory(self, bucket, prefix):
+        objects = self.client.list_objects(bucket, prefix, recursive=True)
+        return [obj.object_name for obj in objects]
 
     def download_directory(self, bucket, prefix, path):
         objects = self.client.list_objects_v2(bucket, prefix, recursive=True)

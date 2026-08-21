@@ -34,6 +34,8 @@ class SystemVariant:
         # GCP specific
         "function-gen1",
         "function-gen2",
+        # Cloudflare worker deployment
+        "workers",
     ]
 
     def __init__(self, value: str):

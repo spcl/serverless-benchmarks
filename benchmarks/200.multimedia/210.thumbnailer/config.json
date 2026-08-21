@@ -1,7 +1,23 @@
 {
   "timeout": 60,
   "memory": 256,
-  "languages": ["python", "nodejs", "cpp"],
+  "languages": [
+    {
+      "language": "python",
+      "variants": {
+        "default": "default",
+        "cloudflare": "default"
+      }
+    },
+    {
+      "language": "nodejs",
+      "variants": {
+        "default": "default",
+        "cloudflare": "default"
+      }
+    },
+    "cpp"
+  ],
   "modules": ["storage"],
   "cpp_dependencies": ["sdk", "opencv", "libjpeg-turbo", "boost"]
 }

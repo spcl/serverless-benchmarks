@@ -1,0 +1,69 @@
+"""AWS Step Functions workflow model for SeBS."""
+
+from typing import cast, List
+
+from sebs.aws.s3 import S3
+from sebs.aws.function import FunctionConfig, LambdaFunction
+from sebs.faas.config import Resources
+from sebs.faas.function import Workflow
+
+
+class SFNWorkflow(Workflow):
+    """Workflow deployed as an AWS Step Functions state machine."""
+
+    def __init__(
+        self,
+        name: str,
+        functions: List[LambdaFunction],
+        benchmark: str,
+        arn: str,
+        code_package_hash: str,
+        cfg: FunctionConfig,
+    ):
+        """Create an AWS workflow object."""
+        super().__init__(benchmark, name, code_package_hash, cfg)
+        self.functions = functions
+        self.arn = arn
+
+    @staticmethod
+    def typename() -> str:
+        """Get the serialized workflow type name."""
+        return "AWS.SFNWorkflow"
+
+    def serialize(self) -> dict:
+        """Serialize the workflow and child Lambda functions."""
+        return {
+            **super().serialize(),
+            "functions": [f.serialize() for f in self.functions],
+            "arn": self.arn,
+        }
+
+    @staticmethod
+    def deserialize(cached_config: dict) -> "SFNWorkflow":
+        """Deserialize a cached AWS workflow."""
+        from sebs.faas.function import Trigger
+        from sebs.aws.triggers import WorkflowLibraryTrigger, HTTPTrigger
+
+        funcs = [LambdaFunction.deserialize(f) for f in cached_config["functions"]]
+        cfg = FunctionConfig.deserialize(cached_config["config"])
+        ret = SFNWorkflow(
+            cached_config["name"],
+            funcs,
+            cached_config["benchmark"],
+            cached_config["arn"],
+            cached_config["hash"],
+            cfg,
+        )
+        for trigger in cached_config["triggers"]:
+            trigger_type = cast(
+                Trigger,
+                {"Library": WorkflowLibraryTrigger, "HTTP": HTTPTrigger}.get(trigger["type"]),
+            )
+            assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
+            ret.add_trigger(trigger_type.deserialize(trigger))
+        return ret
+
+    def code_bucket(self, benchmark: str, storage_client: S3) -> str:
+        """Get the deployment bucket for workflow child code."""
+        self.bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
+        return self.bucket

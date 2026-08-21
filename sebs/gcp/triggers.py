@@ -23,6 +23,7 @@ Example:
 import concurrent.futures
 import datetime
 import json
+import time
 from typing import Dict, Optional  # noqa
 
 from sebs.gcp.gcp import GCP
@@ -260,6 +261,97 @@ class LibraryTrigger(Trigger):
             deployment_type = FunctionDeploymentType.deserialize(obj["deployment_type"])
 
         return LibraryTrigger(obj["name"], deployment_type=deployment_type)
+
+
+class WorkflowLibraryTrigger(LibraryTrigger):
+    """GCP Workflows trigger using the Workflows executions client."""
+
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
+        """Synchronously create and wait for a GCP Workflow execution."""
+        from google.cloud.workflows.executions_v1 import ExecutionsClient, Execution
+
+        self.logging.info(f"Invoke workflow {self.name}")
+
+        config = self.deployment_client.config
+        full_workflow_name = (
+            f"projects/{config.project_name}/locations/{config.region}/workflows/{self.name}"
+        )
+
+        execution_client = ExecutionsClient()
+        request_id = payload.get("__sebs_request_id") or payload.get("__request_id") or ""
+        if not request_id:
+            import uuid
+
+            request_id = str(uuid.uuid4())[0:8]
+        workflow_input = {
+            **payload,
+            "__sebs_request_id": request_id,
+            "__request_id": request_id,
+        }
+        execution = Execution(argument=json.dumps(workflow_input))
+
+        begin = datetime.datetime.now()
+        res = execution_client.create_execution(parent=full_workflow_name, execution=execution)
+
+        gcp_result = ExecutionResult()
+        gcp_result.request_id = request_id
+
+        execution_finished = False
+        while not execution_finished:
+            try:
+                execution = execution_client.get_execution(
+                    request={"name": res.name},
+                    timeout=30,
+                )
+            except Exception:
+                time.sleep(10)
+                continue
+            execution_finished = execution.state != Execution.State.ACTIVE
+
+            if not execution_finished:
+                time.sleep(10)
+            elif execution.state != Execution.State.SUCCEEDED:
+                end = datetime.datetime.now()
+                gcp_result = ExecutionResult.from_times(begin, end)
+                gcp_result.request_id = request_id
+                self.logging.error(f"Invocation of {self.name} failed")
+                self.logging.error(f"State: {execution.state}")
+                self.logging.error(f"Input: {payload}")
+                if execution.error:
+                    self.logging.error(f"Error: {execution.error}")
+                gcp_result.stats.failure = True
+                return gcp_result
+
+        end = datetime.datetime.now()
+        gcp_result = ExecutionResult.from_times(begin, end)
+        gcp_result.request_id = request_id
+        if execution.result:
+            gcp_result.output = json.loads(execution.result)
+
+        return gcp_result
+
+    def async_invoke(self, payload: dict):
+        """Reject asynchronous workflow invocation."""
+        raise NotImplementedError("Async invocation is not implemented for workflows")
+
+    @staticmethod
+    def typename() -> str:
+        """Get the trigger type name."""
+        return "GCP.WorkflowLibraryTrigger"
+
+    @staticmethod
+    def trigger_type() -> Trigger.TriggerType:
+        """Get the trigger kind."""
+        return Trigger.TriggerType.LIBRARY
+
+    def serialize(self) -> dict:
+        """Serialize this workflow trigger for the cache."""
+        return {"type": "Library", "name": self.name}
+
+    @staticmethod
+    def deserialize(obj: dict) -> "WorkflowLibraryTrigger":
+        """Deserialize a cached workflow trigger."""
+        return WorkflowLibraryTrigger(obj["name"])
 
 
 class HTTPTrigger(Trigger):

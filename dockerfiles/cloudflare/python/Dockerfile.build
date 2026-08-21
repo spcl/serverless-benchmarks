@@ -1,0 +1,30 @@
+ARG BASE_IMAGE=python:3.11-slim
+FROM ${BASE_IMAGE}
+
+# useradd, groupmod, gosu (needed by entrypoint.sh to drop privileges)
+# curl + ca-certificates are also required by the uv installer; git is sometimes
+# pulled in by workers-py when it resolves VCS-declared deps.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    passwd curl ca-certificates git \
+    && rm -rf /var/lib/apt/lists/*
+ENV GOSU_VERSION=1.14
+RUN curl -o /usr/local/bin/gosu -SL "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-$(dpkg --print-architecture)" \
+    && chmod +x /usr/local/bin/gosu
+
+# Install uv (fast Python package manager) and the workers-py toolchain,
+# which provides pywrangler for Pyodide-based Cloudflare Worker deploys.
+# Pinned to 1.8.0 to match Dockerfile.manage — 1.9.x introduced a broken
+# import (rich.logging.Console). Remove the pin once upstream fixes it.
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    /root/.local/bin/uv tool install 'workers-py==1.8.0'
+
+ENV PATH="/root/.local/bin:/root/.local/share/uv/tools/workers-py/bin:/usr/sbin:${PATH}"
+
+# Benchmark source arrives via bind-mount at /mnt/function — no COPY . . here.
+RUN mkdir -p /sebs/
+COPY dockerfiles/cloudflare_python_installer.sh /sebs/installer.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/installer.sh /sebs/entrypoint.sh
+
+CMD ["/bin/bash", "/sebs/installer.sh"]
+ENTRYPOINT ["/sebs/entrypoint.sh"]

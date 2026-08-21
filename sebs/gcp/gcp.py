@@ -47,7 +47,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark, BenchmarkConfig
 from sebs.experiments.config import SystemVariant
-from sebs.faas.function import Function, FunctionConfig, Trigger
+from sebs.faas.function import Function, FunctionConfig, Trigger, Workflow
 from sebs.faas.config import Resources
 from sebs.faas.system import System
 from sebs.gcp.config import (
@@ -62,6 +62,9 @@ from sebs.gcp.function import GCPFunction, FunctionDeploymentType
 from sebs.gcp.container import GCRContainer
 from sebs.utils import LoggingHandlers, ColoredWrapper
 from sebs.sebs_types import Language
+
+
+GCP_WORKFLOW_CHILD_MAX_INSTANCE_REQUEST_CONCURRENCY = 1
 
 
 class DeploymentStrategy(Protocol):
@@ -152,6 +155,7 @@ class DeploymentStrategy(Protocol):
         function_cfg: FunctionConfig,
         envs: Dict,
         container_uri: str | None,
+        max_instance_request_concurrency: int | None = None,
     ) -> None:
         """Create function/service without waiting for deployment to complete.
 
@@ -161,6 +165,7 @@ class DeploymentStrategy(Protocol):
             function_cfg: Function configuration (memory, timeout, etc.)
             envs: Environment variables
             container_uri: Container image URI (for container deployments)
+            max_instance_request_concurrency: Optional platform request concurrency override.
         """
         ...
 
@@ -170,6 +175,7 @@ class DeploymentStrategy(Protocol):
         code_package: Benchmark,
         envs: Dict,
         container_uri: str | None,
+        max_instance_request_concurrency: int | None = None,
     ) -> None:
         """Update function/service code without waiting for deployment to complete.
 
@@ -178,6 +184,7 @@ class DeploymentStrategy(Protocol):
             code_package: New benchmark package
             envs: Environment variables
             container_uri: Container image URI (for container deployments)
+            max_instance_request_concurrency: Optional platform request concurrency override.
         """
         ...
 
@@ -185,12 +192,14 @@ class DeploymentStrategy(Protocol):
         self,
         function: "GCPFunction",
         envs: Dict,
+        max_instance_request_concurrency: int | None = None,
     ) -> int:
         """Update function/service configuration (memory, timeout, env vars).
 
         Args:
             function: Function instance to update
             envs: Environment variables
+            max_instance_request_concurrency: Optional platform request concurrency override.
 
         Returns:
             Version number after update
@@ -291,6 +300,11 @@ class DeploymentStrategy(Protocol):
             Fully qualified function name in GCP format
         """
         ...
+
+    @staticmethod
+    def get_full_workflow_name(project_name: str, location: str, workflow_name: str) -> str:
+        """Generate the fully qualified GCP Workflow resource name."""
+        return f"projects/{project_name}/locations/{location}/workflows/{workflow_name}"
 
     def function_exists(self, project_name: str, location: str, func_name: str) -> Any:
         """Check whether the function or service exists.
@@ -579,6 +593,7 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
         function_cfg: FunctionConfig,
         envs: Dict,
         container_uri: str | None,
+        max_instance_request_concurrency: int | None = None,
     ) -> None:
         """Create a Cloud Function Gen1."""
         project_name = self.config.project_name
@@ -642,6 +657,7 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
         code_package: Benchmark,
         envs: Dict,
         container_uri: str | None,
+        max_instance_request_concurrency: int | None = None,
     ) -> None:
         """Update Cloud Function Gen1 code."""
         if code_package.code_location is None:
@@ -691,7 +707,12 @@ class CloudFunctionGen1Strategy(DeploymentStrategy):
         self._execute_with_retry(self.logging, req)
         self.logging.info(f"Function {function.name} code update initiated")
 
-    def update_config(self, function: "GCPFunction", envs: Dict) -> int:
+    def update_config(
+        self,
+        function: "GCPFunction",
+        envs: Dict,
+        max_instance_request_concurrency: int | None = None,
+    ) -> int:
         """Update Cloud Function Gen1 configuration."""
         full_func_name = self.get_full_function_name(
             self.config.project_name, self.config.region, function.name
@@ -1266,6 +1287,7 @@ class RunContainerStrategy(DeploymentStrategy):
         benchmark_config: BenchmarkConfig | FunctionConfig,
         envs_list: Dict,
         container_uri: str,
+        max_instance_request_concurrency: int | None = None,
     ) -> Dict:
         """Build the Cloud Run service body for create and update requests.
 
@@ -1273,6 +1295,7 @@ class RunContainerStrategy(DeploymentStrategy):
             benchmark_config: Benchmark or function configuration providing memory and timeout.
             envs_list: Environment variables to inject into the container.
             container_uri: Container image URI to deploy.
+            max_instance_request_concurrency: Optional request concurrency override.
 
         Returns:
             Cloud Run service body payload.
@@ -1303,7 +1326,11 @@ class RunContainerStrategy(DeploymentStrategy):
                     }
                 ],
                 "timeout": f"{timeout}s",
-                "maxInstanceRequestConcurrency": dep_config.gcp_concurrency,
+                "maxInstanceRequestConcurrency": (
+                    max_instance_request_concurrency
+                    if max_instance_request_concurrency is not None
+                    else dep_config.gcp_concurrency
+                ),
                 "execution_environment": execution_environment,
             },
             "scaling": {
@@ -1320,6 +1347,7 @@ class RunContainerStrategy(DeploymentStrategy):
         function_cfg: FunctionConfig,
         envs: Dict,
         container_uri: str | None,
+        max_instance_request_concurrency: int | None = None,
     ) -> None:
         """Create a Cloud Run service."""
         if container_uri is None:
@@ -1333,7 +1361,12 @@ class RunContainerStrategy(DeploymentStrategy):
         )
 
         parent = f"projects/{project_name}/locations/{location}"
-        service_body = self._service_body(code_package.benchmark_config, envs, container_uri)
+        service_body = self._service_body(
+            code_package.benchmark_config,
+            envs,
+            container_uri,
+            max_instance_request_concurrency,
+        )
         create_req = (
             self.run_client.projects()
             .locations()
@@ -1356,6 +1389,7 @@ class RunContainerStrategy(DeploymentStrategy):
         code_package: Benchmark,
         envs: Dict,
         container_uri: str | None,
+        max_instance_request_concurrency: int | None = None,
     ) -> None:
         """Update Cloud Run service code."""
         if container_uri is None:
@@ -1367,7 +1401,12 @@ class RunContainerStrategy(DeploymentStrategy):
 
         self.logging.info(f"Updating Cloud Run service {function.name} with image: {container_uri}")
 
-        service_body = self._service_body(code_package.benchmark_config, envs, container_uri)
+        service_body = self._service_body(
+            code_package.benchmark_config,
+            envs,
+            container_uri,
+            max_instance_request_concurrency,
+        )
 
         # We are using the broad "template" for updateMask.
         # We noticed that when using selective updates with `template.containers`,
@@ -1389,7 +1428,12 @@ class RunContainerStrategy(DeploymentStrategy):
             f"Patch request sent for Cloud Run service {function.name}, waiting for operation..."
         )
 
-    def update_config(self, function: GCPFunction, envs: Dict) -> int:
+    def update_config(
+        self,
+        function: GCPFunction,
+        envs: Dict,
+        max_instance_request_concurrency: int | None = None,
+    ) -> int:
         """Update Cloud Run service configuration."""
 
         full_func_name = self.get_full_function_name(
@@ -1405,7 +1449,12 @@ class RunContainerStrategy(DeploymentStrategy):
         if container_uri is None:
             raise RuntimeError("Container URI is required for Cloud Run deployment")
 
-        service_body = self._service_body(function.config, envs, container_uri)
+        service_body = self._service_body(
+            function.config,
+            envs,
+            container_uri,
+            max_instance_request_concurrency,
+        )
         req = (
             self.run_client.projects()
             .locations()
@@ -1726,13 +1775,17 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
         return code_package.language_name + code_package.language_version.replace(".", "")
 
     def _service_config(
-        self, benchmark_config: BenchmarkConfig | FunctionConfig, envs: Dict
+        self,
+        benchmark_config: BenchmarkConfig | FunctionConfig,
+        envs: Dict,
+        max_instance_request_concurrency: int | None = None,
     ) -> Dict:
         """Build the Gen2 service configuration payload.
 
         Args:
             benchmark_config: Benchmark or function configuration with memory and timeout.
             envs: Environment variables to configure on the service.
+            max_instance_request_concurrency: Optional request concurrency override.
 
         Returns:
             Service configuration payload for Cloud Functions Gen2.
@@ -1745,7 +1798,11 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
             "minInstanceCount": dep_config.min_instances,
             "maxInstanceCount": dep_config.max_instances,
             "availableCpu": str(dep_config.vcpus),
-            "maxInstanceRequestConcurrency": dep_config.gcp_concurrency,
+            "maxInstanceRequestConcurrency": (
+                max_instance_request_concurrency
+                if max_instance_request_concurrency is not None
+                else dep_config.gcp_concurrency
+            ),
             "ingressSettings": "ALLOW_ALL",
             "allTrafficOnLatestRevision": True,
         }
@@ -1756,6 +1813,7 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
         code_package: Benchmark,
         envs: Dict,
         storage_source: Dict,
+        max_instance_request_concurrency: int | None = None,
     ) -> Dict:
         """Build the full Cloud Functions Gen2 create or patch payload.
 
@@ -1764,6 +1822,7 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
             code_package: Benchmark package being deployed.
             envs: Environment variables for the service.
             storage_source: Uploaded source archive descriptor.
+            max_instance_request_concurrency: Optional request concurrency override.
 
         Returns:
             Full function resource payload.
@@ -1777,7 +1836,11 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
                 "entryPoint": self._entry_point(code_package),
                 "source": {"storageSource": storage_source},
             },
-            "serviceConfig": self._service_config(code_package.benchmark_config, envs),
+            "serviceConfig": self._service_config(
+                code_package.benchmark_config,
+                envs,
+                max_instance_request_concurrency,
+            ),
         }
 
     def _generate_upload_url(self) -> Dict:
@@ -1826,6 +1889,7 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
         function_cfg: FunctionConfig,
         envs: Dict,
         container_uri: str | None,
+        max_instance_request_concurrency: int | None = None,
     ) -> None:
         """Create a new Cloud Functions Gen2 deployment.
 
@@ -1835,13 +1899,20 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
             function_cfg: Function configuration.
             envs: Environment variables for the function service.
             container_uri: Unused for package deployments.
+            max_instance_request_concurrency: Optional request concurrency override.
         """
         if code_package.code_location is None:
             raise RuntimeError("Code location is not set for GCP deployment")
 
         parent = f"projects/{self.config.project_name}/locations/{self.config.region}"
         storage_source = self._upload_zip_archive(code_package.code_location)
-        function_body = self._build_body(func_name, code_package, envs, storage_source)
+        function_body = self._build_body(
+            func_name,
+            code_package,
+            envs,
+            storage_source,
+            max_instance_request_concurrency,
+        )
         create_req = (
             self.function_client.projects()
             .locations()
@@ -1859,6 +1930,7 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
         code_package: Benchmark,
         envs: Dict,
         container_uri: str | None,
+        max_instance_request_concurrency: int | None = None,
     ) -> None:
         """Update the code of an existing Cloud Functions Gen2 deployment.
 
@@ -1867,6 +1939,7 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
             code_package: New benchmark package to upload.
             envs: Environment variables for the updated service.
             container_uri: Unused for package deployments.
+            max_instance_request_concurrency: Optional request concurrency override.
         """
         if code_package.code_location is None:
             raise RuntimeError("Code location is not set for GCP deployment")
@@ -1875,7 +1948,13 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
             self.config.project_name, self.config.region, function.name
         )
         storage_source = self._upload_zip_archive(code_package.code_location)
-        function_body = self._build_body(function.name, code_package, envs, storage_source)
+        function_body = self._build_body(
+            function.name,
+            code_package,
+            envs,
+            storage_source,
+            max_instance_request_concurrency,
+        )
         req = (
             self.function_client.projects()
             .locations()
@@ -1890,12 +1969,18 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
         self._operation_response = self._execute_with_retry(self.logging, req)
         self.logging.info(f"Function {function.name} code update initiated for Gen2")
 
-    def update_config(self, function: GCPFunction, envs: Dict) -> int:
+    def update_config(
+        self,
+        function: GCPFunction,
+        envs: Dict,
+        max_instance_request_concurrency: int | None = None,
+    ) -> int:
         """Update configuration of an existing Cloud Functions Gen2 deployment.
 
         Args:
             function: Deployed function to update.
             envs: Full environment variable map to apply.
+            max_instance_request_concurrency: Optional request concurrency override.
 
         Returns:
             Placeholder version value for interface compatibility.
@@ -1903,7 +1988,13 @@ class CloudFunctionGen2Strategy(DeploymentStrategy):
         full_func_name = self.get_full_function_name(
             self.config.project_name, self.config.region, function.name
         )
-        body = {"serviceConfig": self._service_config(function.config, envs)}
+        body = {
+            "serviceConfig": self._service_config(
+                function.config,
+                envs,
+                max_instance_request_concurrency,
+            )
+        }
         req = (
             self.function_client.projects()
             .locations()
@@ -2216,6 +2307,17 @@ class GCP(System):
         """
         return GCPFunction
 
+    @staticmethod
+    def workflow_type() -> "Type[Workflow]":
+        """Get the workflow class type for this platform.
+
+        Returns:
+            GCPWorkflow class type
+        """
+        from sebs.gcp.workflow import GCPWorkflow
+
+        return GCPWorkflow
+
     def initialize(
         self,
         config: Dict[str, str] = {},
@@ -2332,6 +2434,43 @@ class GCP(System):
                 return self.config.deployment_config.function_gen1_config
             else:
                 return self.config.deployment_config.function_gen2_config
+
+    def _effective_deployment_config(
+        self,
+        deployment_type: FunctionDeploymentType,
+        max_instance_request_concurrency: int | None = None,
+    ) -> Union[GCPFunctionGen1Config, GCPFunctionGen2Config, GCPContainerConfig]:
+        """Return the deployment config after applying per-function overrides."""
+        dep_config = self._get_deployment_config(deployment_type)
+        if max_instance_request_concurrency is None:
+            return dep_config
+
+        if deployment_type == FunctionDeploymentType.FUNCTION_GEN2:
+            gen2_config = cast(GCPFunctionGen2Config, dep_config)
+            return GCPFunctionGen2Config(
+                vcpus=gen2_config.vcpus,
+                gcp_concurrency=max_instance_request_concurrency,
+                worker_concurrency=gen2_config.worker_concurrency,
+                worker_threads=gen2_config.worker_threads,
+                min_instances=gen2_config.min_instances,
+                max_instances=gen2_config.max_instances,
+                cpu_boost=gen2_config.cpu_boost,
+                cpu_throttle=gen2_config.cpu_throttle,
+            )
+        if deployment_type == FunctionDeploymentType.CONTAINER:
+            container_config = cast(GCPContainerConfig, dep_config)
+            return GCPContainerConfig(
+                environment=container_config.environment,
+                vcpus=container_config.vcpus,
+                gcp_concurrency=max_instance_request_concurrency,
+                worker_concurrency=container_config.worker_concurrency,
+                worker_threads=container_config.worker_threads,
+                min_instances=container_config.min_instances,
+                max_instances=container_config.max_instances,
+                cpu_boost=container_config.cpu_boost,
+                cpu_throttle=container_config.cpu_throttle,
+            )
+        return dep_config
 
     def is_configuration_changed(self, cached_function: Function, benchmark: Benchmark) -> bool:
         """
@@ -2554,6 +2693,8 @@ class GCP(System):
         func_name: str,
         system_variant: SystemVariant,
         container_uri: str | None,
+        extra_envs: Dict | None = None,
+        max_instance_request_concurrency: int | None = None,
     ) -> GCPFunction:
         """Create a new GCP Cloud Function or update existing one.
 
@@ -2567,6 +2708,8 @@ class GCP(System):
             func_name: Name for the Cloud Function
             system_variant: Selected deployment variant
             container_uri: Container image URI (unused for GCP)
+            extra_envs: Additional runtime environment variables.
+            max_instance_request_concurrency: Optional platform request concurrency override.
 
         Returns:
             GCPFunction instance representing the deployed function
@@ -2593,17 +2736,28 @@ class GCP(System):
         # Check if function/service already exists
         function_exists = strategy.function_exists(project_name, location, func_name)
 
-        dep_config = self._get_deployment_config(deployment_type)
+        dep_config = self._effective_deployment_config(
+            deployment_type,
+            max_instance_request_concurrency,
+        )
         if not function_exists:
             # Create new function/service
             envs = {
                 **self._generate_function_envs(code_package),
                 **strategy.generate_runtime_envs(),
+                **(extra_envs or {}),
             }
 
             # Get code bucket for non-container deployments
 
-            strategy.create(func_name, code_package, function_cfg, envs, container_uri)
+            strategy.create(
+                func_name,
+                code_package,
+                function_cfg,
+                envs,
+                container_uri,
+                max_instance_request_concurrency=max_instance_request_concurrency,
+            )
             strategy.wait_for_deployment(func_name)
             strategy.allow_public_access(project_name, location, func_name)
 
@@ -2647,7 +2801,14 @@ class GCP(System):
             )
 
             strategy.allow_public_access(project_name, location, func_name)
-            self.update_function(function, code_package, system_variant, container_uri)
+            self.update_function(
+                function,
+                code_package,
+                system_variant,
+                container_uri,
+                extra_envs,
+                max_instance_request_concurrency=max_instance_request_concurrency,
+            )
 
         # Add LibraryTrigger to a new function
         # Not supported on containers
@@ -2678,10 +2839,19 @@ class GCP(System):
         Raises:
             RuntimeError: If trigger type is not supported
         """
-        from sebs.gcp.triggers import HTTPTrigger
+        from sebs.gcp.triggers import HTTPTrigger, WorkflowLibraryTrigger
         from sebs.gcp.function import GCPFunction
+        from sebs.gcp.workflow import GCPWorkflow
 
-        if trigger_type == Trigger.TriggerType.HTTP:
+        trigger: Trigger
+        if isinstance(function, GCPWorkflow):
+            if trigger_type == Trigger.TriggerType.LIBRARY:
+                trigger = WorkflowLibraryTrigger(function.name, self)
+            else:
+                raise RuntimeError(
+                    f"Trigger type {trigger_type} not supported for workflows. Use LIBRARY."
+                )
+        elif trigger_type == Trigger.TriggerType.HTTP:
             gcp_function = cast(GCPFunction, function)
             self.logging.info(f"Function {function.name} - waiting for deployment...")
 
@@ -2700,6 +2870,293 @@ class GCP(System):
         self.cache_client.update_function(function)
         return trigger
 
+    @staticmethod
+    def _workflow_yaml(definition: str) -> str:
+        """Serialise a JSON workflow definition to GCP-compatible YAML.
+
+        PyYAML's default sequence representation places list-item dashes at the
+        same indentation level as the parent key, which the GCP Workflows parser
+        rejects when those lists appear inside ``parallel.branches[*].steps``.
+        This helper uses a custom Dumper that indents sequences properly.
+
+        Args:
+            definition: JSON string produced by GCPGenerator.
+
+        Returns:
+            YAML string accepted by the GCP Workflows API.
+        """
+        import json as _json
+        import yaml as _yaml
+
+        class _IndentDumper(_yaml.Dumper):
+            """YAML Dumper that indents block sequences under their parent key."""
+
+            def increase_indent(self, flow=False, indentless=False):
+                """Override to always indent sequence items."""
+                return super().increase_indent(flow=flow, indentless=False)
+
+        return _yaml.dump(
+            _json.loads(definition),
+            Dumper=_IndentDumper,
+            width=99999,
+            default_flow_style=False,
+        )
+
+    @staticmethod
+    def _workflow_child_envs(function_name: str) -> Dict[str, str]:
+        """Return runtime environment variables for a workflow child function."""
+        return {"MY_FUNCTION_NAME": function_name}
+
+    def create_workflow(
+        self,
+        code_package: Benchmark,
+        workflow_name: str,
+        container_uri: str | None = None,
+    ) -> "Workflow":
+        """Create a new GCP Workflow that orchestrates Cloud Functions.
+
+        Deploys individual functions for each code file in the benchmark,
+        generates a GCP Workflows definition from the benchmark's FSM definition,
+        and creates the workflow via the GCP Workflows API.
+
+        Args:
+            code_package: Benchmark package with workflow code and definition
+            workflow_name: Name for the GCP Workflow
+
+        Returns:
+            GCPWorkflow instance representing the deployed workflow
+        """
+        from google.cloud.workflows_v1 import WorkflowsClient, Workflow as GCPWorkflowProto
+        from sebs.gcp.workflow import GCPWorkflow
+        from sebs.gcp.generator import GCPGenerator
+        from sebs.gcp.triggers import WorkflowLibraryTrigger, HTTPTrigger
+
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
+        if not os.path.exists(definition_path):
+            raise ValueError(f"No workflow definition found for {workflow_name}")
+
+        code_files = list(code_package.get_code_files(include_config=False))
+        func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+        funcs = [
+            self.create_function(
+                code_package,
+                workflow_name + "--" + fn,
+                code_package.system_variant,
+                container_uri,
+                extra_envs=self._workflow_child_envs(workflow_name + "--" + fn),
+                max_instance_request_concurrency=(
+                    GCP_WORKFLOW_CHILD_MAX_INSTANCE_REQUEST_CONCURRENCY
+                ),
+            )
+            for fn in func_names
+        ]
+
+        # Create HTTP triggers for each function so the workflow can call them
+        func_triggers: Dict[str, str] = {}
+        for fn, func in zip(func_names, funcs):
+            if len(func.triggers(Trigger.TriggerType.HTTP)) == 0:
+                self.create_trigger(func, Trigger.TriggerType.HTTP)
+            http_trigger = cast(HTTPTrigger, func.triggers(Trigger.TriggerType.HTTP)[0])
+            func_triggers[fn] = http_trigger.url
+
+        gen = GCPGenerator(workflow_name, func_triggers, code_package.benchmark_config.timeout)
+        gen.parse(definition_path)
+        definition = gen.generate()
+
+        # Deploy the workflow via GCP Workflows API
+        project_name = self.config.project_name
+        location = self.config.region
+        parent = f"projects/{project_name}/locations/{location}"
+
+        workflows_client = WorkflowsClient()
+        workflow_proto = GCPWorkflowProto(source_contents=self._workflow_yaml(definition))
+
+        try:
+            operation = workflows_client.create_workflow(
+                parent=parent, workflow=workflow_proto, workflow_id=workflow_name
+            )
+            self.logging.info(f"Creating workflow {workflow_name}")
+            operation.result()
+        except Exception as e:
+            if "already exists" in str(e).lower():
+                self.logging.info(f"Workflow {workflow_name} already exists, updating.")
+                workflow_proto.name = f"{parent}/workflows/{workflow_name}"
+                operation = workflows_client.update_workflow(workflow=workflow_proto)
+                operation.result()
+            else:
+                raise
+
+        # Deploy map sub-workflows if any
+        for map_id, map_definition in gen.generate_maps():
+            map_proto = GCPWorkflowProto(source_contents=self._workflow_yaml(map_definition))
+            try:
+                operation = workflows_client.create_workflow(
+                    parent=parent, workflow=map_proto, workflow_id=map_id
+                )
+                self.logging.info(f"Creating map sub-workflow {map_id}")
+                operation.result()
+            except Exception as e:
+                if "already exists" in str(e).lower():
+                    map_proto.name = f"{parent}/workflows/{map_id}"
+                    operation = workflows_client.update_workflow(workflow=map_proto)
+                    operation.result()
+                else:
+                    raise
+
+        storage_client = self._system_resources.get_storage()
+        workflow = GCPWorkflow(
+            workflow_name,
+            funcs,
+            code_package.benchmark,
+            code_package.hash,
+            FunctionConfig.from_benchmark(code_package),
+            storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT),
+        )
+
+        trigger = WorkflowLibraryTrigger(workflow_name, self)
+        trigger.logging_handlers = self.logging_handlers
+        workflow.add_trigger(trigger)
+        return workflow
+
+    def update_workflow(
+        self,
+        workflow: "Function",
+        code_package: Benchmark,
+        container_uri: str | None = None,
+    ) -> None:
+        """Update an existing GCP Workflow with new function code and definition.
+
+        Args:
+            workflow: Existing GCPWorkflow instance to update
+            code_package: New benchmark package with updated code
+        """
+        from google.cloud.workflows_v1 import WorkflowsClient, Workflow as GCPWorkflowProto
+        from sebs.gcp.workflow import GCPWorkflow
+        from sebs.gcp.generator import GCPGenerator
+        from sebs.gcp.triggers import HTTPTrigger
+
+        wf = cast(GCPWorkflow, workflow)
+
+        definition_path = os.path.join(code_package.benchmark_path, "definition.json")
+        if not os.path.exists(definition_path):
+            raise ValueError(f"No workflow definition found for {wf.name}")
+
+        code_files = list(code_package.get_code_files(include_config=False))
+        func_names = [os.path.splitext(os.path.basename(p))[0] for p in code_files]
+        funcs = [
+            self.create_function(
+                code_package,
+                wf.name + "--" + fn,
+                code_package.system_variant,
+                container_uri,
+                extra_envs=self._workflow_child_envs(wf.name + "--" + fn),
+                max_instance_request_concurrency=(
+                    GCP_WORKFLOW_CHILD_MAX_INSTANCE_REQUEST_CONCURRENCY
+                ),
+            )
+            for fn in func_names
+        ]
+        wf.functions = funcs
+
+        func_triggers: Dict[str, str] = {}
+        for fn, func in zip(func_names, funcs):
+            if len(func.triggers(Trigger.TriggerType.HTTP)) == 0:
+                self.create_trigger(func, Trigger.TriggerType.HTTP)
+            http_trigger = cast(HTTPTrigger, func.triggers(Trigger.TriggerType.HTTP)[0])
+            func_triggers[fn] = http_trigger.url
+
+        gen = GCPGenerator(wf.name, func_triggers, code_package.benchmark_config.timeout)
+        gen.parse(definition_path)
+        definition = gen.generate()
+
+        project_name = self.config.project_name
+        location = self.config.region
+        parent = f"projects/{project_name}/locations/{location}"
+
+        workflows_client = WorkflowsClient()
+        workflow_proto = GCPWorkflowProto(
+            name=f"{parent}/workflows/{wf.name}",
+            source_contents=self._workflow_yaml(definition),
+        )
+        operation = workflows_client.update_workflow(workflow=workflow_proto)
+        self.logging.info(f"Updating workflow {wf.name}")
+        operation.result()
+
+        for map_id, map_definition in gen.generate_maps():
+            map_proto = GCPWorkflowProto(
+                name=f"{parent}/workflows/{map_id}",
+                source_contents=self._workflow_yaml(map_definition),
+            )
+            try:
+                operation = workflows_client.update_workflow(workflow=map_proto)
+                operation.result()
+            except Exception as e:
+                if "not found" in str(e).lower():
+                    map_proto_new = GCPWorkflowProto(
+                        source_contents=self._workflow_yaml(map_definition)
+                    )
+                    operation = workflows_client.create_workflow(
+                        parent=parent, workflow=map_proto_new, workflow_id=map_id
+                    )
+                    operation.result()
+                else:
+                    raise
+
+    def refresh_workflow_configuration(self, workflow: "Function", code_package: Benchmark) -> bool:
+        """Refresh workflow and child function configuration when inputs change."""
+        from sebs.gcp.workflow import GCPWorkflow
+
+        wf = cast(GCPWorkflow, workflow)
+        changed = False
+        workflow_timeout_changed = wf.config.timeout != code_package.benchmark_config.timeout
+        if workflow_timeout_changed:
+            container_uri = (
+                code_package.container_uri if code_package.system_variant.is_container else None
+            )
+            self.update_workflow(wf, code_package, container_uri)
+            wf.config.timeout = code_package.benchmark_config.timeout
+            changed = True
+
+        workflow_child_config_changed = any(
+            cast(GCPFunction, function).deployment_config
+            != self._effective_deployment_config(
+                cast(GCPFunction, function).deployment_type,
+                GCP_WORKFLOW_CHILD_MAX_INSTANCE_REQUEST_CONCURRENCY,
+            )
+            for function in wf.functions
+        )
+
+        needs_env_refresh = bool(self.config.redis_host and code_package.has_input_processed)
+        if not needs_env_refresh and not workflow_child_config_changed:
+            return changed
+
+        for function in wf.functions:
+            if code_package.has_input_processed:
+                self.update_function_configuration(
+                    function,
+                    code_package,
+                    self._workflow_child_envs(function.name),
+                    max_instance_request_concurrency=(
+                        GCP_WORKFLOW_CHILD_MAX_INSTANCE_REQUEST_CONCURRENCY
+                    ),
+                )
+            elif workflow_child_config_changed:
+                gcp_function = cast(GCPFunction, function)
+                strategy = self._strategy_for_deployment_type(gcp_function.deployment_type)
+                self._update_function_configuration_with_envs(
+                    gcp_function,
+                    {
+                        **strategy.generate_runtime_envs(),
+                        **self._workflow_child_envs(function.name),
+                    },
+                    max_instance_request_concurrency=(
+                        GCP_WORKFLOW_CHILD_MAX_INSTANCE_REQUEST_CONCURRENCY
+                    ),
+                )
+            changed = True
+
+        return changed
+
     def cached_function(self, function: Function) -> None:
         """Configure a cached function instance for use.
 
@@ -2711,15 +3168,20 @@ class GCP(System):
         """
 
         from sebs.faas.function import Trigger
-        from sebs.gcp.triggers import LibraryTrigger
-
-        func = cast(GCPFunction, function)
+        from sebs.gcp.triggers import LibraryTrigger, WorkflowLibraryTrigger
+        from sebs.gcp.workflow import GCPWorkflow
 
         for trigger in function.triggers(Trigger.TriggerType.LIBRARY):
-            gcp_trigger = cast(LibraryTrigger, trigger)
-            gcp_trigger.deployment_type = func.deployment_type
-            gcp_trigger.logging_handlers = self.logging_handlers
-            gcp_trigger.deployment_client = self
+            if isinstance(trigger, WorkflowLibraryTrigger) or isinstance(function, GCPWorkflow):
+                workflow_trigger = cast(WorkflowLibraryTrigger, trigger)
+                workflow_trigger.logging_handlers = self.logging_handlers
+                workflow_trigger.deployment_client = self
+            else:
+                func = cast(GCPFunction, function)
+                gcp_trigger = cast(LibraryTrigger, trigger)
+                gcp_trigger.deployment_type = func.deployment_type
+                gcp_trigger.logging_handlers = self.logging_handlers
+                gcp_trigger.deployment_client = self
 
     def update_function(
         self,
@@ -2727,6 +3189,8 @@ class GCP(System):
         code_package: Benchmark,
         system_variant: SystemVariant,
         container_uri: str | None,
+        extra_envs: Dict | None = None,
+        max_instance_request_concurrency: int | None = None,
     ) -> None:
         """Update an existing Cloud Function with new code and configuration.
 
@@ -2739,6 +3203,8 @@ class GCP(System):
             code_package: New benchmark package with updated code
             system_variant: Selected deployment variant
             container_uri: Container image URI (unused)
+            extra_envs: Additional environment variables to set
+            max_instance_request_concurrency: Optional platform request concurrency override.
 
         Raises:
             NotImplementedError: If the deployment variant is unsupported
@@ -2754,10 +3220,17 @@ class GCP(System):
         envs = {
             **self._generate_function_envs(code_package),
             **strategy.generate_runtime_envs(),
+            **(extra_envs or {}),
         }
 
         # Update code using strategy
-        strategy.update_code(function, code_package, envs, container_uri)
+        strategy.update_code(
+            function,
+            code_package,
+            envs,
+            container_uri,
+            max_instance_request_concurrency=max_instance_request_concurrency,
+        )
         if system_variant.is_container:
             function.set_container_uri(container_uri)
         strategy.wait_for_deployment(function.name)
@@ -2776,6 +3249,12 @@ class GCP(System):
         """
 
         envs = {}
+        if self.config.redis_host:
+            envs["REDIS_HOST"] = self.config.redis_host
+            if self.config.redis_username:
+                envs["REDIS_USERNAME"] = self.config.redis_username
+            if self.config.redis_password:
+                envs["REDIS_PASSWORD"] = self.config.redis_password
         if code_package.uses_nosql:
 
             db = (
@@ -2788,7 +3267,11 @@ class GCP(System):
         return envs
 
     def update_function_configuration(
-        self, function: Function, code_package: Benchmark, env_variables: Dict = {}
+        self,
+        function: Function,
+        code_package: Benchmark,
+        env_variables: Dict = {},
+        max_instance_request_concurrency: int | None = None,
     ) -> int:
         """Update function configuration including memory, timeout, and environment.
 
@@ -2799,6 +3282,7 @@ class GCP(System):
             function: Function instance to update
             code_package: Benchmark package with configuration requirements
             env_variables: Additional environment variables to set
+            max_instance_request_concurrency: Optional platform request concurrency override.
             container_uri: Container image URI (for container deployments)
 
         Returns:
@@ -2808,10 +3292,28 @@ class GCP(System):
             RuntimeError: If configuration update fails after maximum retries
         """
 
+        function = cast(GCPFunction, function)
         assert code_package.has_input_processed
 
-        function = cast(GCPFunction, function)
+        strategy = self._strategy_for_deployment_type(function.deployment_type)
+        envs = {
+            **self._generate_function_envs(code_package),
+            **strategy.generate_runtime_envs(),
+            **env_variables,
+        }
+        return self._update_function_configuration_with_envs(
+            function,
+            envs,
+            max_instance_request_concurrency=max_instance_request_concurrency,
+        )
 
+    def _update_function_configuration_with_envs(
+        self,
+        function: GCPFunction,
+        envs: Dict,
+        max_instance_request_concurrency: int | None = None,
+    ) -> int:
+        """Update function configuration with an already assembled environment."""
         # Select deployment strategy
         strategy = self._strategy_for_deployment_type(function.deployment_type)
 
@@ -2820,22 +3322,22 @@ class GCP(System):
             self.config.project_name, self.config.region, function.name
         )
 
-        # Prepare environment variables
-        envs = {
-            **self._generate_function_envs(code_package),
-            **strategy.generate_runtime_envs(),
-        }
-        envs = {**envs, **env_variables}
-
         # GCP might overwrite existing variables
         # If we modify them, we need to first read existing ones and append.
         if len(envs) > 0:
             envs = strategy.update_envs(full_func_name, envs)
 
         # Update configuration using strategy
-        res = strategy.update_config(function, envs)
+        res = strategy.update_config(
+            function,
+            envs,
+            max_instance_request_concurrency=max_instance_request_concurrency,
+        )
 
-        current_dep_config = self._get_deployment_config(function.deployment_type)
+        current_dep_config = self._effective_deployment_config(
+            function.deployment_type,
+            max_instance_request_concurrency,
+        )
         function._deployment_config = current_dep_config
 
         return res
