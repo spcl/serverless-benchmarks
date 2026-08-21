@@ -346,7 +346,9 @@ class Cloudflare(System):
         elif token.startswith("cfut_"):
             url = f"{self._api_base_url}/user/tokens/verify"
         else:
-            raise RuntimeError("Unknown Cloudflare API token format. Must start with 'cfat_' or 'cfut_'.")
+            raise RuntimeError(
+                "Unknown Cloudflare API token format. Must start with 'cfat_' or 'cfut_'."
+            )
         response = requests.get(url, headers=headers)
 
         if response.status_code != 200:
