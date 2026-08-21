@@ -47,7 +47,7 @@ class CloudflareContainersDeployment:
         "6100.1000-genome",
         "6101.1000-genome-individuals",
         "650.vid",
-        "680.excamera"
+        "680.excamera",
     )
     HIGH_RESOURCE_INSTANCE_TYPE = "standard-4"
 
