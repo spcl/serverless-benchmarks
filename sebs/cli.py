@@ -20,6 +20,7 @@ import docker
 
 import sebs
 from sebs import SeBS
+from sebs.cache import Cache
 from sebs.sebs_types import Storage as StorageTypes
 from sebs.sebs_types import NoSQLStorage as NoSQLStorageTypes
 from sebs.regression import regression_suite
@@ -846,6 +847,70 @@ def experiment_statistics(experiment_results):
 def resources():
     """Cloud resource management commands."""
     pass
+
+
+@resources.command("inspect")
+@click.option(
+    "--cache",
+    default=os.path.join(os.path.curdir, "cache"),
+    type=click.Path(file_okay=False, readable=True),
+    help="Location of the experiments cache to inspect.",
+)
+@click.option(
+    "--deployment",
+    default=None,
+    type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk"]),
+    help="Restrict the view to a single platform.",
+)
+@click.option(
+    "--output",
+    "output_format",
+    default="tui",
+    type=click.Choice(["tui", "json"]),
+    help="Interactive Textual TUI (default) or machine-readable JSON.",
+)
+def resources_inspect(cache, deployment, output_format):
+    """Inspect the local SeBS cache and show what is deployed.
+
+    This is a read-only view built directly from the on-disk cache. It does not
+    contact any cloud provider and does not require credentials or a running
+    Docker daemon. It reports which benchmarks are deployed (platform, language,
+    packaging, functions, triggers, URLs) and what resources are allocated per
+    platform (resources_id, storage buckets, NoSQL tables, resource groups, and
+    locally allocated ports).
+
+    By default it launches an interactive Textual TUI that groups resources by
+    cloud system and resource class. Use ``--output json`` for machine-readable
+    output that is safe for non-TTY environments and scripting.
+    """
+    # A missing cache directory is a valid, empty state - report it rather than
+    # failing or creating the directory (constructing Cache would create it).
+    if not os.path.isdir(cache):
+        if output_format == "json":
+            click.echo(json.dumps({"deployed_benchmarks": [], "allocated_resources": {}}, indent=2))
+        else:
+            from rich.console import Console
+
+            Console().print(f"[yellow]No cache found at {cache}.[/yellow]")
+        return
+
+    cache_client = Cache(cache)
+
+    benchmarks = cache_client.get_deployed_benchmarks(deployment)
+    allocated = cache_client.get_allocated_resources(deployment)
+
+    if output_format == "json":
+        click.echo(
+            json.dumps(
+                {"deployed_benchmarks": benchmarks, "allocated_resources": allocated},
+                indent=2,
+            )
+        )
+        return
+
+    from sebs.tui import run_inspector
+
+    run_inspector(benchmarks, allocated)
 
 
 @resources.command("list")
