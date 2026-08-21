@@ -114,7 +114,7 @@ def common_params(func):
     @click.option(
         "--deployment",
         default=None,
-        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk"]),
+        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk", "cloudflare"]),
         help="Cloud deployment to use.",
     )
     @click.option(
@@ -194,10 +194,18 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "system_variant"], system_variant)
 
     selected_deployment = config_obj.get("deployment", {}).get("name")
-    if selected_deployment and "system_variant" not in config_obj.get("experiments", {}):
-        config_obj["experiments"]["system_variant"] = sebs_client.config.default_system_variant(
-            selected_deployment
-        )
+    if selected_deployment:
+        current_variant = config_obj.get("experiments", {}).get("system_variant")
+        supported_variants = sebs_client.config.supported_system_variants(selected_deployment)
+        # Use platform default if no variant specified or if current variant is not supported
+        if current_variant is None or current_variant not in supported_variants:
+
+            default_variant = sebs_client.config.default_system_variant(selected_deployment)
+            sebs_client.logging.warning(
+                f"Specified system variant {current_variant} not supported. "
+                f"Using default variant: {default_variant}; for deployment: {selected_deployment}."
+            )
+            config_obj.setdefault("experiments", {})["system_variant"] = default_variant
 
     # set the path the configuration was loaded from
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)
@@ -375,6 +383,99 @@ def invoke(
 
 
 @benchmark.command()
+@click.argument("benchmark", type=str)
+@click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
+@click.option("--repetitions", default=5, type=int, help="Number of experimental repetitions.")
+@click.option(
+    "--trigger",
+    type=click.Choice(["library", "http"]),
+    default="library",
+    help="Workflow trigger to be used.",
+)
+@click.option(
+    "--workflow-name",
+    default=None,
+    type=str,
+    help="Override workflow name for random generation.",
+)
+@common_params
+def workflow(benchmark, benchmark_input_size, repetitions, trigger, workflow_name, **kwargs):
+    """Invoke a workflow benchmark and measure performance."""
+    import pandas as pd
+    from sebs.utils import connect_to_redis_cache, download_measurements
+
+    (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
+        **kwargs
+    )
+
+    experiment_config = sebs_client.get_experiment_config(config["experiments"])
+    benchmark_obj = sebs_client.get_benchmark(
+        benchmark,
+        deployment_client,
+        experiment_config,
+        logging_filename=logging_filename,
+    )
+
+    input_config = benchmark_obj.prepare_input(
+        deployment_client.system_resources,
+        size=benchmark_input_size,
+        replace_existing=experiment_config.update_storage,
+    )
+
+    wf = deployment_client.get_workflow(
+        benchmark_obj,
+        workflow_name if workflow_name else deployment_client.default_function_name(benchmark_obj),
+    )
+
+    redis_host = getattr(deployment_client.config, "redis_host", None)
+    redis_username = getattr(deployment_client.config, "redis_username", None) or None
+    redis_password = getattr(deployment_client.config, "redis_password", None) or None
+    redis = None
+    if redis_host:
+        try:
+            redis = connect_to_redis_cache(
+                redis_host, password=redis_password, username=redis_username
+            )
+        except Exception as e:
+            sebs_client.logging.warning(f"Could not connect to Redis ({e}), skipping measurements")
+
+    result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
+    result.begin()
+
+    trigger_type = Trigger.TriggerType.get(trigger)
+    triggers = wf.triggers(trigger_type)
+    if len(triggers) == 0:
+        trigger = deployment_client.create_trigger(wf, trigger_type)
+    else:
+        trigger = triggers[0]
+
+    measurements = []
+    for i in range(repetitions):
+        sebs_client.logging.info(f"Beginning repetition {i + 1}/{repetitions}")
+        ret = trigger.sync_invoke(input_config)
+        if ret.stats.failure:
+            sebs_client.logging.info(f"Failure on repetition {i + 1}/{repetitions}")
+
+        if redis:
+            measurements += download_measurements(
+                redis, wf.name, result.begin_time, request_id=ret.request_id, rep=i
+            )
+        result.add_invocation(wf, ret)
+    result.end()
+
+    if measurements:
+        path = os.path.join(output_dir, "results", wf.name, deployment_client.name() + ".csv")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        df = pd.DataFrame(measurements)
+        df.to_csv(path, index=False)
+
+    result_file = os.path.join(output_dir, "experiments.json")
+    with open(result_file, "w") as out_f:
+        out_f.write(sebs.utils.serialize(result))
+    sebs_client.logging.info("Save results to {}".format(os.path.abspath(result_file)))
+
+
+@benchmark.command()
 @common_params
 def process(**kwargs):
     """Process benchmark results and download cloud metrics."""
@@ -502,12 +603,29 @@ def package(
     help="Filter resource IDs and URls from output.",
 )
 @common_params
+@click.option(
+    "--cache",
+    default=os.path.join(os.path.curdir, "regression-cache"),
+    help="Location of experiments cache.",
+)
+@click.option(
+    "--output-dir",
+    default=os.path.join(os.path.curdir, "regression-output"),
+    help="Output directory for results.",
+)
+@click.option(
+    "--deployment-type",
+    default=None,
+    type=click.Choice(["functions", "containers"]),
+    help="Limit regression to a specific deployment type (functions or containers).",
+)
 def regression(
     benchmark_input_size,
     benchmark_name,
     storage_configuration,
     selected_architecture,
     filter_output,
+    deployment_type,
     **kwargs,
 ):
     """Run regression test suite across benchmarks."""
@@ -533,6 +651,8 @@ def regression(
         config,
         kwargs["resource_prefix"],
         benchmark_name,
+        deployment_type,
+        benchmark_input_size,
         architecture,
         filter_output,
     )
@@ -992,7 +1112,7 @@ def docker_cmd():
 @click.option(
     "--deployment",
     default=None,
-    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk", "cloudflare"]),
     help="Deployment platform to build images for",
 )
 @click.option(
@@ -1074,7 +1194,7 @@ def docker_build(
 @click.option(
     "--deployment",
     default=None,
-    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk", "cloudflare"]),
     help="Deployment platform to push images for",
 )
 @click.option(

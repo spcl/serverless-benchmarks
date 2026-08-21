@@ -1,7 +1,16 @@
 {
   "timeout": 120,
   "memory": 512,
-  "languages": ["python", "cpp"],
+  "languages": [
+    {
+      "language": "python",
+      "variants": {
+        "default": "default",
+        "cloudflare": "default"
+      }
+    },
+    "cpp"
+  ],
   "modules": [],
   "cpp_dependencies": ["igraph"]
 }

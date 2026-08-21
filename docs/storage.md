@@ -128,6 +128,45 @@ Server: Seastar httpd
 healthy: 192.168.0.20:9012
 ```
 
+## Cloudflare Storage
+
+Cloudflare Workers integrate with cloud-native storage services provided by Cloudflare:
+
+### R2 Object Storage
+
+Cloudflare R2 provides S3-compatible object storage for benchmarks that require persistent file storage. SeBS automatically configures R2 buckets for benchmark input and output data.
+
+**Key Features:**
+- S3-compatible API
+- No egress fees
+- Global edge storage
+- Integrated with Workers through bindings
+
+**Configuration:**
+R2 configuration is handled automatically by SeBS when deploying to Cloudflare Workers. The storage resources are defined in your deployment configuration and SeBS manages bucket creation and access.
+
+**Limitations:**
+- Geographic location hints (locationHint) are not currently supported. R2 buckets are created with Cloudflare's automatic location selection, which places data near where it's most frequently accessed.
+
+### Container Storage Access
+
+Container wrappers use the documented Cloudflare outbound-handler path through the `http://sebs.r2` and `http://sebs.kv` virtual hosts. The parent Worker holds the R2 and KV bindings and handles the internal requests, so containers do not need public Worker URLs or injected storage credentials.
+
+R2 uploads use a single request through the outbound handler. Container wrappers generate unique output keys before uploading to avoid collisions between runs.
+
+### KVStore for NoSQL
+
+Cloudflare KV namespaces are used for NoSQL operations required by benchmarks such as CRUD API (130.crud-api).
+
+**Key Features:**
+- Native Workers integration through KV bindings
+- Simple key-value interface compatible with SeBS NoSQL wrapper operations
+- Global edge distribution for read-heavy access patterns
+
+**Usage:**
+SeBS configures KV namespace bindings automatically for Cloudflare deployments that require NoSQL storage. Benchmark wrappers access KV through the standard SeBS NoSQL interface (insert/update/get/query/delete).
+
+
 ## Lifecycle Management
 
 By default, storage containers are retained after experiments complete. This allows you to run multiple experiments without redeploying and repopulating storage.
