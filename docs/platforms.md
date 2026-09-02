@@ -11,8 +11,11 @@ In the following subsections, we discuss the mandatory and optional customizatio
 points for each platform.
 
 > [!WARNING]
-> On many platforms, credentials can be provided as environment variables or through the SeBS configuration. SeBS will not store your credentials in the cache. When saving results, SeBS stores user benchmark and experiment configuration for documentation and reproducibility, except for credentials that are erased. If you provide the credentials through JSON input configuration, do not commit nor publish these files anywhere.
+> On many platforms, credentials can be provided as environment variables or through the SeBS configuration. SeBS will not store your credentials in the cache. When saving results, SeBS stores user benchmark and experiment configuration for documentation and reproducibility, except for credentials that are erased. If you provide the credentials through JSON input configuration, do not commit or publish these files anywhere.
 
+> [!WARNING]
+> Depending on the platform, SeBS might deploy resources that are publicly accessible, such as Lambda functions with function URLs that do not use authentication; details can be found in each platform's description. It is recommended to deallocate such resources after testing.
+ 
 Supported platforms:
 * [Amazon Web Services (AWS) Lambda](#aws-lambda)
 * [Microsoft Azure Functions](#azure-functions)
@@ -25,18 +28,18 @@ SeBS benchmarks rely on persistent object and NoSQL storage for input and output
 
 ## Architectures
 
-By default, SeBS defaults functions built for the x64 (x86_64) architecture. On AWS, functions can also be build and deployed for ARM CPUs to benefit from Graviton CPUs available on Lambda.
+By default, SeBS builds functions for the x64 (x86_64) architecture. On AWS, functions can also be built and deployed for ARM CPUs to benefit from Graviton CPUs available on Lambda.
 This change primarily affects functions that make use of dependencies with native builds, such as `torch`, `numpy` or `ffmpeg`.
 
-Such functions can be build as code packages on any platforms, as we rely on package managers like pip and npm to provide binary dependencies.
+Such functions can be built as code packages on any platform, as we rely on package managers like pip and npm to provide binary dependencies.
 However, special care is needed to build Docker containers: since installation of packages is a part of the Docker build, we cannot natively execute
-binaries based on ARM containers on x86 CPUs. To build multi-platform images, we recommend to follow official [Docker guidelines](https://docs.docker.com/build/building/multi-platform/#build-multi-platform-images) and provide static QEMU installation.
+binaries based on ARM containers on x86 CPUs. To build multi-platform images, we recommend following official [Docker guidelines](https://docs.docker.com/build/building/multi-platform/#build-multi-platform-images) and providing a static QEMU installation.
 On Ubuntu-based distributions, this requires installing an OS package and executing a single Docker command to provide seamless emulation of ARM containers.
 
 ### Multi-platform Docker Images
 
 Build images, which encapsulate package building, are available as both x64 and arm64 for Python and Node.js on AWS Lambda.
-To rebuild multi-plaform images, an additional flag is needed to enable the internal `docker buildx` command:
+To rebuild multi-platform images, an additional flag is needed to enable the internal `docker buildx` command:
 
 ```bash
 sebs docker build --image-type build --language python --deployment aws --language-version 3.11 --multi-platform
@@ -54,16 +57,16 @@ If you have JSON result files, such as `experiment.json` from a benchmark run or
 jq 'del(.config.deployment.credentials)' <file.json> | sponge <file.json>
 ```
 
-## AWS Lambda
+# AWS Lambda
 
 AWS provides one year of free services, including a significant amount of computing time in AWS Lambda.
 To work with AWS, you need to provide access and secret keys to a role with permissions
 sufficient to manage functions and S3 resources.
 Additionally, the account must have `AmazonAPIGatewayAdministrator` permission to set up
-automatically AWS HTTP trigger.
+automatically an AWS HTTP trigger.
 You can provide a [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
 with permissions to access AWS Lambda and S3; otherwise, one will be created automatically.
-To use a user-defined lambda role, set the name in config JSON - see an example in `configs/example.json`.
+To use a user-defined Lambda role, set the name in the config JSON - see an example in `configs/example.json`.
 
 You can pass the credentials either using the default AWS-specific environment variables:
 
@@ -97,7 +100,7 @@ SeBS supports two methods for HTTP-based function invocation on AWS Lambda:
 
 SeBS used API Gateway to trigger Lambda functions. However, API Gateway has a hard timeout limit of 29 seconds, which can be restrictive for long-running benchmarks. To overcome this limitation and simplify the architecture, we added support for Lambda Function URLs, which allow direct invocation of Lambda functions without the need for API Gateway. Since we do not rely on more complex API management features, function URLs are now the default version.
 
-However, API gateway can still be used to benchmarking. The switch between both options is configured in the deployment settings:
+However, an API gateway can still be used for benchmarking. The switch between the two options is configured in the deployment settings:
 
 ```json
 "deployment": {
@@ -138,7 +141,7 @@ AZURE_SECRET_TENANT = XXXXXXXXXXXX
 AZURE_SECRET_PASSWORD = XXXXXXXXXXXXX
 ```
 
-**Save these credentials - the password is non-retrievable! Provide them to SeBS and we will create additional resources (storage account, resource group) to deploy functions. We will create a storage account and the resource group and handle access keys.
+**Save these credentials - the password is non-retrievable!** Provide them to SeBS, and we will create additional resources (storage account, resource group) to deploy functions. We will create a storage account and the resource group and handle access keys.
 
 You can pass the credentials either using the environment variables:
 
@@ -186,8 +189,8 @@ The Google Cloud Free Tier gives free resources. It has two parts:
 - A 12-month free trial with $300 credit to use with any Google Cloud services.
 - Always Free, which provides limited access to many common Google Cloud resources, free of charge.
 
-You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions. From the cloud problem, download the cloud credentials saved as a JSON file.
-You should have at least write access to **Cloud Functions** (`Cloud Functions Admin`) and **Logging** Furthermore, SeBS needs the permissions to create Firestore databases through
+You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions. From the Google Cloud Console, download the cloud credentials saved as a JSON file.
+You should have at least write access to **Cloud Functions** (`Cloud Functions Admin`) and **Logging**. Furthermore, SeBS needs the permissions to create Firestore databases through
 Google Cloud CLI tool; the `Firestore Service Agent` role allows for that.
 
 You can pass the credentials either using the default GCP-specific environment variable:
@@ -228,6 +231,9 @@ On GCP, there are two different concurrency layers that should not be confused:
 * platform concurrency: how many requests GCP may send to one instance (`gcp-concurrency`)
 * runtime concurrency: how many requests the language server is prepared to process internally (`worker-concurrency`, `worker-threads`)
 This design is intentional. A single Cloud Run concurrency number is not enough to reason about performance if the application server is underprovisioned or overprovisioned relative to the platform.
+
+> [!WARNING]
+> SeBS implements the "allUsers" permission mode for invocations, making GCP functions and containers publicly accessible without any authentication.
 
 ### Function Gen1
 
@@ -337,7 +343,7 @@ The current GCP backend has the following practical limits:
 ## OpenWhisk
 
 SeBS expects users to deploy and configure an OpenWhisk instance.
-Below, you will find example of instruction for deploying OpenWhisk instance.
+Below, you will find an example of instructions for deploying an OpenWhisk instance.
 The configuration parameters of OpenWhisk for SeBS can be found
 in `configs/example.json` under the key `['deployment']['openwhisk']`.
 In the subsections below, we discuss the meaning and use of each parameter.
@@ -364,7 +370,7 @@ kubectl get pods -n openwhisk --watch
 ```
 
 To change the maximum memory allocation per function, edit the `max` value under `memory` in file `helm/openwhisk/values.yaml`.
-To run all benchmarks, we recommend of at least "2048m".
+To run all benchmarks, we recommend at least "2048m".
 
 ### Toolchain
 
@@ -395,9 +401,9 @@ So, to circumvent this limit, we deploy functions using pre-built Docker images.
 > [!NOTE]
 > On Python and Node.js, we create a full Docker image and upload the main handler
 file only to OpenWhisk, as this is required for actions.
-This is not possible on Java, as we need to compile the code into JAR.
-To avoid extract build image, we build the function image, extract the function JAR,
-and upload it with the action. In future, if we want to create heavy JARs with complex
+This is not possible on Java, as we need to compile the code into a JAR.
+Thus, we build the function image, extract the function JAR,
+and upload it with the action. In the future, if we want to create heavy JARs with complex
 dependencies, we might need to switch to full image deployment on Java as well.
 
 
@@ -406,7 +412,7 @@ in the registry, even if they have been cached on a system serving OpenWhisk
 functions.
 Function invocations will fail when the image is not available after a
 timeout with an error message that does not directly indicate image availability issues.
-Therefore, all SeBS benchmark functions are available on the Docker Hub.
+Therefore, all SeBS benchmark functions are available on Docker Hub.
 
 When adding new functions and extending existing functions with new languages
 and new language versions, Docker images must be placed in the registry.
@@ -418,8 +424,8 @@ To use a different Docker Hub repository, change the key
 Alternatively, OpenWhisk users can configure the FaaS platform to use a custom and
 private Docker registry and push new images there.
 A local Docker registry can speed up development when debugging a new function.
-SeBS can use alternative Docker registry - see `dockerRegistry` settings
-in the example to configure registry endpoint and credentials.
+SeBS can use an alternative Docker registry - see `dockerRegistry` settings
+in the example to configure the registry endpoint and credentials.
 When the `registry` URL is not provided, SeBS will use Docker Hub.
 When `username` and `password` are provided, SeBS will log in to the repository
 and push new images before invoking functions.
