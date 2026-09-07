@@ -114,7 +114,7 @@ def common_params(func):
     @click.option(
         "--deployment",
         default=None,
-        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk"]),
+        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk", "cloudflare"]),
         help="Cloud deployment to use.",
     )
     @click.option(
@@ -194,10 +194,18 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "system_variant"], system_variant)
 
     selected_deployment = config_obj.get("deployment", {}).get("name")
-    if selected_deployment and "system_variant" not in config_obj.get("experiments", {}):
-        config_obj["experiments"]["system_variant"] = sebs_client.config.default_system_variant(
-            selected_deployment
-        )
+    if selected_deployment:
+        current_variant = config_obj.get("experiments", {}).get("system_variant")
+        supported_variants = sebs_client.config.supported_system_variants(selected_deployment)
+        # Use platform default if no variant specified or if current variant is not supported
+        if current_variant is None or current_variant not in supported_variants:
+
+            default_variant = sebs_client.config.default_system_variant(selected_deployment)
+            sebs_client.logging.warning(
+                f"Specified system variant {current_variant} not supported. "
+                f"Using default variant: {default_variant}; for deployment: {selected_deployment}."
+            )
+            config_obj.setdefault("experiments", {})["system_variant"] = default_variant
 
     # set the path the configuration was loaded from
     update_nested_dict(config_obj, ["deployment", "local", "path"], config)
@@ -502,12 +510,29 @@ def package(
     help="Filter resource IDs and URls from output.",
 )
 @common_params
+@click.option(
+    "--cache",
+    default=os.path.join(os.path.curdir, "regression-cache"),
+    help="Location of experiments cache.",
+)
+@click.option(
+    "--output-dir",
+    default=os.path.join(os.path.curdir, "regression-output"),
+    help="Output directory for results.",
+)
+@click.option(
+    "--deployment-type",
+    default=None,
+    type=click.Choice(["functions", "containers"]),
+    help="Limit regression to a specific deployment type (functions or containers).",
+)
 def regression(
     benchmark_input_size,
     benchmark_name,
     storage_configuration,
     selected_architecture,
     filter_output,
+    deployment_type,
     **kwargs,
 ):
     """Run regression test suite across benchmarks."""
@@ -533,6 +558,8 @@ def regression(
         config,
         kwargs["resource_prefix"],
         benchmark_name,
+        deployment_type,
+        benchmark_input_size,
         architecture,
         filter_output,
     )
@@ -992,7 +1019,7 @@ def docker_cmd():
 @click.option(
     "--deployment",
     default=None,
-    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk", "cloudflare"]),
     help="Deployment platform to build images for",
 )
 @click.option(
@@ -1074,7 +1101,7 @@ def docker_build(
 @click.option(
     "--deployment",
     default=None,
-    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk"]),
+    type=click.Choice(["local", "aws", "azure", "gcp", "openwhisk", "cloudflare"]),
     help="Deployment platform to push images for",
 )
 @click.option(
