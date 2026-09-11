@@ -20,6 +20,7 @@ Pillow
 pycurl>=7.43
 click>=7.1.2
 rich
+textual>=0.50.0
 patch-ng
 
 interrogate==1.7.0

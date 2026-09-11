@@ -23,6 +23,7 @@ Example:
 """
 
 import collections.abc
+import copy
 import docker
 import datetime
 import json
@@ -158,16 +159,25 @@ class Cache(LoggingBase):
     _lock_registry_guard = threading.Lock()
     _lock_registry: Dict[str, threading.RLock] = {}
 
-    def __init__(self, cache_dir: str, docker_client: docker.DockerClient) -> None:
+    # Cloud platforms that own a per-cloud cache file (`<cloud>.json`).
+    SUPPORTED_CLOUDS: List[str] = ["azure", "aws", "gcp", "openwhisk", "local"]
+
+    def __init__(self, cache_dir: str, docker_client: Optional[docker.DockerClient] = None) -> None:
         """Initialize the Cache with directory and Docker client.
 
         Sets up the cache directory structure and loads existing configurations.
         Creates the cache directory if it doesn't exist, otherwise loads
         existing cached configurations.
 
+        The Docker client is optional so that read-only consumers (for example,
+        the cache inspection command) can open a cache without a running Docker
+        daemon. It is only required for operations that copy container images,
+        such as `add_code_package`.
+
         Args:
             cache_dir (str): Path to the cache directory.
-            docker_client (docker.DockerClient): Docker client for container operations.
+            docker_client (Optional[docker.DockerClient]): Docker client for
+                container operations. May be None for read-only usage.
         """
         super().__init__()
         self.cached_config: Dict[str, Any] = {}
@@ -198,6 +208,24 @@ class Cache(LoggingBase):
             if cache_dir not in cls._lock_registry:
                 cls._lock_registry[cache_dir] = threading.RLock()
             return cls._lock_registry[cache_dir]
+
+    def _require_docker_client(self) -> docker.DockerClient:
+        """Return the Docker client, raising if it is unavailable.
+
+        The Docker client is optional to allow read-only consumers to open a
+        cache without a running Docker daemon. Operations that copy container
+        images require it, so they call this helper to fail loudly (and, unlike
+        an ``assert``, reliably under ``python -O``) when it is missing.
+
+        Returns:
+            docker.DockerClient: The configured Docker client.
+
+        Raises:
+            RuntimeError: If no Docker client was provided to the cache.
+        """
+        if self.docker_client is None:
+            raise RuntimeError("A Docker client is required to cache container images.")
+        return self.docker_client
 
     @staticmethod
     def _write_json_atomic(path: str, data: Any) -> None:
@@ -240,7 +268,7 @@ class Cache(LoggingBase):
         the cache directory and loads them into memory.
         """
         with self._lock:
-            for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
+            for cloud in self.SUPPORTED_CLOUDS:
                 cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
                 if os.path.exists(cloud_config_file):
                     with open(cloud_config_file, "r") as f:
@@ -288,7 +316,7 @@ class Cache(LoggingBase):
         """
         if self.config_updated:
             with self._lock:
-                for cloud in ["azure", "aws", "gcp", "openwhisk", "local"]:
+                for cloud in self.SUPPORTED_CLOUDS:
                     if cloud in self.cached_config:
                         cloud_config_file = os.path.join(self.cache_dir, "{}.json".format(cloud))
                         self.logging.info("Update cached config {}".format(cloud_config_file))
@@ -495,6 +523,217 @@ class Cache(LoggingBase):
                     functions = lang_cfg.get("functions")
                     if functions is not None:
                         result.update(functions)
+
+        return result
+
+    def get_deployed_benchmarks(self, deployment: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Collect every deployed benchmark entry recorded in the cache.
+
+        Walks all per-benchmark `config.json` files and flattens them into a
+        list of rows describing what is deployed where. Each row corresponds to
+        a single (benchmark, platform, language) combination and reports the
+        deployed functions, packaging type, and cached storage/nosql tables.
+
+        This is a purely read-only view intended for inspection tooling; it does
+        not query any cloud provider and does not require a Docker client.
+
+        Args:
+            deployment (Optional[str]): Restrict the result to a single platform
+                (e.g. 'aws'). When None, entries for all platforms are returned.
+
+        Returns:
+            List[Dict[str, Any]]: One dictionary per (benchmark, platform,
+            language) combination. Keys: 'benchmark', 'platform', 'language',
+            'packaging', 'functions' (list of function names),
+            'function_details' (per-function name/hash/triggers), 'triggers'
+            (sorted list of trigger types across all functions), 'storage'
+            (list of bucket names), and 'nosql' (list of table names).
+        """
+
+        def summarize_functions(functions: Dict[str, Any]) -> List[Dict[str, Any]]:
+            """Reduce a cached `functions` mapping to per-function summaries.
+
+            Args:
+                functions (Dict[str, Any]): Mapping of function name to the
+                    cached function configuration.
+
+            Returns:
+                List[Dict[str, Any]]: Summaries with 'name', 'hash', and the
+                sorted list of trigger types for each function.
+            """
+            summaries: List[Dict[str, Any]] = []
+            for name, cfg in functions.items():
+                triggers = cfg.get("triggers", []) if isinstance(cfg, dict) else []
+                trigger_types = sorted(
+                    {str(t["type"]) for t in triggers if isinstance(t, dict) and t.get("type")}
+                )
+                # Preserve per-trigger details (type, URL, implementation) so the
+                # inspection UI can surface endpoints, not just trigger types.
+                trigger_details = [
+                    {
+                        "type": str(t.get("type")),
+                        "url": t.get("url"),
+                        "implementation": t.get("implementation"),
+                    }
+                    for t in triggers
+                    if isinstance(t, dict) and t.get("type")
+                ]
+                summaries.append(
+                    {
+                        "name": name,
+                        "hash": cfg.get("hash") if isinstance(cfg, dict) else None,
+                        "triggers": trigger_types,
+                        "trigger_details": trigger_details,
+                    }
+                )
+            return summaries
+
+        rows: List[Dict[str, Any]] = []
+
+        if not os.path.exists(self.cache_dir):
+            return rows
+
+        with self._lock:
+            for entry in sorted(os.listdir(self.cache_dir)):
+                config_path = os.path.join(self.cache_dir, entry, "config.json")
+                if not os.path.exists(config_path):
+                    continue
+
+                with open(config_path, "r") as fp:
+                    config = json.load(fp)
+
+                for platform, dep_cfg in config.items():
+                    if deployment is not None and platform != deployment:
+                        continue
+                    if not isinstance(dep_cfg, dict):
+                        continue
+
+                    for language, lang_cfg in dep_cfg.items():
+                        # Skip resource-level keys (storage/nosql live under the
+                        # deployment too) - languages always map to a dict with
+                        # a 'functions'/'code_package'/'containers' shape.
+                        if not isinstance(lang_cfg, dict):
+                            continue
+                        if language in ("storage", "nosql"):
+                            continue
+
+                        functions = lang_cfg.get("functions") or {}
+                        if "containers" in lang_cfg and lang_cfg["containers"]:
+                            packaging = "container"
+                        elif "code_package" in lang_cfg and lang_cfg["code_package"]:
+                            packaging = "code_package"
+                        else:
+                            packaging = "unknown"
+
+                        func_summaries = summarize_functions(functions)
+                        all_triggers = sorted({t for f in func_summaries for t in f["triggers"]})
+                        # Collect every HTTP endpoint URL exposed across the
+                        # functions of this (benchmark, platform, language) entry.
+                        all_urls = sorted(
+                            {
+                                td["url"]
+                                for f in func_summaries
+                                for td in f["trigger_details"]
+                                if td.get("url")
+                            }
+                        )
+
+                        storage_cfg = dep_cfg.get("storage") or {}
+                        nosql_cfg = dep_cfg.get("nosql") or {}
+
+                        rows.append(
+                            {
+                                "benchmark": entry,
+                                "platform": platform,
+                                "language": language,
+                                "packaging": packaging,
+                                "functions": [f["name"] for f in func_summaries],
+                                "function_details": func_summaries,
+                                "triggers": all_triggers,
+                                "urls": all_urls,
+                                "storage": sorted(storage_cfg.keys()),
+                                "nosql": sorted(nosql_cfg.keys()),
+                            }
+                        )
+
+        return rows
+
+    def get_allocated_resources(
+        self, deployment: Optional[str] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """Collect the allocated cloud resources recorded per platform.
+
+        Reads the per-cloud cache files (`aws.json`, `local.json`, ...) and
+        extracts the resource block that SeBS persists for reuse: the
+        `resources_id` namespace, allocated storage buckets, and (for local
+        deployments) allocated container ports.
+
+        Like `get_deployed_benchmarks`, this is a read-only view that does not
+        contact any cloud provider.
+
+        Args:
+            deployment (Optional[str]): Restrict the result to a single platform.
+                When None, all platforms present in the cache are returned.
+
+        Returns:
+            Dict[str, Dict[str, Any]]: Mapping of platform name to its resource
+            summary. Each summary contains 'resources_id' (Optional[str]),
+            'region' (Optional[str]), 'storage_buckets' (Dict[str, Any]),
+            'allocated_ports' (List[int]), 'resource_group' (Optional[str],
+            Azure), 'storage_accounts' (List[str], Azure), and 'nosql'
+            (Dict[str, Any]; Azure CosmosDB account or other NoSQL metadata).
+        """
+        result: Dict[str, Dict[str, Any]] = {}
+
+        clouds = [deployment] if deployment is not None else self.SUPPORTED_CLOUDS
+
+        with self._lock:
+            for cloud in clouds:
+                cloud_cfg = self.cached_config.get(cloud)
+                if not isinstance(cloud_cfg, dict):
+                    continue
+
+                resources = cloud_cfg.get("resources")
+                if not isinstance(resources, dict):
+                    resources = {}
+
+                buckets = resources.get("storage_buckets")
+                if not isinstance(buckets, dict):
+                    buckets = {}
+
+                ports = resources.get("allocated_ports")
+                if not isinstance(ports, list):
+                    ports = []
+
+                # Azure-specific resource classes: resource group, storage
+                # accounts, and the CosmosDB (NoSQL) account.
+                storage_accounts_cfg = resources.get("storage_accounts")
+                if isinstance(storage_accounts_cfg, list):
+                    storage_accounts = [
+                        acct.get("account_name") or acct.get("name")
+                        for acct in storage_accounts_cfg
+                        if isinstance(acct, dict)
+                    ]
+                    storage_accounts = [name for name in storage_accounts if name]
+                else:
+                    storage_accounts = []
+
+                nosql_cfg = resources.get("cosmosdb_account")
+                if not isinstance(nosql_cfg, dict):
+                    nosql_cfg = {}
+
+                # Return detached copies so this read-only view can never leak a
+                # live reference into `cached_config`; a caller mutating the
+                # result must not be able to corrupt in-memory cache state.
+                result[cloud] = {
+                    "resources_id": resources.get("resources_id"),
+                    "region": cloud_cfg.get("region"),
+                    "storage_buckets": copy.deepcopy(buckets),
+                    "allocated_ports": list(ports),
+                    "resource_group": resources.get("resource_group"),
+                    "storage_accounts": storage_accounts,
+                    "nosql": copy.deepcopy(nosql_cfg),
+                }
 
         return result
 
@@ -783,6 +1022,11 @@ class Cache(LoggingBase):
             RuntimeError: If cached application already exists for the deployment.
         """
         with self._lock:
+            # Fail before mutating the cache (creating directories, copying
+            # code) when a container deployment has no Docker client available.
+            if code_package.system_variant.is_container:
+                self._require_docker_client()
+
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
             os.makedirs(benchmark_dir, exist_ok=True)
 
@@ -829,7 +1073,7 @@ class Cache(LoggingBase):
                     "functions": {},
                 }
                 if code_package.system_variant.is_container:
-                    image = self.docker_client.images.get(code_package.container_uri)
+                    image = self._require_docker_client().images.get(code_package.container_uri)
                     language_config["image-uri"] = code_package.container_uri
                     language_config["image-id"] = image.id
 
@@ -891,6 +1135,11 @@ class Cache(LoggingBase):
             code_package (Benchmark): The benchmark code package to update.
         """
         with self._lock:
+            # Fail before mutating the cache (deleting/copying code) when a
+            # container deployment has no Docker client available.
+            if code_package.system_variant.is_container:
+                self._require_docker_client()
+
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
 
             # Check if cache directory for this deployment exist
@@ -952,7 +1201,7 @@ class Cache(LoggingBase):
                 cached_config["size"] = code_package.code_size
 
                 if code_package.system_variant.is_container:
-                    image = self.docker_client.images.get(code_package.container_uri)
+                    image = self._require_docker_client().images.get(code_package.container_uri)
                     cached_config["image-id"] = image.id
                     cached_config["image-uri"] = code_package.container_uri
 
