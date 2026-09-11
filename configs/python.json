@@ -56,17 +56,36 @@
       "region": "us-east-1",
       "lambda-role": "",
       "resources": {
+        "redis": {
+          "host": "",
+          "username": "",
+          "password": ""
+        },
         "use-function-url": true,
         "function-url-auth-type": "NONE"
       }
     },
     "azure": {
-      "region": "westeurope"
+      "region": "westeurope",
+      "resources": {
+        "redis": {
+          "host": "",
+          "username": "",
+          "password": ""
+        }
+      }
     },
     "gcp": {
       "region": "europe-west1",
       "project_name": "",
       "credentials": "",
+      "resources": {
+        "redis": {
+          "host": "",
+          "username": "",
+          "password": ""
+        }
+      },
       "configuration": {
         "function-gen1": {
           "min-instances": 0,
@@ -127,6 +146,17 @@
         "input_buckets": [],
         "output_buckets": [],
         "type": "minio"
+      }
+    },
+    "cloudflare": {
+      "region": "global",
+      "max_instances": 1,
+      "instance_type": "standard-4",
+      "sleep_after": "30m",
+      "placement": {
+        "worker": {},
+        "container": {},
+        "r2": {}
       }
     }
   }

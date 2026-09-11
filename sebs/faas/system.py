@@ -24,7 +24,7 @@ from sebs.experiments.config import SystemVariant
 from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
 from sebs.faas.config import Resources
-from sebs.faas.function import Function, Trigger, ExecutionResult
+from sebs.faas.function import Function, Trigger, ExecutionResult, Workflow
 from sebs.utils import LoggingBase
 from sebs.sebs_types import Language
 from .config import Config
@@ -179,6 +179,90 @@ class System(ABC, LoggingBase):
             Type[Function]: The Function class for this platform
         """
         pass
+
+    @staticmethod
+    def workflow_type() -> "Type[Workflow]":
+        """Get the platform-specific workflow class type."""
+        raise NotImplementedError("Workflows not supported on this platform")
+
+    def create_workflow(
+        self,
+        code_package: Benchmark,
+        workflow_name: str,
+        container_uri: str | None = None,
+    ) -> Workflow:
+        """Create a workflow deployment for platforms that support workflows."""
+        raise NotImplementedError("Workflows not supported on this platform")
+
+    def update_workflow(
+        self,
+        workflow: Workflow,
+        code_package: Benchmark,
+        container_uri: str | None = None,
+    ):
+        """Update an existing workflow deployment."""
+        raise NotImplementedError("Workflows not supported on this platform")
+
+    def refresh_workflow_configuration(self, workflow: Workflow, code_package: Benchmark) -> bool:
+        """Refresh runtime configuration for a cached workflow."""
+        return False
+
+    def get_workflow(
+        self, code_package: Benchmark, workflow_name: Optional[str] = None
+    ) -> Workflow:
+        """Build, create, update, or retrieve a workflow deployment."""
+        if not workflow_name:
+            workflow_name = self.default_function_name(code_package)
+
+        rebuilt, _, system_variant, container_uri = code_package.build(
+            self.package_code,
+            self.container_client,
+            self.finalize_container_build(),
+            is_workflow=True,
+        )
+
+        functions = code_package.functions
+        if not functions or workflow_name not in functions:
+            self.logging.info(
+                f"Creating new workflow! Reason: workflow {workflow_name} not found in cache."
+            )
+            workflow = self.create_workflow(code_package, workflow_name, container_uri)
+            self.cache_client.add_function(
+                deployment_name=self.name(),
+                language_name=code_package.language_name,
+                code_package=code_package,
+                function=workflow,
+            )
+            code_package.query_cache()
+            return workflow
+
+        cached_workflow = functions[workflow_name]
+        workflow = self.workflow_type().deserialize(cached_workflow)
+        self.cached_function(workflow)
+        self.logging.info(f"Using cached workflow {workflow_name}")
+
+        if workflow.code_package_hash != code_package.hash or rebuilt:
+            self.logging.info(
+                f"Cached workflow {workflow_name} with hash "
+                f"{workflow.code_package_hash} is not up to date with "
+                f"current build {code_package.hash}, updating!"
+            )
+            self.update_workflow(workflow, code_package, container_uri)
+            workflow.code_package_hash = code_package.hash
+            workflow.updated_code = True
+            self.cache_client.add_function(
+                deployment_name=self.name(),
+                language_name=code_package.language_name,
+                code_package=code_package,
+                function=workflow,
+            )
+            code_package.query_cache()
+        else:
+            if self.refresh_workflow_configuration(workflow, code_package):
+                self.cache_client.update_function(workflow)
+                code_package.query_cache()
+
+        return workflow
 
     def find_deployments(self) -> List[str]:
         """

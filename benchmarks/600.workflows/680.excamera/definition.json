@@ -1,0 +1,39 @@
+{
+    "root": "split",
+    "states": {
+        "split": {
+            "type": "task",
+            "func_name": "split",
+            "next": "encode-state"
+        },
+        "encode-state": {
+            "type": "map",
+            "root": "encode",
+            "array": "segments",
+            "next": "reencode-state",
+            "states": {
+              "encode": {
+                "type": "task",
+                "func_name": "encode"
+              }
+            }
+        },
+        "reencode-state": {
+            "type": "map",
+            "root": "reencode",
+            "array": "segments",
+            "next": "rebase-state",
+            "states": {
+              "reencode": {
+                "type": "task",
+                "func_name": "reencode"
+              }
+            }
+        },
+        "rebase-state": {
+            "type": "loop",
+            "func_name": "rebase",
+            "array": "segments"
+        }
+    }
+}

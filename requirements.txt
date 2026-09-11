@@ -21,5 +21,7 @@ pycurl>=7.43
 click>=7.1.2
 rich
 patch-ng
+redis
+pyaes==1.6.1
 
 interrogate==1.7.0

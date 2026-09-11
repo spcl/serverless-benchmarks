@@ -39,9 +39,13 @@ dependencies = [
     "pycurl>=7.43",
     "click>=7.1.2",
     "rich",
+    "patch-ng",
+    "tomli ; python_version < '3.11'",
+    "tomli_w",
 
     # Storage & Local
     "minio==5.0.10",
+    "redis",
 
     # AWS
     "boto3",
@@ -61,11 +65,14 @@ dependencies = [
     "google-cloud-logging>=2.0.0",
     "google-cloud-datastore",
     "google-cloud-build>=3.35.0",
+    "google-cloud-workflows",
 
     # benchmark verification - process image
     "Pillow",
-    # benchmrak verification - video processing
-    "imageio-ffmpeg>=0.4.9"
+    # benchmark verification - video processing
+    "imageio-ffmpeg>=0.4.9",
+    # benchmark verification - auth workflow
+    "pyaes==1.6.1"
 ]
 
 # True Optional dependencies (Only installed if explicitly requested)
@@ -106,6 +113,7 @@ packages = [
     "sebs.aws",
     "sebs.azure",
     "sebs.gcp",
+    "sebs.cloudflare",
     "sebs.local",
     "sebs.openwhisk",
     "sebs.faas",
@@ -149,7 +157,9 @@ sebs = ["py.typed"]
 "sebs.dockerfiles" = [
     "**/*",
 ]
+"sebs.cloudflare" = [
+    "templates/*.toml",
+]
 "sebs.tools" = [
     "**/*.py",
 ]
-

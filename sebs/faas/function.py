@@ -52,14 +52,16 @@ class ExecutionTimes:
     client_end: datetime
     benchmark: int
     initialization: int
-    http_startup: int
-    http_first_byte_return: int
+    http_startup: float
+    http_first_byte_return: float
 
     def __init__(self):
         """Initialize with default values."""
         self.client = 0
         self.initialization = 0
         self.benchmark = 0
+        self.http_startup = 0.0
+        self.http_first_byte_return = 0.0
 
     @staticmethod
     def deserialize(cached_obj: dict) -> "ExecutionTimes":
@@ -547,6 +549,7 @@ class Variant:
 
         DEFAULT = "default"
         PYPY = "pypy"
+        CLOUDFLARE = "cloudflare"
 
     class NodeJS(Enum):
         """Node.js runtime variants."""
@@ -554,6 +557,7 @@ class Variant:
         DEFAULT = "default"
         BUN = "bun"
         LLRT = "llrt"
+        CLOUDFLARE = "cloudflare"
 
     class Java(Enum):
         """Java runtime variants.
@@ -912,4 +916,14 @@ class Function(LoggingBase):
         Returns:
             Function: New instance with the deserialized data
         """
+        pass
+
+
+class Workflow(Function):
+    """Base class for provider workflow deployments."""
+
+    @staticmethod
+    @abstractmethod
+    def deserialize(cached_config: dict) -> "Workflow":
+        """Deserialize a cached workflow deployment."""
         pass

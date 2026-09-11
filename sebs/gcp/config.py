@@ -510,6 +510,28 @@ class GCPResources(Resources):
         """Initialize GCP resources manager."""
         super().__init__(name="gcp")
         self._container_repository: Optional[str] = None
+        self._redis: Optional[Dict] = None
+
+    @property
+    def redis_host(self) -> Optional[str]:
+        """Get Redis host for workflow measurements."""
+        if self._redis:
+            return self._redis.get("host")
+        return None
+
+    @property
+    def redis_username(self) -> Optional[str]:
+        """Get Redis username for workflow measurements."""
+        if self._redis:
+            return self._redis.get("username")
+        return None
+
+    @property
+    def redis_password(self) -> Optional[str]:
+        """Get Redis password for workflow measurements."""
+        if self._redis:
+            return self._redis.get("password")
+        return None
 
     @staticmethod
     def initialize(res: Resources, dct: Dict) -> "GCPResources":
@@ -524,6 +546,7 @@ class GCPResources(Resources):
         """
         ret = cast(GCPResources, res)
         super(GCPResources, GCPResources).initialize(ret, dct)
+        ret._redis = dct.get("redis")
 
         return ret
 
@@ -559,6 +582,8 @@ class GCPResources(Resources):
             GCPResources.initialize(ret, cached_config["resources"])
             ret.logging_handlers = handlers
             ret.logging.info("Using cached resources for GCP")
+            if "resources" in config and "redis" in config["resources"]:
+                ret._redis = config["resources"]["redis"]
         else:
 
             if "resources" in config:
@@ -715,6 +740,21 @@ class GCPConfig(Config):
             GCP resource allocation settings
         """
         return self._resources
+
+    @property
+    def redis_host(self) -> Optional[str]:
+        """Get Redis host for workflow measurements."""
+        return self._resources.redis_host
+
+    @property
+    def redis_username(self) -> Optional[str]:
+        """Get Redis username for workflow measurements."""
+        return self._resources.redis_username
+
+    @property
+    def redis_password(self) -> Optional[str]:
+        """Get Redis password for workflow measurements."""
+        return self._resources.redis_password
 
     @property
     def deployment_config(self) -> GCPConfiguration:
