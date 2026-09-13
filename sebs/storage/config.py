@@ -37,8 +37,14 @@ class PersistentStorageConfig(ABC):
         pass
 
     @abstractmethod
-    def envs(self) -> Dict[str, str]:
+    def envs(self, external: bool = True) -> Dict[str, str]:
         """Generate environment variables for the storage configuration.
+
+        Args:
+            external: Advertise the externally reachable address. Functions running
+                on the same Docker bridge as the storage (local deployment) must use
+                the internal address instead, as Docker does not route traffic from
+                the bridge to ports published on the host.
 
         Returns:
             Dict[str, str]: Environment variables to be set in benchmark runtime
@@ -55,7 +61,12 @@ class MinioConfig(PersistentStorageConfig):
     parameters for deploying and connecting to a MinIO instance.
 
     Attributes:
-        address: Network address where MinIO is accessible (auto-detected)
+        address: Network address used by SeBS itself to reach MinIO (auto-detected).
+            On Linux this is the container's bridge IP and internal port.
+        external_address: Network address advertised to benchmark functions,
+            e.g., the host's IP and the mapped port. Functions running outside
+            the Docker bridge network (OpenWhisk, Kubernetes) need this address.
+            Falls back to `address` when empty.
         mapped_port: Host port mapped to MinIO's internal port 9000
         access_key: Access key for MinIO authentication (auto-generated)
         secret_key: Secret key for MinIO authentication (auto-generated)
@@ -68,6 +79,7 @@ class MinioConfig(PersistentStorageConfig):
     """
 
     address: str = ""
+    external_address: str = ""
     mapped_port: int = -1
     access_key: str = ""
     secret_key: str = ""
@@ -124,17 +136,21 @@ class MinioConfig(PersistentStorageConfig):
         """
         return self.__dict__
 
-    def envs(self) -> Dict[str, str]:
+    def envs(self, external: bool = True) -> Dict[str, str]:
         """Generate environment variables for MinIO configuration.
 
         Creates environment variables that can be used by benchmark functions
         to connect to the MinIO storage instance.
 
+        Args:
+            external: Advertise the externally reachable address instead of the
+                internal one; see PersistentStorageConfig.envs.
+
         Returns:
             Dict[str, str]: Environment variables for MinIO connection
         """
         return {
-            "MINIO_ADDRESS": self.address,
+            "MINIO_ADDRESS": (self.external_address or self.address) if external else self.address,
             "MINIO_ACCESS_KEY": self.access_key,
             "MINIO_SECRET_KEY": self.secret_key,
         }
@@ -174,7 +190,10 @@ class ScyllaDBConfig(NoSQLStorageConfig):
     the necessary parameters for deploying and connecting to a ScyllaDB instance.
 
     Attributes:
-        address: Network address where ScyllaDB is accessible (auto-detected)
+        address: Network address used by SeBS itself to reach ScyllaDB (auto-detected).
+            On Linux this is the container's bridge IP and the Alternator port.
+        external_address: Network address advertised to benchmark functions,
+            e.g., the host's IP and the mapped port. Falls back to `address` when empty.
         mapped_port: Host port mapped to ScyllaDB's Alternator port
         alternator_port: Internal port for DynamoDB-compatible API (default: 8000)
         access_key: Access key for DynamoDB API (placeholder value)
@@ -188,6 +207,7 @@ class ScyllaDBConfig(NoSQLStorageConfig):
     """
 
     address: str = ""
+    external_address: str = ""
     mapped_port: int = -1
     alternator_port: int = 8000
     access_key: str = "None"
