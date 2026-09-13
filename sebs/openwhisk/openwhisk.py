@@ -147,8 +147,11 @@ class OpenWhisk(System):
         This method stops storage services if configured and optionally
         removes the OpenWhisk cluster based on configuration settings.
         """
-        if hasattr(self, "storage") and self.config.shutdownStorage:
-            self.storage.stop()
+        if self.config.shutdownStorage:
+            if self.config.resources.storage_config:
+                cast(Minio, self.system_resources.get_storage()).stop()
+            if self.config.resources.nosql_storage_config:
+                cast(ScyllaDB, self.system_resources.get_nosql_storage()).stop()
         if self.config.removeCluster:
             from tools.openwhisk_preparation import delete_cluster  # type: ignore
 

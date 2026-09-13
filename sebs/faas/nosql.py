@@ -128,12 +128,17 @@ class NoSQLStorage(ABC, LoggingBase):
         """
         pass
 
-    def envs(self) -> dict:
+    def envs(self, external: bool = True) -> dict:
         """
         Return a dictionary of environment variables that are required by functions
         to access this NoSQL storage (e.g., connection strings, table names).
         Default implementation returns an empty dictionary. Subclasses should override
         if they need to expose environment variables.
+
+        Args:
+            external: For self-hosted storage, advertise the externally reachable
+                address. Functions running on the same Docker bridge as the storage
+                (local deployment) must use the internal address instead.
 
         Returns:
             dict: Dictionary of environment variables

@@ -139,7 +139,7 @@ class SelfHostedResources(Resources):
             cached_config is not None
             and "resources" in cached_config
             and "storage" in cached_config["resources"]
-            and "object" in cached_config["resources"]["storage"]
+            and storage_type in cached_config["resources"]["storage"]
         ):
             storage_impl = cached_config["resources"]["storage"][storage_type]["type"]
             storage_config = cached_config["resources"]["storage"][storage_type][storage_impl]
@@ -244,7 +244,9 @@ class SelfHostedSystemResources(SystemResources):
             if storage_config is None:
                 self.logging.error(
                     f"The {self._name} deployment is missing the "
-                    "configuration of pre-allocated storage!"
+                    "configuration of pre-allocated storage! Start the storage with "
+                    "'sebs storage start object configs/storage.json --output-json storage.json' "
+                    "and pass the result with '--storage-configuration storage.json'."
                 )
                 raise RuntimeError(f"Cannot run {self._name} deployment without any object storage")
 
@@ -285,7 +287,9 @@ class SelfHostedSystemResources(SystemResources):
             if storage_config is None:
                 self.logging.error(
                     f"The {self._name} deployment is missing the configuration "
-                    "of pre-allocated NoSQL storage!"
+                    "of pre-allocated NoSQL storage! Start the storage with "
+                    "'sebs storage start nosql configs/storage.json --output-json storage.json' "
+                    "and pass the result with '--storage-configuration storage.json'."
                 )
                 raise RuntimeError("Cannot allocate NoSQL storage!")
 

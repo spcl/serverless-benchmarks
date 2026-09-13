@@ -19,7 +19,9 @@ import uuid
 import click
 import datetime
 import platform
+import socket
 import threading
+import time
 import re
 
 from pathlib import Path
@@ -191,7 +193,7 @@ def append_nested_dict(cfg: dict, keys: List[str], value: Optional[dict]) -> Non
         # make sure parent keys exist
         for key in keys[:-1]:
             cfg = cfg.setdefault(key, {})
-        cfg[keys[-1]] = {**cfg[keys[-1]], **value}
+        cfg[keys[-1]] = {**cfg.get(keys[-1], {}), **value}
 
 
 def find(name: str, path: str) -> Optional[str]:
@@ -706,6 +708,75 @@ def is_linux() -> bool:
         bool: True if native Linux, False otherwise
     """
     return platform.system() == "Linux" and "microsoft" not in platform.release().lower()
+
+
+def detect_external_address() -> str:
+    """
+    Detect the IP address of the host on its default-route network interface.
+
+    No packet is sent: connecting a UDP socket only selects the outgoing interface.
+
+    Returns:
+        str: IPv4 address of the default-route interface, or an empty string
+             if the detection fails, e.g., on a host without a default route.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            return sock.getsockname()[0]
+    except OSError:
+        return ""
+
+
+def resolve_external_address(address: str, port: int) -> str:
+    """
+    Determine the address advertised to benchmark functions for self-hosted storage.
+
+    Functions running outside the Docker bridge network, e.g., in a Kubernetes
+    cluster, reach the storage through the host's IP and the port mapped on the host.
+
+    Args:
+        address: User-provided IP or hostname, optionally with a port. When empty,
+            the IP of the host's default-route interface is used.
+        port: Port mapped on the host, appended when the address has no port.
+
+    Returns:
+        str: Address in the form "host:port", or an empty string if no address was
+             given and the detection failed.
+    """
+    host = address if address else detect_external_address()
+    if not host:
+        return ""
+    has_port = "]:" in host if host.startswith("[") else ":" in host
+    return host if has_port else f"{host}:{port}"
+
+
+def probe_http(url: str, timeout_seconds: int) -> Optional[str]:
+    """
+    Repeatedly query an HTTP endpoint until it answers with status 200.
+
+    Args:
+        url: Endpoint to query
+        timeout_seconds: How long to keep retrying, e.g., while a server starts up
+
+    Returns:
+        Optional[str]: None on success, otherwise a description of the last failure
+    """
+    import urllib3
+
+    http = urllib3.PoolManager(timeout=urllib3.util.Timeout(connect=2, read=2))
+    last_error = "timeout"
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            resp = http.request("GET", url, retries=False)
+            if resp.status == 200:
+                return None
+            last_error = f"status {resp.status}"
+        except Exception as e:
+            last_error = str(e)
+        time.sleep(0.5)
+    return last_error
 
 
 def catch_interrupt() -> None:

@@ -73,7 +73,7 @@ if args.local:
     print("Install Python dependencies for local")
     execute(". {}/bin/activate && pip3 install -r requirements.local.txt".format(env_dir))
     print("Initialize Docker image for local storage.")
-    execute("docker pull minio/minio:latest")
+    execute("docker pull quay.io/minio/minio:latest")
 
 # One of the installed dependencies causes a downgrade, which in turns breaks static typing.
 print("Update typing-extensions (resolving bug with mypy)")

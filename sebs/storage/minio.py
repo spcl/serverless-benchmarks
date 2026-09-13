@@ -21,7 +21,7 @@ from sebs.cache import Cache
 from sebs.faas.config import Resources
 from sebs.faas.storage import PersistentStorage
 from sebs.storage.config import MinioConfig
-from sebs.utils import is_linux
+from sebs.utils import is_linux, probe_http, resolve_external_address
 
 
 class Minio(PersistentStorage):
@@ -57,6 +57,9 @@ class Minio(PersistentStorage):
 
     # The region setting is required by S3 API but not used for local MinIO
     MINIO_REGION = "us-east-1"
+
+    # Docker Hub no longer serves minio/minio; the same images are published on quay.io
+    MINIO_IMAGE = "quay.io/minio/minio"
 
     def __init__(
         self,
@@ -164,7 +167,7 @@ class Minio(PersistentStorage):
             self.logging.info(f"Starting storage Minio on port {self._cfg.mapped_port}")
             # Run the MinIO container
             self._storage_container = self._docker_client.containers.run(
-                f"minio/minio:{self._cfg.version}",
+                f"{self.MINIO_IMAGE}:{self._cfg.version}",
                 command="server /data",
                 network_mode="bridge",
                 user=os.getuid(),
@@ -195,8 +198,14 @@ class Minio(PersistentStorage):
 
         Determines the appropriate address to connect to the MinIO container
         based on the host platform. For Linux, it uses the container's
-        bridge IP address, hile for Windows, macOS, or WSL it uses
+        bridge IP address, while for Windows, macOS, or WSL it uses
         localhost with the mapped port.
+
+        Additionally, it determines the address advertised to benchmark
+        functions: the user-provided external address, or the host's
+        default-route IP combined with the mapped port. This address is
+        reachable from outside the Docker bridge network, e.g., from
+        Kubernetes pods.
 
         Raises:
             RuntimeError: If the MinIO container is not available or if the IP address
@@ -236,9 +245,49 @@ class Minio(PersistentStorage):
                     f"{self._cfg.instance_id}"
                 )
             self.logging.info("Starting minio instance at {}".format(self._cfg.address))
+            self.configure_external_address()
 
         # Create the connection using the configured address
         self.connection = self.get_connection()
+
+    def configure_external_address(self) -> None:
+        """Determine the address advertised to benchmark functions.
+
+        Uses the user-provided external address, or the host's default-route IP,
+        combined with the mapped port.
+        """
+        self._cfg.external_address = resolve_external_address(
+            self._cfg.external_address, self._cfg.mapped_port
+        )
+        if self._cfg.external_address:
+            self.logging.info(f"Minio advertised to functions at {self._cfg.external_address}")
+        else:
+            self.logging.warning(
+                "Could not detect the host's IP address. Functions running outside of the "
+                "Docker bridge network will not reach Minio; provide --external-address."
+            )
+
+    def check_external_address(self) -> bool:
+        """Verify that Minio is reachable through the address advertised to functions.
+
+        Failures are reported as warnings, since the host running SeBS is not
+        always able to reach the same network as benchmark functions.
+
+        Returns:
+            bool: True if the probe succeeded
+        """
+        if not self._cfg.external_address:
+            return False
+        url = f"http://{self._cfg.external_address}/minio/health/live"
+        error = probe_http(url, timeout_seconds=15)
+        if error is None:
+            self.logging.info(f"Minio is reachable at {url}")
+            return True
+        self.logging.warning(
+            f"Minio is not reachable at {url}: {error}. Benchmark functions might not be "
+            f"able to reach the storage. Verify the address with: curl -i {url}"
+        )
+        return False
 
     def stop(self) -> None:
         """
