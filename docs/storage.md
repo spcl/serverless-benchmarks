@@ -7,11 +7,19 @@ SeBS will automatically allocate resources and configure them.
 With open-source platforms like OpenWhisk or local deployment, SeBS needs a self-hosted storage instance.
 
 In this document, we explain how to deploy and configure storage systems for benchmarking with SeBS.
-We use [Minio](https://github.com/minio/minio), a high-performance and S3-compatible object storage, and [ScyllaDB](https://github.com/scylladb/scylladb)
-with an adapter that provides a DynamoDB-compatible interface.
+For object storage, we support two S3-compatible systems: [Minio](https://github.com/minio/minio) and [RustFS](https://github.com/rustfs/rustfs).
+For NoSQL storage, we use [ScyllaDB](https://github.com/scylladb/scylladb) with an adapter that provides a DynamoDB-compatible interface.
 The storage instance is deployed as a Docker container and can be retained across multiple experiments.
 While we provide a default configuration that automatically deploys each storage instance,
 you can deploy them on any cloud resource and adapt the configuration to fit your needs.
+
+## Object Storage Backends
+
+Benchmark functions access object storage through the S3 API, so both backends are interchangeable and no benchmark code changes when switching between them.
+Select the backend with the `type` field of the object storage configuration; the default configuration files are `configs/storage.json` for Minio and `configs/storage-rustfs.json` for RustFS.
+
+* **Minio** is the established default. Its community edition is no longer maintained and its images were removed from Docker Hub; SeBS pulls the pinned version from `quay.io/minio/minio`.
+* **RustFS** is an actively developed, Apache-2.0 licensed alternative. Its data is kept in a named Docker volume, since the container runs as a fixed unprivileged user. At the time of writing, RustFS has not published a stable release yet, so we pin a release candidate.
 
 ## Starting Storage Services
 
@@ -135,4 +143,4 @@ sebs storage stop all storage.json
 Each storage service uses a Docker volume to persist data. The name of the volume is included in the storage configuration file under the `data_volume` field.
 
 In Minio, the volume is mapped to a physical location on the filesystem, and the directory can be removed once the experiments are finished.
-For ScyllaDB, we use named Docker volumes that can be removed using Docker commands: `docker volume rm scylladb-volume`.
+For RustFS and ScyllaDB, we use named Docker volumes that can be removed using Docker commands: `docker volume rm rustfs-volume scylladb-volume`.

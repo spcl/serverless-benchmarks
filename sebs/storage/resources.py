@@ -10,7 +10,7 @@ Key Classes:
 """
 
 import docker
-from typing import cast, Dict, Optional, Tuple, Any
+from typing import cast, Dict, Optional, Tuple, Type, Any
 
 from sebs.cache import Cache
 from sebs.faas.config import Config, Resources
@@ -18,14 +18,22 @@ from sebs.faas.resources import SystemResources
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.nosql import NoSQLStorage
 from sebs.storage.minio import Minio
+from sebs.storage.rustfs import RustFS
+from sebs.storage.s3compatible import S3CompatibleStorage
 from sebs.storage.scylladb import ScyllaDB
 from sebs.storage.config import (
     NoSQLStorageConfig,
     PersistentStorageConfig,
+    S3CompatibleConfig,
     ScyllaDBConfig,
-    MinioConfig,
 )
 from sebs.utils import LoggingHandlers
+
+# Self-hosted object storage implementations, keyed by storage type
+OBJECT_STORAGE_IMPLEMENTATIONS: Dict[str, Type[S3CompatibleStorage]] = {
+    Minio.deployment_name(): Minio,
+    RustFS.deployment_name(): RustFS,
+}
 
 
 class SelfHostedResources(Resources):
@@ -98,7 +106,7 @@ class SelfHostedResources(Resources):
         """
         super().update_cache(cache)
         if self._object_storage is not None:
-            cast(MinioConfig, self._object_storage).update_cache(
+            cast(S3CompatibleConfig, self._object_storage).update_cache(
                 [self._name, "resources", "storage"], cache
             )
         if self._nosql_storage is not None:
@@ -168,9 +176,10 @@ class SelfHostedResources(Resources):
             config, cached_config, "object"
         )
 
-        if obj_storage_impl == "minio":
-            ret._object_storage = MinioConfig.deserialize(obj_storage_cfg)
-            ret.logging.info("Deserializing access data to Minio storage")
+        if obj_storage_impl in OBJECT_STORAGE_IMPLEMENTATIONS:
+            config_type = OBJECT_STORAGE_IMPLEMENTATIONS[obj_storage_impl].CONFIG_TYPE
+            ret._object_storage = config_type.deserialize(obj_storage_cfg)
+            ret.logging.info(f"Deserializing access data to {obj_storage_impl} storage")
         elif obj_storage_impl != "":
             ret.logging.warning(f"Unknown object storage type: {obj_storage_impl}")
         else:
@@ -226,7 +235,7 @@ class SelfHostedSystemResources(SystemResources):
     def get_storage(self, replace_existing: Optional[bool] = None) -> PersistentStorage:
         """Get or create a persistent storage instance.
 
-        Creates a MinIO storage instance if one doesn't exist, or returns the
+        Creates a storage instance if one doesn't exist, or returns the
         existing instance. The storage is deserialized from a serialized
         config of an existing storage deployment.
 
@@ -234,7 +243,7 @@ class SelfHostedSystemResources(SystemResources):
             replace_existing: Whether to replace existing buckets (optional)
 
         Returns:
-            PersistentStorage: MinIO storage instance
+            PersistentStorage: S3-compatible storage instance (Minio, RustFS)
 
         Raises:
             RuntimeError: If storage configuration is missing or unsupported
@@ -250,8 +259,9 @@ class SelfHostedSystemResources(SystemResources):
                 )
                 raise RuntimeError(f"Cannot run {self._name} deployment without any object storage")
 
-            if isinstance(storage_config, MinioConfig):
-                self._storage = Minio.deserialize(
+            if isinstance(storage_config, S3CompatibleConfig):
+                impl = OBJECT_STORAGE_IMPLEMENTATIONS[storage_config.type]
+                self._storage = impl.deserialize(
                     storage_config,
                     self._cache_client,
                     self._config.resources,

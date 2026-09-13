@@ -53,12 +53,14 @@ class Storage(str, Enum):
     - AZURE_BLOB_STORAGE: Microsoft Azure Blob Storage
     - GCP_STORAGE: Google Cloud Storage
     - MINIO: MinIO object storage (local or self-hosted)
+    - RUSTFS: RustFS object storage (local or self-hosted)
     """
 
     AWS_S3 = "aws-s3"
     AZURE_BLOB_STORAGE = "azure-blob-storage"
     GCP_STORAGE = "google-cloud-storage"
     MINIO = "minio"
+    RUSTFS = "rustfs"
 
 
 class Language(str, Enum):
