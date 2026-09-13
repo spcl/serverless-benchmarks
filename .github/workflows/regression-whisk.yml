@@ -132,9 +132,7 @@ jobs:
       - name: Configure OpenWhisk
         run: |
           WORKER_IP=$(kubectl get node kind-worker -o jsonpath='{.status.addresses[0].address}')
-          HOST_IP=$(hostname -I | awk '{print $1}')
           echo "WORKER_IP=${WORKER_IP}" >> $GITHUB_ENV
-          echo "HOST_IP=${HOST_IP}" >> $GITHUB_ENV
 
           git clone --depth 1 https://github.com/apache/openwhisk-deploy-kube.git /tmp/ow
 
@@ -160,24 +158,15 @@ jobs:
       - name: Create OpenWhisk regression config
         run: |
           jq \
-            --arg host_ip "${HOST_IP}" \
-            '
-            .object.minio.address = ($host_ip + ":" + (.object.minio.mapped_port | tostring))
-            | .nosql.scylladb.address = ($host_ip + ":" + (.nosql.scylladb.mapped_port | tostring))
-            ' storage.json > storage-openwhisk.json
-
-          jq \
             --arg language "${LANGUAGE}" \
             --arg version "${LANGUAGE_VERSION}" \
             --arg architecture "${ARCHITECTURE}" \
             --arg registry "localhost:${REGISTRY_PORT}" \
-            --slurpfile storage storage-openwhisk.json \
             '
             .experiments.architecture = $architecture
             | .experiments.runtime.language = $language
             | .experiments.runtime.version = $version
             | .deployment.openwhisk.docker_registry.registry = $registry
-            | .deployment.openwhisk.storage = $storage[0]
             ' configs/openwhisk.json > openwhisk-regression.json
 
       - name: Run OpenWhisk regression
@@ -188,6 +177,7 @@ jobs:
           set -o pipefail
           uv run sebs benchmark regression test \
             --config openwhisk-regression.json \
+            --storage-configuration storage.json \
             --deployment openwhisk \
             --language ${LANGUAGE} \
             --language-version ${LANGUAGE_VERSION} \
@@ -267,7 +257,6 @@ jobs:
             diagnostics/
             regression-cache/
             storage.json
-            storage-openwhisk.json
             openwhisk-regression.json
             regression_*.json
           if-no-files-found: ignore
