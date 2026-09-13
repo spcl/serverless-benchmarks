@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import time
 from enum import Enum
 from typing import TYPE_CHECKING, cast, Dict, List, Optional, Tuple
@@ -514,16 +515,10 @@ class AWSResources(Resources):
                 )
                 time.sleep(10)
 
-            arn_parts = self._lambda_role.split(":", 5)
-            if (
-                len(arn_parts) != 6
-                or arn_parts[0] != "arn"
-                or arn_parts[2] != "iam"
-                or not arn_parts[4]
-            ):
+            arn_match = re.fullmatch(r"arn:([^:]+):iam::([^:]+):role/.+", self._lambda_role)
+            if arn_match is None:
                 raise RuntimeError(f"Invalid Lambda execution role ARN: {self._lambda_role}")
-            partition = arn_parts[1]
-            account_id = arn_parts[4]
+            partition, account_id = arn_match.groups()
 
             for policy in (
                 "arn:aws:iam::aws:policy/AmazonS3FullAccess",
