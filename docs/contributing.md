@@ -28,6 +28,21 @@ pip install .[dev]
 uv sync --extra dev
 ```
 
+### AWS Regression Checks
+
+Run the focused offline checks from the repository root:
+
+```bash
+python -m unittest discover -s tests -p test_aws_matrix_fixes.py -v
+```
+
+These tests cover report parsing, missing default-role creation and DynamoDB policy
+attachment, preservation of configured/cached roles without IAM modification,
+benchmark initialization with AWS deployment variants, and both valid BFS root-parent
+sentinels. AWS calls and benchmark-data setup are mocked. The tests do not validate
+cloud deployment or dependency-wheel compatibility; those require separate builds
+and benchmark runs. Requirements files for different runtimes need not be identical.
+
 ## Docker Images
 
 SeBS uses Docker images for building functions and running benchmarks:

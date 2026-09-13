@@ -5,11 +5,12 @@ import json
 import runpy
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from sebs.aws.aws import AWS
 from sebs.aws.config import AWSResources
-from sebs.benchmark import BenchmarkConfig
+from sebs.benchmark import Benchmark
+from sebs.experiments.config import Config as ExperimentConfig
 from sebs.faas.function import ExecutionResult
 from sebs.utils import LoggingHandlers
 
@@ -18,7 +19,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class AWSMatrixFixesTest(unittest.TestCase):
+    """Cover AWS matrix failures without building images or contacting AWS."""
+
     def test_aws_report_parser_tolerates_application_log_fields(self):
+        """Extract provider metrics despite interleaved application warnings."""
         request_id = "1ebf703c-b814-4eb8-b26e-788f53d5e328"
         log = (
             f"START RequestId: {request_id} Version: $LATEST\n"
@@ -40,17 +44,28 @@ class AWSMatrixFixesTest(unittest.TestCase):
         self.assertEqual(result.billing.memory, 128)
 
     def test_new_default_lambda_role_receives_dynamodb_access(self):
+        """Create a missing default role and attach its scoped DynamoDB policy once."""
+
+        class NoSuchEntityException(Exception):
+            """Stand in for the missing-role exception from the IAM client."""
+
+            pass
+
         resources = AWSResources()
         resources.region = "us-east-1"
         iam_client = Mock()
-        iam_client.get_role.return_value = {
+        iam_client.exceptions.NoSuchEntityException = NoSuchEntityException
+        iam_client.get_role.side_effect = NoSuchEntityException()
+        iam_client.create_role.return_value = {
             "Role": {"Arn": "arn:aws:iam::123456789012:role/sebs-lambda-role"}
         }
         session = Mock()
         session.client.return_value = iam_client
 
-        resources.lambda_role(session)
+        with patch("sebs.aws.config.time.sleep"):
+            resources.lambda_role(session)
 
+        iam_client.create_role.assert_called_once()
         self.assertEqual(
             iam_client.put_role_policy.call_args.kwargs["RoleName"], "sebs-lambda-role"
         )
@@ -72,6 +87,7 @@ class AWSMatrixFixesTest(unittest.TestCase):
         self.assertEqual(iam_client.put_role_policy.call_count, 1)
 
     def test_configured_or_cached_lambda_role_is_not_modified(self):
+        """Respect supplied roles without requiring IAM policy-management permissions."""
         role_arn = "arn:aws:iam::123456789012:role/sebs-lambda-role"
         cases = (
             ({"lambda-role": role_arn, "resources": {}}, None),
@@ -87,15 +103,51 @@ class AWSMatrixFixesTest(unittest.TestCase):
                 self.assertEqual(resources.lambda_role(session), role_arn)
                 session.client.assert_not_called()
 
-    def test_411_is_container_only_on_aws(self):
-        with (ROOT / "benchmarks/400.inference/411.image-recognition/config.json").open() as f:
-            config = BenchmarkConfig.deserialize(json.load(f))
+    def test_411_system_variant_is_validated_during_initialization(self):
+        """Reject AWS package deployment and accept container deployment at initialization."""
+        experiment = {
+            "update_code": False,
+            "update_storage": False,
+            "download_results": False,
+            "runtime": {"language": "python", "version": "3.10"},
+            "architecture": "x64",
+        }
+        cache = Mock()
+        cache.get_container.return_value = None
+        cache.get_functions.return_value = {}
 
-        self.assertFalse(config.supports_system_variant("aws", "package"))
-        self.assertTrue(config.supports_system_variant("aws", "container"))
-        self.assertTrue(config.supports_system_variant("local", "package"))
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "does not support system variant package on aws; use container",
+        ):
+            Benchmark(
+                "411.image-recognition",
+                "aws",
+                ExperimentConfig.deserialize({**experiment, "system_variant": "package"}),
+                Mock(),
+                str(ROOT),
+                cache,
+                Mock(),
+            )
+
+        with (
+            patch("sebs.benchmark.ensure_benchmarks_data"),
+            patch("sebs.benchmark.load_benchmark_input"),
+        ):
+            benchmark = Benchmark(
+                "411.image-recognition",
+                "aws",
+                ExperimentConfig.deserialize({**experiment, "system_variant": "container"}),
+                Mock(),
+                str(ROOT),
+                cache,
+                Mock(),
+            )
+
+        self.assertEqual(benchmark.system_variant.value, "container")
 
     def test_igraph_root_parent_conventions_validate_equally(self):
+        """Accept both valid BFS root-parent sentinels while rejecting invalid output."""
         module = runpy.run_path(str(ROOT / "benchmarks/500.scientific/503.graph-bfs/input.py"))
         validate_output = module["validate_output"]
         result = [list(range(10)), [0, 1, 10], [0] * 10]
@@ -103,17 +155,14 @@ class AWSMatrixFixesTest(unittest.TestCase):
         self.assertIsNone(
             validate_output(None, {"size": 10, "seed": 42}, {"result": result}, "python")
         )
+        result[2][0] = -1
+        self.assertIsNone(
+            validate_output(None, {"size": 10, "seed": 42}, {"result": result}, "python")
+        )
         result[2][0] = 7
         self.assertIn(
             "checksum mismatch",
             validate_output(None, {"size": 10, "seed": 42}, {"result": result}, "python"),
-        )
-
-    def test_python_310_uses_the_wheel_compatible_dna_pins(self):
-        requirements = ROOT / "benchmarks/500.scientific/504.dna-visualisation/python"
-        self.assertEqual(
-            (requirements / "requirements.txt.3.10").read_text(),
-            (requirements / "requirements.txt.3.11").read_text(),
         )
 
 
