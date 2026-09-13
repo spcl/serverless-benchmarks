@@ -11,14 +11,16 @@ rapidjson::Document function(const rapidjson::Value& json)
 {
   int sleep_time = json["sleep"].GetInt();
 
+  auto start = std::chrono::steady_clock::now();
   std::chrono::seconds timespan(sleep_time);
   std::this_thread::sleep_for(timespan);
+  double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 
   rapidjson::Document val;
   val.SetObject();
   val.AddMember(
     "result",
-    rapidjson::Value(sleep_time),
+    rapidjson::Value(elapsed),
     val.GetAllocator()
   );
   return val;

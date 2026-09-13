@@ -8,13 +8,15 @@ public class Function {
 
     public Map<String, Object> handler(Map<String, Object> event) {
         double sleepSeconds = parseSeconds(event.get("sleep"));
+        long start = System.nanoTime();
         try {
             Thread.sleep((long) (sleepSeconds * 1000));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        double elapsed = (System.nanoTime() - start) / 1e9;
         Map<String, Object> result = new HashMap<>();
-        result.put("result", sleepSeconds);
+        result.put("result", elapsed);
         return result;
     }
 

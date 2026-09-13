@@ -1,0 +1,9 @@
+# Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+pillow==10.3.0
+# torch 2.0.0 has no cp312 wheel; 2.2.0 is the first release with Python 3.12 support
+https://download.pytorch.org/whl/cpu/torch-2.2.0%2Bcpu-cp312-cp312-linux_x86_64.whl
+# PyPI wheel of torchvision 0.17 does not work against non-CUDA torch 2.2.0; use the CPU wheel from PyTorch instead
+# https://github.com/pytorch/pytorch/issues/122494
+https://download.pytorch.org/whl/cpu/torchvision-0.17.0%2Bcpu-cp312-cp312-linux_x86_64.whl
+# prevent installing numpy 2.0
+numpy==1.26.4

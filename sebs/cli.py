@@ -170,7 +170,11 @@ def parse_common_params(
         (configuration object, output directory, logging filename, sebs client, deployment client)
     """
     global sebs_client, deployment_client
-    config_obj = json.load(open(config, "r"))
+    try:
+        config_obj = json.load(open(config, "r"))
+    except FileNotFoundError:
+        raise RuntimeError(f"Configuration file {config} not found.") from None
+
     os.makedirs(output_dir, exist_ok=True)
     logging_filename = os.path.abspath(os.path.join(output_dir, output_file))
 

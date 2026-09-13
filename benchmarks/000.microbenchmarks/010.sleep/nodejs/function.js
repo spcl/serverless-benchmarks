@@ -3,6 +3,8 @@ const timer = ms => new Promise( res => setTimeout(res, ms));
 
 exports.handler = async function(event) {
   var sleep =  event.sleep;
-  timer(sleep*1000);
-  return {result: sleep};
+  var start = process.hrtime();
+  await timer(sleep*1000);
+  var elapsed = process.hrtime(start);
+  return {result: elapsed[0] + elapsed[1] / 1e9};
 };

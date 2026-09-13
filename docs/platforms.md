@@ -39,7 +39,7 @@ Build images, which encapsulate package building, are available as both x64 and 
 To rebuild multi-plaform images, an additional flag is needed to enable the internal `docker buildx` command:
 
 ```bash
-sebs docker build --image-type build --language python --deployment aws --architecture x64 --language-version 3.11 --multi-platform
+sebs docker build --image-type build --language python --deployment aws --language-version 3.11 --multi-platform
 ```
 
 When rebuilding build images (not necessary for regular users, only for developers), make sure that your Docker installation supports multi-platform images, e.g., [you use `containerd` image store](https://docs.docker.com/engine/storage/containerd/) - old Docker installations might not change the storage type after an upgrade to Docker 29.0, where `containerd` is the default.

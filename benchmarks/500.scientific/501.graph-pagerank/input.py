@@ -9,11 +9,18 @@ size_generators = {
 # Expected pagerank[0] values for Barabasi(size, 10) graphs with seed=42.
 # Computed with igraph using Python's random.seed(42) before graph generation.
 # Note: Values may vary slightly due to floating-point precision and igraph version differences
+#
+# For Node.js, we use a different library and random number generator so the expected values differ slightly.
 expected_pagerank = {
     "python": {
         10: 0.1,
         10000: 0.00121224809,
         100000: 0.00033384438552589015,
+    },
+    "nodejs": {
+        10: 0.1,
+        10000: 0.0011975843839818685,
+        100000: 0.0003646144567128903,
     },
     "cpp": {
         10: 0.1,

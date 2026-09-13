@@ -21,6 +21,14 @@ jobs:
             version: "3.11"
             architecture: "arm64"
           - platform: aws
+            language: python
+            version: "3.12"
+            architecture: "x64"
+          - platform: aws
+            language: python
+            version: "3.12"
+            architecture: "arm64"
+          - platform: aws
             language: nodejs
             version: "24"
             architecture: "x64"
@@ -39,6 +47,14 @@ jobs:
           - platform: aws
             language: java
             version: "17"
+            architecture: "arm64"
+          - platform: aws
+            language: java
+            version: "21"
+            architecture: "x64"
+          - platform: aws
+            language: java
+            version: "21"
             architecture: "arm64"
           - platform: gcp
             language: python

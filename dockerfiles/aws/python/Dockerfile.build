@@ -5,7 +5,14 @@ ENV PYTHON_VERSION=${VERSION}
 ARG TARGETARCH
 
 # useradd, groupmod
-RUN yum install -y shadow-utils zip
+RUN if command -v dnf >/dev/null 2>&1; then \
+      dnf install -y findutils shadow-utils zip && dnf clean all; \
+    elif command -v yum >/dev/null 2>&1; then \
+      yum install -y findutils shadow-utils zip && yum clean all; \
+    else \
+      echo "No supported package manager found" >&2; \
+      exit 1; \
+    fi
 ENV GOSU_VERSION 1.14
 # https://github.com/tianon/gosu/releases/tag/1.14
 # key https://keys.openpgp.org/search?q=tianon%40debian.org
