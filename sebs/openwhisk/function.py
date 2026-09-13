@@ -13,7 +13,8 @@ from dataclasses import dataclass
 
 from sebs.benchmark import Benchmark
 from sebs.faas.function import Function, FunctionConfig, Runtime
-from sebs.storage.config import MinioConfig, ScyllaDBConfig
+from sebs.storage.config import S3CompatibleConfig, ScyllaDBConfig
+from sebs.storage.resources import OBJECT_STORAGE_IMPLEMENTATIONS
 
 
 @dataclass
@@ -28,7 +29,7 @@ class OpenWhiskFunctionConfig(FunctionConfig):
     Attributes:
         docker_image: Docker image URI used for the function deployment
         namespace: OpenWhisk namespace (default: "_" for default namespace)
-        object_storage: Minio object storage configuration if required
+        object_storage: S3-compatible object storage configuration if required
         nosql_storage: ScyllaDB NoSQL storage configuration if required
 
     Note:
@@ -39,7 +40,7 @@ class OpenWhiskFunctionConfig(FunctionConfig):
 
     docker_image: str = ""
     namespace: str = "_"
-    object_storage: Optional[MinioConfig] = None
+    object_storage: Optional[S3CompatibleConfig] = None
     nosql_storage: Optional[ScyllaDBConfig] = None
 
     @staticmethod
@@ -57,7 +58,8 @@ class OpenWhiskFunctionConfig(FunctionConfig):
         data = {k: v for k, v in data.items() if k in keys}
         data["runtime"] = Runtime.deserialize(data["runtime"])
         if data["object_storage"] is not None:
-            data["object_storage"] = MinioConfig.deserialize(data["object_storage"])
+            storage_type = OBJECT_STORAGE_IMPLEMENTATIONS[data["object_storage"]["type"]]
+            data["object_storage"] = storage_type.CONFIG_TYPE.deserialize(data["object_storage"])
         if data["nosql_storage"] is not None:
             data["nosql_storage"] = ScyllaDBConfig.deserialize(data["nosql_storage"])
         return OpenWhiskFunctionConfig(**data)

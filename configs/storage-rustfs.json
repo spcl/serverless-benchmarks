@@ -1,0 +1,20 @@
+{
+  "object": {
+    "type": "rustfs",
+    "rustfs": {
+      "mapped_port": 9011,
+      "version": "1.0.0-rc.6",
+      "data_volume": "rustfs-volume"
+    }
+  },
+  "nosql": {
+    "type": "scylladb",
+    "scylladb": {
+      "mapped_port": 9012,
+      "version": "6.0",
+      "cpus": 1,
+      "memory": "750",
+      "data_volume": "scylladb-volume"
+    }
+  }
+}
