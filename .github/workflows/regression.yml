@@ -82,7 +82,7 @@ jobs:
             architecture: "x64"
       fail-fast: false
 
-    uses: ./.github/workflows/_regression-job.yml
+    uses: $/.github/workflows/_regression-job.yml
     with:
       platform: ${{ matrix.platform }}
       language: ${{ matrix.language }}
