@@ -12,6 +12,8 @@
 
 * OpenWhisk: provider metrics include the platform's `waitTime` as `provider_times.waiting`: the time from receiving the request to provisioning a container.
 
+* Reproducible Python dependencies: every Python benchmark now ships a `pyproject.toml` and a `uv.lock` to pin dependencies by their hash.
+
 ### Bug Fixes
 
 * `sebs docker build --platform` for another architecture (e.g., x64 images on an ARM machine) failed with Docker's containerd image store, the default since Docker 29: "image ... does not provide the specified platform". Docker's build API runs the legacy builder, so SeBS now builds such images with BuildKit (`docker build --platform`).
