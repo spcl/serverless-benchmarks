@@ -5,5 +5,15 @@ ENV PYTHON_VERSION=${VERSION}
 COPY . function/
 
 RUN touch function/__init__.py \
-    && if test -f "function/requirements.txt.${PYTHON_VERSION}"; then pip install --no-cache-dir -r function/requirements.txt -r function/requirements.txt.${PYTHON_VERSION} function/ ; else pip install --no-cache-dir -r function/requirements.txt function/ ; fi
+    && if grep -q -- '--hash=' function/requirements.txt; then \
+        pip install --no-cache-dir --require-hashes -r function/requirements.txt && \
+        pip install --no-cache-dir --no-deps function/; \
+    elif test -f "function/requirements.txt.${PYTHON_VERSION}"; then \
+        pip install --no-cache-dir \
+            -r function/requirements.txt \
+            -r function/requirements.txt.${PYTHON_VERSION} \
+            function/; \
+    else \
+        pip install --no-cache-dir -r function/requirements.txt function/; \
+    fi
 

@@ -10,6 +10,8 @@
 
 * OpenWhisk: provider metrics include the platform's `waitTime` as `provider_times.waiting`: the time from receiving the request to provisioning a container.
 
+* Reproducible Python dependencies: every Python benchmark now ships a `pyproject.toml` and a `uv.lock` to pin dependencies by their hash.
+
 ### Bug Fixes
 
 * Change to input of 120.uploader benchmark to conform with new Wikipedia policies (#308)

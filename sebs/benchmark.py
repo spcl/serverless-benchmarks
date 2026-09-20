@@ -19,6 +19,7 @@ from abc import abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import docker
+from uv import find_uv_bin
 
 from sebs.cpp_dependencies import CppDependencies
 
@@ -682,7 +683,7 @@ class Benchmark(LoggingBase):
         """
         hash_sum = hashlib.md5()
         FILES = {
-            Language.PYTHON: ["*.py", "requirements.txt*"],
+            Language.PYTHON: ["*.py", "requirements.txt*", "pyproject.toml", "uv.lock"],
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: ["*.java", "pom.xml"],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
@@ -919,16 +920,25 @@ class Benchmark(LoggingBase):
                     shutil.copy2(file, destination)
 
     def add_deployment_package_python(self, output_dir: str) -> None:
-        """Add Python deployment packages to requirements file.
+        """Export the benchmark's uv lockfile into a hash-pinned requirements.txt.
 
-        Appends platform-specific Python packages and benchmark module
-        dependencies to the requirements.txt file for the deployment.
+        Benchmarks with a `pyproject.toml` and `uv.lock` in their Python source
+        directory are exported with `uv export --extra <deployment>` into a
+        hash-pinned `requirements.txt` in the output directory. The lockfile
+        already contains the SeBS wrapper dependencies for every deployment,
+        so the exported file is the complete, reproducible install input.
 
-        Handles versioned requirements files (e.g., requirements.txt.3.8).
+        Benchmarks without a lockfile fall back to appending the deployment and
+        module packages from the system config to their requirements file.
 
         Args:
-            output_dir: Directory containing the requirements file to modify
+            output_dir: Directory containing the code package being built
         """
+
+        source_dir = os.path.join(self._benchmark_path, self.language_name)
+        if os.path.exists(os.path.join(source_dir, "uv.lock")):
+            self._export_locked_requirements(source_dir, output_dir)
+            return
 
         destination_file = f"requirements.txt.{self._language_version}"
         if not os.path.exists(os.path.join(output_dir, destination_file)):
@@ -950,6 +960,57 @@ class Benchmark(LoggingBase):
             # guards against a file without a trailing newline
             if packages:
                 out.write("\n" + "\n".join(packages) + "\n")
+
+    def _export_locked_requirements(self, source_dir: str, output_dir: str) -> None:
+        """Export a benchmark's uv lockfile into a hash-pinned requirements.txt.
+
+        The export runs in the benchmark source directory because the lockfile
+        references the SeBS wrapper projects through relative paths. Only
+        registry packages are emitted; the wrapper projects themselves are
+        copied by `add_deployment_files`.
+
+        Args:
+            source_dir: Benchmark Python source directory with pyproject.toml and uv.lock
+            output_dir: Directory receiving requirements.txt
+
+        Raises:
+            RuntimeError: If the lockfile is stale
+        """
+        command = [
+            find_uv_bin(),
+            "export",
+            "--directory",
+            os.path.join(self._benchmark_path, self.language_name),
+            "--locked",
+            "--quiet",
+            "--format",
+            "requirements.txt",
+            "--no-emit-project",
+            "--no-header",
+            # benchmarks may pin packages from extra indexes, e.g., CPU-only torch
+            "--emit-index-url",
+            "--extra",
+            self._deployment_name,
+        ]
+        self.logging.info(
+            "Exporting locked dependencies for {deployment}: {cmd}".format(
+                deployment=self._deployment_name, cmd=" ".join(command)
+            )
+        )
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                "uv export failed for {benchmark} ({deployment}):\n{err}".format(
+                    benchmark=self.benchmark,
+                    deployment=self._deployment_name,
+                    err=result.stderr,
+                )
+            )
+
+        # Always create the requirements file: the installers expect it, even
+        # when the benchmark has no dependencies for this deployment.
+        with open(os.path.join(output_dir, "requirements.txt"), "w") as f:
+            f.write(result.stdout)
 
     def add_deployment_package_nodejs(self, output_dir: str) -> None:
         """Add Node.js deployment packages to package.json.
