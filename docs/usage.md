@@ -21,7 +21,7 @@ If you want to simply build a function deployment, such as a full code package o
 then use the command below.
 
 ```bash
-sebs benchmark build 110.dynamic-html --config configs/example.json --deployment aws
+sebs benchmark package 110.dynamic-html --config configs/example.json --deployment aws
 ```
 
 It will create a code package (local) or build and push a container, when `--container-deployment` flag is used (AWS only).
