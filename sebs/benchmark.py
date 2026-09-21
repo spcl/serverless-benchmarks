@@ -683,7 +683,7 @@ class Benchmark(LoggingBase):
         """
         hash_sum = hashlib.md5()
         FILES = {
-            Language.PYTHON: ["*.py", "requirements.txt*", "pyproject.toml", "uv.lock"],
+            Language.PYTHON: ["*.py", "pyproject.toml", "uv.lock"],
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: ["*.java", "pom.xml"],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
@@ -785,7 +785,7 @@ class Benchmark(LoggingBase):
             output_dir: Destination directory for copied files
         """
         FILES = {
-            Language.PYTHON: ["*.py", "requirements.txt*"],
+            Language.PYTHON: ["*.py"],
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: [],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
@@ -922,56 +922,14 @@ class Benchmark(LoggingBase):
     def add_deployment_package_python(self, output_dir: str) -> None:
         """Export the benchmark's uv lockfile into a hash-pinned requirements.txt.
 
-        Benchmarks with a `pyproject.toml` and `uv.lock` in their Python source
-        directory are exported with `uv export --extra <deployment>` into a
-        hash-pinned `requirements.txt` in the output directory. The lockfile
-        already contains the SeBS wrapper dependencies for every deployment,
-        so the exported file is the complete, reproducible install input.
-
-        Benchmarks without a lockfile fall back to appending the deployment and
-        module packages from the system config to their requirements file.
+        Every Python benchmark ships a `pyproject.toml` and `uv.lock` in its
+        source directory. Each deployment is an extra with the packages of the
+        SeBS wrappers for the benchmark's modules (generated from
+        `module_packages` in systems.json), so `uv export --extra <deployment>`
+        yields the complete, reproducible install input.
 
         Args:
             output_dir: Directory containing the code package being built
-        """
-
-        source_dir = os.path.join(self._benchmark_path, self.language_name)
-        if os.path.exists(os.path.join(source_dir, "uv.lock")):
-            self._export_locked_requirements(source_dir, output_dir)
-            return
-
-        destination_file = f"requirements.txt.{self._language_version}"
-        if not os.path.exists(os.path.join(output_dir, destination_file)):
-            destination_file = "requirements.txt"
-
-        packages = list(
-            self._system_config.deployment_packages(self._deployment_name, self.language_name)
-        )
-        module_packages = self._system_config.deployment_module_packages(
-            self._deployment_name, self.language_name
-        )
-        for bench_module in self._benchmark_config.modules:
-            packages.extend(module_packages.get(bench_module.value, []))
-
-        # Always create the requirements file: the installer expects it, and
-        # benchmarks without dependencies do not provide one.
-        with open(os.path.join(output_dir, destination_file), "a") as out:
-            # append one requirement per line; the leading newline
-            # guards against a file without a trailing newline
-            if packages:
-                out.write("\n" + "\n".join(packages) + "\n")
-
-    def _export_locked_requirements(self, source_dir: str, output_dir: str) -> None:
-        """Export a benchmark's uv lockfile into a hash-pinned requirements.txt.
-
-        The export runs in the benchmark source directory because the lockfile
-        references the SeBS wrapper projects through relative paths. Only
-        registry packages are emitted; the wrapper projects themselves are
-        copied by `add_deployment_files`.
-
-        Args:
-            source_dir: Benchmark Python source directory with pyproject.toml and uv.lock
-            output_dir: Directory receiving requirements.txt
 
         Raises:
             RuntimeError: If the lockfile is stale

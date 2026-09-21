@@ -58,9 +58,14 @@ def main() -> int:
 
     extra = ["--check"] if args.check else ["--upgrade"] if args.upgrade else []
     failed = []
-    for pyproject in sorted(ROOT.glob("benchmarks/[0-9]*/*/python/pyproject.toml")):
-        name = str(pyproject.parent.parent.relative_to(ROOT / "benchmarks"))
+    for source_dir in sorted(ROOT.glob("benchmarks/[0-9]*/*/python")):
+        name = str(source_dir.parent.relative_to(ROOT / "benchmarks"))
         print(name, flush=True)
+        pyproject = source_dir / "pyproject.toml"
+        if not pyproject.exists():
+            print(f"{name}: Python benchmark without pyproject.toml", file=sys.stderr)
+            failed.append(name)
+            continue
         synced = sync(pyproject)
         if synced != pyproject.read_text():
             if args.check:

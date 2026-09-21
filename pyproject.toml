@@ -143,7 +143,6 @@ sebs = ["py.typed"]
     "**/*.png",
     "**/*.md",
     "**/Dockerfile*",
-    "**/requirements.txt.*",
     "**/pyproject.toml",
     "**/uv.lock",
     "**/package.json.*",
