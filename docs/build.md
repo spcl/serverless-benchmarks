@@ -158,10 +158,6 @@ benchmarks/100.webapps/110.dynamic-html/
 Use this when the variant needs a substantially different implementation (e.g. a complete
 rewrite using runtime-specific APIs).
 
-> **Version-specific `package.json` for Node.js** — a file named
-> `package.json.<version>` (e.g. `package.json.18`) inside the variant directory overrides the
-> generic `package.json` for that specific Node.js/runtime version only.
-
 If neither `patch.diff` nor any source files exist in the variant directory, the default
 sources are used unchanged (the variant differs only in its runtime Docker image).
 

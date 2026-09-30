@@ -798,11 +798,6 @@ class Benchmark(LoggingBase):
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
 
-        # support node.js benchmarks with language specific packages
-        nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
-        if os.path.exists(nodejs_package_json):
-            shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
-
         if self._language_variant != "default":
             variant_dir = os.path.join(path, self._language_variant)
             if not os.path.isdir(variant_dir):
@@ -841,12 +836,6 @@ class Benchmark(LoggingBase):
                 for file_type in FILES[self.language]:
                     for f in glob.glob(os.path.join(variant_dir, file_type)):
                         shutil.copy2(f, output_dir)
-                # version-specific package.json override for Node.js
-                nodejs_variant_pkg = os.path.join(
-                    variant_dir, f"package.json.{self.language_version}"
-                )
-                if os.path.exists(nodejs_variant_pkg):
-                    shutil.copy2(nodejs_variant_pkg, os.path.join(output_dir, "package.json"))
                 self.logging.info(
                     "Applied file overlay for variant {}".format(self._language_variant)
                 )
@@ -956,7 +945,6 @@ class Benchmark(LoggingBase):
 
         Modifies the package.json file to include platform-specific
         Node.js dependencies required for deployment.
-        Handles versioned package.json files (e.g., package.json.12).
 
         Args:
             output_dir: Directory containing the package.json file to modify
@@ -966,10 +954,7 @@ class Benchmark(LoggingBase):
             self._deployment_name, self.language_name
         )
         if len(packages):
-            package_config = os.path.join(output_dir, f"package.json.{self._language_version}")
-            if not os.path.exists(package_config):
-                package_config = os.path.join(output_dir, "package.json")
-
+            package_config = os.path.join(output_dir, "package.json")
             with open(package_config, "r") as package_file:
                 package_json = json.load(package_file)
             for key, val in packages.items():
