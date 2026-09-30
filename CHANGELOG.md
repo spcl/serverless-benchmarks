@@ -16,6 +16,8 @@
 
 * Pull Minio images from the SeBS archive `spcleth/serverless-benchmarks:minio-reproducibility-archive-<release>`, as MinIO no longer publishes images on Docker Hub or quay.io.
 
+* 220.video-processing: use a static, glibc-based ffmpeg 9.0.2 from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), archived as `spcleth/serverless-benchmarks:ffmpeg-reproducibility-archive-<version>` by `tools/ffmpeg_archive.py`.
+
 * Fix restoring the cached configuration of self-hosted storage (Minio, ScyllaDB), and make the OpenWhisk `shutdownStorage` option work again.
 
 * OpenWhisk: store the Docker image of newly created actions in the function cache, and download provider metrics of invocations through the library trigger, which did not record the activation ID.
