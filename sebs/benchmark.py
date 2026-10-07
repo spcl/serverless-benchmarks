@@ -861,7 +861,7 @@ class Benchmark(LoggingBase):
         Args:
             output_dir: Directory where benchmark data should be added
         """
-        cmd = "/bin/bash '{benchmark_path}/init.sh' '{output_dir}' false {architecture}"
+        cmd = "/usr/bin/env bash '{benchmark_path}/init.sh' '{output_dir}' false {architecture}"
         paths = [
             self.benchmark_path,
             os.path.join(self.benchmark_path, self.language_name),
