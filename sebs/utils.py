@@ -689,7 +689,7 @@ def has_platform(name: str) -> bool:
             import google.cloud.devtools  # noqa: F401
 
             return True
-        elif name in ("local", "openwhisk"):
+        elif name in ("local", "openwhisk", "cloudflare"):
             # these don't have specific dependencies
             return True
         else:

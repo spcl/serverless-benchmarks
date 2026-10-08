@@ -1,0 +1,9 @@
+{
+  "name": "compression-benchmark",
+  "version": "1.0.0",
+  "description": "Compression benchmark for serverless platforms",
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "uuid": "^10.0.0"
+  }
+}

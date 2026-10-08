@@ -39,6 +39,9 @@ dependencies = [
     "pycurl>=7.43",
     "click>=7.1.2",
     "rich",
+    "patch-ng",
+    "tomli ; python_version < '3.11'",
+    "tomli_w",
 
     # Storage & Local
     "minio==5.0.10",
@@ -106,6 +109,7 @@ packages = [
     "sebs.aws",
     "sebs.azure",
     "sebs.gcp",
+    "sebs.cloudflare",
     "sebs.local",
     "sebs.openwhisk",
     "sebs.faas",
@@ -148,6 +152,9 @@ sebs = ["py.typed"]
 ]
 "sebs.dockerfiles" = [
     "**/*",
+]
+"sebs.cloudflare" = [
+    "templates/*.toml",
 ]
 "sebs.tools" = [
     "**/*.py",
