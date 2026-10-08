@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 usage() { echo "Usage: $0 [-b <benchmark_dir>] [-l <python|nodejs|cpp>]" 1>&    2; exit 1; }
 while getopts ":b:l:v" o; do
@@ -94,7 +94,7 @@ fi
 
 # Add additional binaries, if required
 if [ -f ${DIR}/init.sh ]; then
-  /bin/bash ${DIR}/init.sh $(pwd)/${APP_NAME}.zip $VERBOSE
+  /usr/bin/env bash ${DIR}/init.sh $(pwd)/${APP_NAME}.zip $VERBOSE
 fi
 
 # There's seems to be no other way to create ZIP file
