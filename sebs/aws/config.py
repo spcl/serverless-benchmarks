@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import time
 from enum import Enum
 from typing import TYPE_CHECKING, cast, Dict, List, Optional, Tuple
@@ -472,9 +473,9 @@ class AWSResources(Resources):
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:
         """Get or create IAM role for Lambda execution.
 
-        Creates a Lambda execution role with S3 and basic execution permissions
-        if it doesn't already exist. The role allows Lambda functions to access
-        S3 and write CloudWatch logs.
+        Creates a Lambda execution role with S3, DynamoDB, and basic execution
+        permissions if it doesn't already exist. The role allows Lambda functions
+        to access SeBS resources and write CloudWatch logs.
 
         Args:
             boto3_session: Boto3 session for AWS API calls
@@ -498,10 +499,6 @@ class AWSResources(Resources):
                 ],
             }
             role_name = "sebs-lambda-role"
-            attached_policies = [
-                "arn:aws:iam::aws:policy/AmazonS3FullAccess",
-                "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
-            ]
             try:
                 out = iam_client.get_role(RoleName=role_name)
                 self._lambda_role = out["Role"]["Arn"]
@@ -517,9 +514,36 @@ class AWSResources(Resources):
                     "Sleep 10 seconds to avoid problems when using role immediately."
                 )
                 time.sleep(10)
-            # Attach basic AWS Lambda and S3 policies.
-            for policy in attached_policies:
+
+            arn_match = re.fullmatch(r"arn:([^:]+):iam::([^:]+):role/.+", self._lambda_role)
+            if arn_match is None:
+                raise RuntimeError(f"Invalid Lambda execution role ARN: {self._lambda_role}")
+            partition, account_id = arn_match.groups()
+
+            for policy in (
+                "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+            ):
                 iam_client.attach_role_policy(RoleName=role_name, PolicyArn=policy)
+
+            dynamodb_policy = {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"],
+                        "Resource": (
+                            f"arn:{partition}:dynamodb:{self.region}:{account_id}:"
+                            "table/sebs-benchmarks-*"
+                        ),
+                    }
+                ],
+            }
+            iam_client.put_role_policy(
+                RoleName=role_name,
+                PolicyName="sebs-dynamodb-access",
+                PolicyDocument=json.dumps(dynamodb_policy),
+            )
         return self._lambda_role
 
     def http_api(
@@ -1131,6 +1155,12 @@ class AWSResources(Resources):
                 AWSResources.initialize(ret, {})
                 ret.logging_handlers = handlers
                 ret.logging.info("No resources for AWS found, initialize!")
+
+        configured_lambda_role = config.get("lambda-role") or config.get("resources", {}).get(
+            "lambda-role"
+        )
+        if configured_lambda_role:
+            ret._lambda_role = configured_lambda_role
 
         return ret
 

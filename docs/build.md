@@ -38,6 +38,16 @@ and `nosql` for NoSQL databases. Each module corresponds to a set of packages th
 **Package Code** - we move files to create the directory structure expected on each cloud platform and create a final deployment package. An example of a customization is Azure Functions, where additional
 JSON configuration files are needed.
 
+### Benchmark-Specific System Variants
+
+A benchmark can restrict deployment variants for a platform in `config.json`:
+
+```json
+"system_variants": {"aws": ["container"]}
+```
+
+The values match the platform's `--system-variant` choices. Without this mapping, all platform variants are allowed. SeBS checks the restriction before building the benchmark or creating cloud resources.
+
 ## Docker Image Deployment
 
 ```mermaid

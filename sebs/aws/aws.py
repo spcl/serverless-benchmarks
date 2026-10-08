@@ -671,10 +671,12 @@ class AWS(System):
             "REPORT RequestId: abc123\tDuration: 100.00 ms\tBilled Duration: 100 ms\t..."
         """
         aws_vals = {}
-        for line in log.split("\t"):
-            if not line.isspace():
-                split = line.split(":")
-                aws_vals[split[0]] = split[1].split()[0]
+        for log_line in log.splitlines():
+            for field in log_line.split("\t"):
+                key, separator, value = field.partition(":")
+                values = value.split()
+                if separator and values:
+                    aws_vals[key] = values[0]
         if "START RequestId" in aws_vals:
             request_id = aws_vals["START RequestId"]
         elif "REPORT RequestId" in aws_vals:
