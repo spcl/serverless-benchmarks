@@ -23,6 +23,7 @@ from sebs.faas.config import Resources
 from sebs.faas.nosql import NoSQLStorage
 from sebs.sebs_types import NoSQLStorage as StorageType
 from sebs.storage.config import ScyllaDBConfig
+from sebs.utils import probe_http, resolve_external_address
 
 
 class ScyllaDB(NoSQLStorage):
@@ -208,6 +209,10 @@ class ScyllaDB(NoSQLStorage):
         based on the host platform. For Linux, it uses the container's IP address,
         while for Windows, macOS, or WSL it uses localhost with the mapped port.
 
+        Additionally, it determines the address advertised to benchmark
+        functions: the user-provided external address, or the host's
+        default-route IP combined with the mapped port.
+
         Creates a boto3 DynamoDB client configured to connect to ScyllaDB's
         Alternator interface.
 
@@ -244,6 +249,7 @@ class ScyllaDB(NoSQLStorage):
                     f"{self._cfg.instance_id}"
                 )
             self.logging.info("Starting ScyllaDB instance at {}".format(self._cfg.address))
+            self.configure_external_address()
 
         # Create the DynamoDB client for ScyllaDB's Alternator interface
         self.client = boto3.client(
@@ -253,6 +259,45 @@ class ScyllaDB(NoSQLStorage):
             aws_secret_access_key="None",
             endpoint_url=f"http://{self._cfg.address}",
         )
+
+    def configure_external_address(self) -> None:
+        """Determine the address advertised to benchmark functions.
+
+        Uses the user-provided external address, or the host's default-route IP,
+        combined with the mapped port.
+        """
+        self._cfg.external_address = resolve_external_address(
+            self._cfg.external_address, self._cfg.mapped_port
+        )
+        if self._cfg.external_address:
+            self.logging.info(f"ScyllaDB advertised to functions at {self._cfg.external_address}")
+        else:
+            self.logging.warning(
+                "Could not detect the host's IP address. Functions running outside of the "
+                "Docker bridge network will not reach ScyllaDB; provide --external-address."
+            )
+
+    def check_external_address(self) -> bool:
+        """Verify that ScyllaDB is reachable through the address advertised to functions.
+
+        Failures are reported as warnings, since the host running SeBS is not
+        always able to reach the same network as benchmark functions.
+
+        Returns:
+            bool: True if the probe succeeded
+        """
+        if not self._cfg.external_address:
+            return False
+        url = f"http://{self._cfg.external_address}/"
+        error = probe_http(url, timeout_seconds=15)
+        if error is None:
+            self.logging.info(f"ScyllaDB is reachable at {url}")
+            return True
+        self.logging.warning(
+            f"ScyllaDB is not reachable at {url}: {error}. Benchmark functions might not be "
+            f"able to reach the storage. Verify the address with: curl -i {url}"
+        )
+        return False
 
     def stop(self) -> None:
         """Stop the ScyllaDB container.
@@ -266,16 +311,25 @@ class ScyllaDB(NoSQLStorage):
         else:
             self.logging.error("Stopping ScyllaDB was not successful, storage container not known!")
 
-    def envs(self) -> Dict[str, str]:
+    def envs(self, external: bool = True) -> Dict[str, str]:
         """Generate environment variables for ScyllaDB configuration.
 
         Creates environment variables that can be used by benchmark functions
         to connect to the ScyllaDB storage instance.
 
+        Args:
+            external: Advertise the externally reachable address instead of the
+                internal one; see NoSQLStorage.envs.
+
         Returns:
             Dict[str, str]: Environment variables for ScyllaDB connection
         """
-        return {"NOSQL_STORAGE_TYPE": "scylladb", "NOSQL_STORAGE_ENDPOINT": self._cfg.address}
+        return {
+            "NOSQL_STORAGE_TYPE": "scylladb",
+            "NOSQL_STORAGE_ENDPOINT": (
+                (self._cfg.external_address or self._cfg.address) if external else self._cfg.address
+            ),
+        }
 
     def serialize(self) -> Tuple[StorageType, Dict[str, Any]]:
         """Serialize ScyllaDB configuration to a tuple.

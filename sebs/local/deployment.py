@@ -18,7 +18,8 @@ from typing import List, Optional
 from sebs.cache import Cache
 from sebs.local.function import LocalFunction
 from sebs.local.config import LocalResources
-from sebs.storage.minio import Minio, MinioConfig
+from sebs.storage.resources import OBJECT_STORAGE_IMPLEMENTATIONS
+from sebs.storage.s3compatible import S3CompatibleStorage
 from sebs.utils import serialize, LoggingBase
 
 
@@ -27,7 +28,7 @@ class Deployment(LoggingBase):
 
     Attributes:
         _functions: List of deployed local functions
-        _storage: Optional Minio storage instance
+        _storage: Optional S3-compatible storage instance
         _inputs: List of function input configurations
         _memory_measurement_pids: PIDs of memory measurement processes
         _measurement_file: Path to memory measurement output file
@@ -55,7 +56,7 @@ class Deployment(LoggingBase):
         """Initialize a new deployment."""
         super().__init__()
         self._functions: List[LocalFunction] = []
-        self._storage: Optional[Minio]
+        self._storage: Optional[S3CompatibleStorage]
         self._inputs: List[dict] = []
         self._memory_measurement_pids: List[int] = []
         self._measurement_file: Optional[str] = None
@@ -80,11 +81,11 @@ class Deployment(LoggingBase):
         """
         self._inputs.append(func_input)
 
-    def set_storage(self, storage: Minio) -> None:
+    def set_storage(self, storage: S3CompatibleStorage) -> None:
         """Set the storage instance for the deployment.
 
         Args:
-            storage: Minio storage instance to use
+            storage: Storage instance to use
         """
         self._storage = storage
 
@@ -135,8 +136,11 @@ class Deployment(LoggingBase):
             if "memory_measurements" in input_data:
                 deployment._memory_measurement_pids = input_data["memory_measurements"]["pids"]
                 deployment._measurement_file = input_data["memory_measurements"]["file"]
-            deployment._storage = Minio.deserialize(
-                MinioConfig.deserialize(input_data["storage"]), cache_client, LocalResources()
+            storage_type = OBJECT_STORAGE_IMPLEMENTATIONS[input_data["storage"]["type"]]
+            deployment._storage = storage_type.deserialize(
+                storage_type.CONFIG_TYPE.deserialize(input_data["storage"]),
+                cache_client,
+                LocalResources(),
             )
             return deployment
 

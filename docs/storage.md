@@ -7,11 +7,19 @@ SeBS will automatically allocate resources and configure them.
 With open-source platforms like OpenWhisk or local deployment, SeBS needs a self-hosted storage instance.
 
 In this document, we explain how to deploy and configure storage systems for benchmarking with SeBS.
-We use [Minio](https://github.com/minio/minio), a high-performance and S3-compatible object storage, and [ScyllaDB](https://github.com/scylladb/scylladb)
-with an adapter that provides a DynamoDB-compatible interface.
+For object storage, we support two S3-compatible systems: [Minio](https://github.com/minio/minio) and [RustFS](https://github.com/rustfs/rustfs).
+For NoSQL storage, we use [ScyllaDB](https://github.com/scylladb/scylladb) with an adapter that provides a DynamoDB-compatible interface.
 The storage instance is deployed as a Docker container and can be retained across multiple experiments.
 While we provide a default configuration that automatically deploys each storage instance,
 you can deploy them on any cloud resource and adapt the configuration to fit your needs.
+
+## Object Storage Backends
+
+Benchmark functions access object storage through the S3 API, so both backends are interchangeable and no benchmark code changes when switching between them.
+Select the backend with the `type` field of the object storage configuration; the default configuration files are `configs/storage.json` for Minio and `configs/storage-rustfs.json` for RustFS.
+
+* **Minio** is the established default. Its community edition is no longer maintained and its images were removed from Docker Hub; SeBS pulls the pinned version from `quay.io/minio/minio`.
+* **RustFS** is an actively developed, Apache-2.0 licensed alternative. Its data is kept in a named Docker volume, since the container runs as a fixed unprivileged user. At the time of writing, RustFS has not published a stable release yet, so we pin a release candidate.
 
 ## Starting Storage Services
 
@@ -37,6 +45,7 @@ This file contains all the necessary information to connect to the storage servi
     "type": "minio",
     "minio": {
       "address": "172.17.0.2:9000",
+      "external_address": "10.10.1.15:9011",
       "mapped_port": 9011,
       "access_key": "XXX",
       "secret_key": "XXX",
@@ -52,6 +61,7 @@ This file contains all the necessary information to connect to the storage servi
     "type": "scylladb",
     "scylladb": {
       "address": "172.17.0.3:8000",
+      "external_address": "10.10.1.15:9012",
       "mapped_port": 9012,
       "alternator_port": 8000,
       "access_key": "None",
@@ -67,65 +77,51 @@ This file contains all the necessary information to connect to the storage servi
 }
 ```
 
-As we can see, the Minio container is running on the default Docker bridge network with address `172.17.0.2` and uses port `9000`.
-The default configuration maps the container's port to the host, making the storage instance available directly without referring to the container's IP address. Minio is mapped to port 9011, and ScyllaDB is mapped to port 9012.
+Each storage instance has two addresses:
+
+* `address` is used by SeBS itself, e.g., to upload benchmark inputs. On Linux, this is the container's address on the default Docker bridge network (`172.17.0.2`) and the container's port (`9000`). Functions of the local deployment run on the same bridge network and use this address as well.
+* `external_address` is advertised to benchmark functions that run outside of the Docker bridge network, e.g., in a Kubernetes cluster hosting OpenWhisk. It combines the IP address of the machine with the port mapped on the host: Minio is mapped to port 9011, and ScyllaDB to port 9012.
+
+The external address is detected automatically as the IP address of the host's default network interface, and SeBS verifies that the storage answers on it. To use a different interface or a hostname, pass the `--external-address` flag when starting the storage:
+
+```bash
+sebs storage start all configs/storage.json --output-json storage.json --external-address 10.10.1.15
+```
+
+> [!WARNING]
+> The mapped ports are bound on all interfaces of the host. On a machine with a public IP address, restrict access to these ports with a firewall or use a private address.
 
 ## Network Configuration
 
-The storage instance must be accessible from the host network, and in some cases, from external networks.
-For example, the storage can be deployed on a separate virtual machine or container.
-Furthermore, even on a local machine, it's necessary to configure the network address, as OpenWhisk functions
-are running isolated from the host network and won't be able to reach other containers running on the Docker bridge.
-
-When using Minio with cloud-hosted FaaS platforms like OpenWhisk or for local deployment, you need to ensure that the functions can reach the storage instance. 
-By default, the container runs on the Docker bridge network with an address (e.g., `172.17.0.2`) that is not accessible from outside the host.
-Even when deploying both OpenWhisk and storage on the same system, the local bridge network is not accessible from the Kubernetes cluster. 
-To make it accessible, functions need to use the public IP address of the machine hosting the container instance and the mapped port.
-You can typically find an externally accessible address via `ip addr`, and then replace the storage's address with the external address of the machine and the mapped port.
-
-For example, for an external address `10.10.1.15` (a LAN-local address on CloudLab) and mapped port `9011`, set the SeBS configuration as follows:
+To use the deployed storage with a benchmark, pass the generated configuration file with the `--storage-configuration` flag.
+The storage configuration is merged into the deployment section of the SeBS configuration, so no manual editing of JSON files is needed:
 
 ```bash
-# For a LAN-local address (e.g., on CloudLab)
-jq --slurpfile file1 storage.json '.deployment.openwhisk.storage = $file1[0] | .deployment.openwhisk.storage.object.minio.address = "10.10.1.15:9011"' configs/example.json > configs/openwhisk.json
+sebs benchmark invoke 210.thumbnailer test --config configs/openwhisk.json --storage-configuration storage.json
 ```
 
-You can validate the configuration of Minio with an HTTP request by using `curl`:
+Functions running in OpenWhisk or another Kubernetes-based platform cannot reach the Docker bridge network of the host, even when the cluster runs on the same machine.
+They connect to the storage through the external address, which is detected when starting the storage.
+If the detected address is not reachable from the functions, e.g., because the machine has multiple network interfaces or the storage runs on a different host, override it without changing any files:
+
+```bash
+sebs benchmark invoke 210.thumbnailer test --config configs/openwhisk.json --storage-configuration storage.json --storage-address 10.10.1.15
+```
+
+The override applies to all storage instances, each with its own mapped port. Alternatively, provide the address once when starting the storage with `--external-address`.
+
+You can validate that the storage is reachable with an HTTP request to Minio's health endpoint and ScyllaDB's root endpoint:
 
 ```bash
 $ curl -i 10.10.1.15:9011/minio/health/live
 HTTP/1.1 200 OK
-Accept-Ranges: bytes
-Content-Length: 0
-Content-Security-Policy: block-all-mixed-content
+...
 Server: MinIO
-Strict-Transport-Security: max-age=31536000; includeSubDomains
-Vary: Origin
-X-Amz-Request-Id: 16F3D9B9FDFFA340
-X-Content-Type-Options: nosniff
-X-Xss-Protection: 1; mode=block
-Date: Mon, 30 May 2022 10:01:21 GMT
-```
 
-If you use benchmarks relying on NoSQL storage (ScyllaDB), then you need to apply the same change to reflect the different address as well.
-Here, we again assume the external IP address of the system is `10.10.1.15`, and the mapped port changes to `9012`.
-
-```bash
-# For a LAN-local address (e.g., on CloudLab)
-jq '.deployment.openwhisk.storage.nosql.scylladb.address = "10.10.1.15:9012"' configs/openwhisk.json | sponge configs/openwhisk.json
-```
-
-You can validate the configuration of ScyllaDB with an HTTP request by using `curl`:
-
-```bash
-curl -i 10.10.1.15:9012
+$ curl -i 10.10.1.15:9012
 HTTP/1.1 200 OK
-Content-Length: 26
-Content-Type: text/plain
-Date: Sun, 07 Dec 2025 14:07:29 GMT
-Server: Seastar httpd
-
-healthy: 192.168.0.20:9012
+...
+healthy: 10.10.1.15:9012
 ```
 
 ## Lifecycle Management
@@ -147,4 +143,4 @@ sebs storage stop all storage.json
 Each storage service uses a Docker volume to persist data. The name of the volume is included in the storage configuration file under the `data_volume` field.
 
 In Minio, the volume is mapped to a physical location on the filesystem, and the directory can be removed once the experiments are finished.
-For ScyllaDB, we use named Docker volumes that can be removed using Docker commands: `docker volume rm scylladb-volume`.
+For RustFS and ScyllaDB, we use named Docker volumes that can be removed using Docker commands: `docker volume rm rustfs-volume scylladb-volume`.

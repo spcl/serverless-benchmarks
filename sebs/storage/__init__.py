@@ -4,7 +4,7 @@ supporting both object storage (S3-compatible) and NoSQL database storage.
 
 It includes:
 - Configuration classes for different storage backends
-- MinIO implementation for local S3-compatible object storage
+- MinIO and RustFS implementations for local S3-compatible object storage
 - ScyllaDB implementation for local DynamoDB-compatible NoSQL storage
 - Resource management classes for self-hosted storage deployments
 
@@ -15,7 +15,9 @@ serverless platforms.
 
 Key Components:
     - config: Configuration dataclasses for storage backends
+    - s3compatible: shared implementation of self-hosted S3-compatible object storage
     - minio: MinIO-based object storage implementation
+    - rustfs: RustFS-based object storage implementation
     - scylladb: ScyllaDB-based NoSQL storage implementation
     - resources: Resource management for self-hosted storage deployments
 

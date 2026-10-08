@@ -2,15 +2,23 @@
 
 ### Features
 
+* Support for [RustFS](https://github.com/rustfs/rustfs) as an S3-compatible object storage for local and OpenWhisk deployments, next to Minio. The self-hosted object storage implementation is now shared between backends.
+
 ### Bug Fixes
 
 * Change to input of 120.uploader benchmark to conform with new Wikipedia policies (#308)
+
+* Pull Minio images from quay.io, as the `minio/minio` repository was removed from Docker Hub.
+
+* Restore cached ScyllaDB configuration independently of Minio; make the OpenWhisk `shutdownStorage` option work again.
 
 ### Improvements
 
 * Support for multiple variants of the same programming language (#286).
 
 * Support for new versions of Python and Java on AWS (#311).
+
+* Self-hosted storage (Minio, ScyllaDB) advertises an externally reachable address to functions, detected automatically or set with `--external-address` when starting the storage, and overridable with `--storage-address` when running benchmarks. This removes the manual editing of storage addresses for OpenWhisk (#229).
 
 ### Deprecations
 

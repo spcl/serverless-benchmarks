@@ -22,7 +22,7 @@ from sebs.faas.function import Function, ExecutionResult, Trigger
 from sebs.openwhisk.container import OpenWhiskContainer
 from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
 from sebs.storage.resources import SelfHostedSystemResources
-from sebs.storage.minio import Minio
+from sebs.storage.s3compatible import S3CompatibleStorage
 from sebs.storage.scylladb import ScyllaDB
 from sebs.utils import LoggingHandlers
 from sebs.faas.config import Resources
@@ -147,8 +147,11 @@ class OpenWhisk(System):
         This method stops storage services if configured and optionally
         removes the OpenWhisk cluster based on configuration settings.
         """
-        if hasattr(self, "storage") and self.config.shutdownStorage:
-            self.storage.stop()
+        if self.config.shutdownStorage:
+            if self.config.resources.storage_config:
+                cast(S3CompatibleStorage, self.system_resources.get_storage()).stop()
+            if self.config.resources.nosql_storage_config:
+                cast(ScyllaDB, self.system_resources.get_nosql_storage()).stop()
         if self.config.removeCluster:
             from tools.openwhisk_preparation import delete_cluster  # type: ignore
 
@@ -413,7 +416,7 @@ class OpenWhisk(System):
             function_cfg = OpenWhiskFunctionConfig.from_benchmark(code_package)
             if code_package.uses_storage:
                 function_cfg.object_storage = cast(
-                    Minio, self.system_resources.get_storage()
+                    S3CompatibleStorage, self.system_resources.get_storage()
                 ).config
             if code_package.uses_nosql:
                 function_cfg.nosql_storage = cast(
@@ -639,7 +642,7 @@ class OpenWhisk(System):
         changed = super().is_configuration_changed(cached_function, benchmark)
 
         if benchmark.uses_storage:
-            storage = cast(Minio, self.system_resources.get_storage())
+            storage = cast(S3CompatibleStorage, self.system_resources.get_storage())
             function = cast(OpenWhiskFunction, cached_function)
             # check if now we're using a new storage
             if function.config.object_storage != storage.config:

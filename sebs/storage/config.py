@@ -7,7 +7,7 @@ and provide environment variable mappings for runtime configuration.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Type, TypeVar
 
 from sebs.cache import Cache
 
@@ -37,8 +37,14 @@ class PersistentStorageConfig(ABC):
         pass
 
     @abstractmethod
-    def envs(self) -> Dict[str, str]:
+    def envs(self, external: bool = True) -> Dict[str, str]:
         """Generate environment variables for the storage configuration.
+
+        Args:
+            external: Advertise the externally reachable address. Functions running
+                on the same Docker bridge as the storage (local deployment) must use
+                the internal address instead, as Docker does not route traffic from
+                the bridge to ports published on the host.
 
         Returns:
             Dict[str, str]: Environment variables to be set in benchmark runtime
@@ -47,27 +53,33 @@ class PersistentStorageConfig(ABC):
 
 
 @dataclass
-class MinioConfig(PersistentStorageConfig):
-    """Configuration for MinIO object storage.
+class S3CompatibleConfig(PersistentStorageConfig):
+    """Configuration for self-hosted, S3-compatible object storage.
 
-    MinIO provides a local S3-compatible object storage service that runs in
-    a Docker container. This configuration class stores all the necessary
-    parameters for deploying and connecting to a MinIO instance.
+    The storage runs in a Docker container; see MinioConfig and RustFSConfig
+    for the supported implementations. This configuration class stores all the
+    necessary parameters for deploying and connecting to the instance.
 
     Attributes:
-        address: Network address where MinIO is accessible (auto-detected)
-        mapped_port: Host port mapped to MinIO's internal port 9000
-        access_key: Access key for MinIO authentication (auto-generated)
-        secret_key: Secret key for MinIO authentication (auto-generated)
-        instance_id: Docker container ID of the running MinIO instance
+        address: Network address used by SeBS itself to reach the storage (auto-detected).
+            On Linux this is the container's bridge IP and internal port.
+        external_address: Network address advertised to benchmark functions,
+            e.g., the host's IP and the mapped port. Functions running outside
+            the Docker bridge network (OpenWhisk, Kubernetes) need this address.
+            Falls back to `address` when empty.
+        mapped_port: Host port mapped to the container's S3 port 9000
+        access_key: Access key for authentication (auto-generated)
+        secret_key: Secret key for authentication (auto-generated)
+        instance_id: Docker container ID of the running instance
         output_buckets: List of bucket names used for benchmark output
         input_buckets: List of bucket names used for benchmark input
-        version: MinIO Docker image version to use
-        data_volume: Host directory path for persistent data storage
-        type: Storage type identifier (always "minio")
+        version: Docker image version to use
+        data_volume: Host directory or named Docker volume for persistent data storage
+        type: Storage type identifier, set by the subclasses
     """
 
     address: str = ""
+    external_address: str = ""
     mapped_port: int = -1
     access_key: str = ""
     secret_key: str = ""
@@ -76,7 +88,7 @@ class MinioConfig(PersistentStorageConfig):
     input_buckets: List[str] = field(default_factory=lambda: [])
     version: str = ""
     data_volume: str = ""
-    type: str = "minio"
+    type: str = ""
     remove_containers: bool = False
 
     def update_cache(self, path: List[str], cache: Cache) -> None:
@@ -90,16 +102,16 @@ class MinioConfig(PersistentStorageConfig):
             path: Cache key path prefix for this configuration
             cache: Cache instance to store configuration in
         """
-        for key in MinioConfig.__dataclass_fields__.keys():
-            if key == "resources":
-                continue
+        for key in self.__dataclass_fields__.keys():
             cache.update_config(val=getattr(self, key), keys=[*path, key])
 
-    @staticmethod
-    def deserialize(data: Dict[str, Any]) -> "MinioConfig":
+    T = TypeVar("T", bound="S3CompatibleConfig")
+
+    @classmethod
+    def deserialize(cls: Type[T], data: Dict[str, Any]) -> T:
         """Deserialize configuration from a dictionary.
 
-        Creates a new MinioConfig instance from dictionary data, typically
+        Creates a new configuration instance from dictionary data, typically
         loaded from cache or configuration files. Only known configuration
         fields are used, unknown fields are ignored.
 
@@ -107,14 +119,12 @@ class MinioConfig(PersistentStorageConfig):
             data: Dictionary containing configuration data
 
         Returns:
-            MinioConfig: New configuration instance
+            T: New configuration instance of the calling class
         """
-        keys = list(MinioConfig.__dataclass_fields__.keys())
+        keys = list(cls.__dataclass_fields__.keys())
         data = {k: v for k, v in data.items() if k in keys}
 
-        cfg = MinioConfig(**data)
-
-        return cfg
+        return cls(**data)
 
     def serialize(self) -> Dict[str, Any]:
         """Serialize the configuration to a dictionary.
@@ -124,20 +134,39 @@ class MinioConfig(PersistentStorageConfig):
         """
         return self.__dict__
 
-    def envs(self) -> Dict[str, str]:
-        """Generate environment variables for MinIO configuration.
+    def envs(self, external: bool = True) -> Dict[str, str]:
+        """Generate environment variables for the storage configuration.
 
         Creates environment variables that can be used by benchmark functions
-        to connect to the MinIO storage instance.
+        to connect to the storage instance. The variable names are shared by
+        all S3-compatible implementations, so function code stays unchanged.
+
+        Args:
+            external: Advertise the externally reachable address instead of the
+                internal one; see PersistentStorageConfig.envs.
 
         Returns:
-            Dict[str, str]: Environment variables for MinIO connection
+            Dict[str, str]: Environment variables for the storage connection
         """
         return {
-            "MINIO_ADDRESS": self.address,
+            "MINIO_ADDRESS": (self.external_address or self.address) if external else self.address,
             "MINIO_ACCESS_KEY": self.access_key,
             "MINIO_SECRET_KEY": self.secret_key,
         }
+
+
+@dataclass
+class MinioConfig(S3CompatibleConfig):
+    """Configuration for MinIO object storage."""
+
+    type: str = "minio"
+
+
+@dataclass
+class RustFSConfig(S3CompatibleConfig):
+    """Configuration for RustFS object storage."""
+
+    type: str = "rustfs"
 
 
 @dataclass
@@ -174,7 +203,10 @@ class ScyllaDBConfig(NoSQLStorageConfig):
     the necessary parameters for deploying and connecting to a ScyllaDB instance.
 
     Attributes:
-        address: Network address where ScyllaDB is accessible (auto-detected)
+        address: Network address used by SeBS itself to reach ScyllaDB (auto-detected).
+            On Linux this is the container's bridge IP and the Alternator port.
+        external_address: Network address advertised to benchmark functions,
+            e.g., the host's IP and the mapped port. Falls back to `address` when empty.
         mapped_port: Host port mapped to ScyllaDB's Alternator port
         alternator_port: Internal port for DynamoDB-compatible API (default: 8000)
         access_key: Access key for DynamoDB API (placeholder value)
@@ -188,6 +220,7 @@ class ScyllaDBConfig(NoSQLStorageConfig):
     """
 
     address: str = ""
+    external_address: str = ""
     mapped_port: int = -1
     alternator_port: int = 8000
     access_key: str = "None"
