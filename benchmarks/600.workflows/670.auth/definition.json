@@ -1,0 +1,9 @@
+{
+    "root": "auth",
+    "states": {
+        "auth": {
+            "type": "task",
+            "func_name": "auth"
+        }
+    }
+}

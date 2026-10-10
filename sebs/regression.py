@@ -18,17 +18,21 @@ The module supports:
 """
 
 import copy
+import csv
 import json
 import logging
 import os
+import sys
+import traceback
 import unittest
 import testtools
 import threading
-from time import sleep
+from time import sleep, time
 from typing import cast, Dict, List, Optional, Set, TYPE_CHECKING
 
 from sebs.faas.function import Trigger
 from sebs.utils import ColoredWrapper, SensitiveDataFilter, LoggingBase
+from sebs.utils import connect_to_redis_cache, download_measurements
 
 if TYPE_CHECKING:
     from sebs import SeBS
@@ -71,6 +75,22 @@ benchmarks_cpp = [
     "503.graph-bfs",
 ]
 
+# Workflow benchmarks available for regression testing
+benchmarks_workflows = [
+    "610.gen",
+    "620.func-invo",
+    "630.parallel-sleep",
+    "631.parallel-download",
+    "640.selfish-detour",
+    "650.vid",
+    "660.map-reduce",
+    "670.auth",
+    "680.excamera",
+    "690.ml",
+    # 6100.1000-genome and 6101.1000-genome-individuals are disabled on Azure.
+    "6200.trip-booking",
+]
+
 # AWS-specific configurations
 architectures_aws = ["x64", "arm64"]
 deployments_aws = ["package", "container"]
@@ -87,12 +107,69 @@ deployments_azure = ["package"]
 architectures_openwhisk = ["x64"]
 deployments_openwhisk = ["container"]
 
+# Cloudflare-specific configurations
+architectures_cloudflare = ["x64"]
+
 # User-defined config passed during initialization, set in regression_suite()
 cloud_config: Optional[dict] = None
+# Input size for benchmark test data ("test" | "small" | "large"), set in regression_suite()
+benchmark_input_size: str = "test"
 
 RESOURCE_PREFIX = "regr"
 LOGGING_REDACTED = False
 LOGGING_REDACTOR: SensitiveDataFilter = SensitiveDataFilter()
+
+
+def write_workflow_measurements(
+    deployment_client,
+    output_dir: str,
+    workflow_name: str,
+    after: float,
+    request_id: Optional[str],
+    benchmark_name: str,
+    architecture: str,
+    deployment_type: str,
+    logging_wrapper: ColoredWrapper,
+) -> None:
+    """Download workflow Redis measurements for a regression invocation."""
+    redis_host = getattr(deployment_client.config, "redis_host", None)
+    if not redis_host:
+        return
+
+    redis_password = getattr(deployment_client.config, "redis_password", None) or None
+    redis_username = getattr(deployment_client.config, "redis_username", None) or None
+    try:
+        redis = connect_to_redis_cache(redis_host, password=redis_password, username=redis_username)
+        measurements = download_measurements(
+            redis,
+            workflow_name,
+            after,
+            request_id=request_id,
+            benchmark=benchmark_name,
+            architecture=architecture,
+            system_variant=deployment_type,
+            deployment=deployment_client.name(),
+        )
+    except Exception as e:
+        logging_wrapper.warning(f"Could not download Redis measurements ({e})")
+        return
+
+    if not measurements:
+        return
+
+    path = os.path.join(
+        output_dir,
+        "results",
+        workflow_name,
+        deployment_client.name() + ".csv",
+    )
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fieldnames = sorted({key for row in measurements for key in row.keys()})
+    with open(path, "w", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(measurements)
+    logging_wrapper.info(f"Saved {len(measurements)} Redis measurements to {path}")
 
 
 def configure_regression_deployment(
@@ -245,7 +322,7 @@ class TestSequenceMeta(type):
                 # Prepare input data for the benchmark
                 input_config = benchmark.prepare_input(
                     deployment_client.system_resources,
-                    size="test",
+                    size=benchmark_input_size,
                     replace_existing=experiment_config.update_storage,
                 )
 
@@ -329,6 +406,305 @@ class TestSequenceMeta(type):
         dict["lock"] = threading.Lock()  # Lock for thread-safe initialization
         dict["cfg"] = None  # Shared configuration
         return type.__new__(mcs, name, bases, dict)
+
+
+class WorkflowTestSequenceMeta(type):
+    """Metaclass for dynamically generating workflow regression test cases.
+
+    Similar to TestSequenceMeta but uses get_workflow instead of get_function,
+    and workflows have their trigger built-in (WorkflowLibraryTrigger).
+    """
+
+    def __init__(cls, name, bases, attrs, benchmarks, architectures, deployments, deployment_name):
+        """Record workflow deployment metadata on the generated test class."""
+        type.__init__(cls, name, bases, attrs)
+        cls.deployment_name = deployment_name
+
+    def __new__(mcs, name, bases, dict, benchmarks, architectures, deployments, deployment_name):
+        """Create workflow regression test methods for every benchmark variant."""
+
+        def gen_test(benchmark_name, architecture, deployment_type):
+            """Build one workflow regression test method."""
+
+            def test(self):
+                """Execute one workflow regression benchmark."""
+                log_name = f"Regression-WF-{deployment_name}-{benchmark_name}-{deployment_type}"
+                logger = logging.getLogger(log_name)
+                logger.setLevel(logging.INFO)
+                logging_wrapper = ColoredWrapper(log_name, logger)
+                if LOGGING_REDACTED:
+                    logger.addFilter(LOGGING_REDACTOR)
+                    logging_wrapper.set_filter(LOGGING_REDACTOR)
+
+                self.experiment_config["architecture"] = architecture
+                self.experiment_config["system_variant"] = deployment_type
+
+                deployment_client = self.get_deployment(
+                    benchmark_name, architecture, deployment_type
+                )
+                try:
+                    deployment_client.disable_rich_output()
+
+                    logging_wrapper.info(
+                        f"Begin workflow regression test of {benchmark_name} on "
+                        f"{deployment_client.name()}. "
+                        f"Architecture {architecture}, deployment type: {deployment_type}."
+                    )
+
+                    experiment_config = self.client.get_experiment_config(self.experiment_config)
+                    benchmark = self.client.get_benchmark(
+                        benchmark_name, deployment_client, experiment_config
+                    )
+
+                    input_config = benchmark.prepare_input(
+                        deployment_client.system_resources,
+                        size=benchmark_input_size,
+                        replace_existing=experiment_config.update_storage,
+                    )
+
+                    wf = deployment_client.get_workflow(
+                        benchmark, deployment_client.default_function_name(benchmark)
+                    )
+
+                    trigger_type = Trigger.TriggerType.LIBRARY
+                    triggers = wf.triggers(trigger_type)
+                    if len(triggers) == 0:
+                        trigger = deployment_client.create_trigger(wf, trigger_type)
+                        sleep(5)
+                    else:
+                        trigger = triggers[0]
+
+                    failure = False
+                    ret = None
+                    invoke_begin = time()
+                    try:
+                        ret = trigger.sync_invoke(input_config)
+                        if ret.stats.failure:
+                            failure = True
+                            logging_wrapper.error(f"{benchmark_name} workflow execution failed")
+                        else:
+                            output = ret.output
+                            storage = (
+                                deployment_client.system_resources.get_storage()
+                                if benchmark.uses_storage
+                                else None
+                            )
+                            error = benchmark.validate_output(input_config, output, storage)
+                            if error is not None:
+                                failure = True
+                                logging_wrapper.error(
+                                    f"{benchmark_name} workflow output validation failed,"
+                                    f" reason: {error}"
+                                )
+                            else:
+                                logging_wrapper.info(
+                                    f"{benchmark_name} workflow execution succeeded"
+                                )
+                    except Exception:
+                        failure = True
+                        logging_wrapper.error(
+                            f"{benchmark_name} workflow invocation raised exception"
+                        )
+                        logging_wrapper.error(traceback.format_exc())
+
+                    write_workflow_measurements(
+                        deployment_client,
+                        self.client.output_dir,
+                        wf.name,
+                        invoke_begin,
+                        ret.request_id if ret is not None else None,
+                        benchmark_name,
+                        architecture,
+                        deployment_type,
+                        logging_wrapper,
+                    )
+
+                    json_filename = (
+                        f"regression_wf_{deployment_name}_{benchmark_name}"
+                        f"_{architecture}_{deployment_type}.json"
+                    )
+                    with open(os.path.join(self.client.output_dir, json_filename), "w") as f:
+                        json.dump({"output": ret.output if ret is not None else None}, f, indent=2)
+
+                    if failure:
+                        raise RuntimeError(f"Workflow test of {benchmark_name} failed!")
+                finally:
+                    primary_exception_active = sys.exc_info()[0] is not None
+                    try:
+                        deployment_client.shutdown()
+                    except Exception as shutdown_error:
+                        logging_wrapper.error(
+                            f"{benchmark_name} workflow deployment shutdown raised exception"
+                        )
+                        logging_wrapper.error(traceback.format_exc())
+                        if not primary_exception_active:
+                            raise RuntimeError(
+                                f"Workflow test of {benchmark_name} failed during shutdown!"
+                            ) from shutdown_error
+
+            return test
+
+        for benchmark in benchmarks:
+            for architecture in architectures:
+                for deployment_type in deployments:
+                    test_name = f"test_{deployment_name}_wf_{benchmark}"
+                    test_name += f"_{architecture}_{deployment_type}"
+                    test_method = gen_test(benchmark, architecture, deployment_type)
+                    test_method.test_architecture = architecture
+                    test_method.test_deployment_type = deployment_type
+                    test_method.test_benchmark = benchmark
+                    dict[test_name] = test_method
+
+        dict["lock"] = threading.Lock()
+        dict["cfg"] = None
+        return type.__new__(mcs, name, bases, dict)
+
+
+class AWSTestSequenceWorkflows(
+    unittest.TestCase,
+    metaclass=WorkflowTestSequenceMeta,
+    benchmarks=benchmarks_workflows,
+    architectures=["x64"],
+    deployments=["package"],
+    deployment_name="aws",
+):
+    """AWS workflow regression test sequence."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Create and initialize an AWS deployment for workflow regression."""
+        deployment_name = "aws"
+        assert cloud_config, "Cloud configuration is required"
+
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        configure_regression_deployment(config_copy, deployment_name, deployment_type)
+
+        f = f"regression_wf_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        with AWSTestSequenceWorkflows.lock:
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+        return deployment_client
+
+
+class GCPTestSequenceWorkflows(
+    unittest.TestCase,
+    metaclass=WorkflowTestSequenceMeta,
+    benchmarks=benchmarks_workflows,
+    architectures=["x64"],
+    deployments=["function-gen2"],
+    deployment_name="gcp",
+):
+    """GCP workflow regression test sequence."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Create and initialize a GCP deployment for workflow regression."""
+        deployment_name = "gcp"
+        assert cloud_config, "Cloud configuration is required"
+
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        configure_regression_deployment(config_copy, deployment_name, deployment_type)
+
+        f = f"regression_wf_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        with GCPTestSequenceWorkflows.lock:
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.project_name,
+                )
+        return deployment_client
+
+
+class AzureTestSequenceWorkflows(
+    unittest.TestCase,
+    metaclass=WorkflowTestSequenceMeta,
+    benchmarks=benchmarks_workflows,
+    architectures=architectures_azure,
+    deployments=deployments_azure,
+    deployment_name="azure",
+):
+    """Test suite for workflow benchmarks on Azure Durable Functions."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Get an Azure deployment client for workflow testing.
+
+        Args:
+            benchmark_name: Name of the workflow benchmark to deploy
+            architecture: Architecture to deploy on (x64)
+            deployment_type: Deployment type (package)
+
+        Returns:
+            An initialized Azure deployment client
+        """
+        deployment_name = "azure"
+        assert cloud_config, "Cloud configuration is required"
+
+        with AzureTestSequenceWorkflows.lock:
+            if not AzureTestSequenceWorkflows.cfg:
+                AzureTestSequenceWorkflows.cfg = self.client.get_deployment_config(
+                    cloud_config["deployment"],
+                    logging_filename=os.path.join(
+                        self.client.output_dir,
+                        f"regression_wf_{deployment_name}_{benchmark_name}_{architecture}.log",
+                    ),
+                )
+
+            needs_login = False
+            if not hasattr(AzureTestSequenceWorkflows, "cli"):
+                from sebs.azure.cli import AzureCLI
+
+                AzureTestSequenceWorkflows.cli = AzureCLI(
+                    self.client.config, self.client.docker_client
+                )
+                needs_login = True
+
+            config_copy = copy.deepcopy(cloud_config)
+            config_copy["experiments"]["architecture"] = architecture
+            config_copy["experiments"]["system_variant"] = deployment_type
+
+            f = (
+                f"regression_wf_{deployment_name}_{benchmark_name}_"
+                f"{architecture}_{deployment_type}.log"
+            )
+            deployment_client = self.client.get_deployment(
+                config_copy,
+                logging_filename=os.path.join(self.client.output_dir, f),
+                deployment_config=AzureTestSequenceWorkflows.cfg,
+            )
+
+            deployment_client.system_resources.initialize_cli(
+                cli=AzureTestSequenceWorkflows.cli, login=needs_login
+            )
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(deployment_client.config.resources.resources_id)
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id
+                )
+            return deployment_client
 
 
 class AWSTestSequencePython(
@@ -1191,6 +1567,134 @@ class OpenWhiskTestSequenceJava(
         return deployment_client
 
 
+class CloudflareTestSequencePythonWorkers(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_python,
+    architectures=architectures_cloudflare,
+    deployments=["workers"],
+    deployment_name="cloudflare",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Python benchmarks on Cloudflare Workers."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Python workers."""
+        deployment_name = "cloudflare"
+        assert cloud_config, "Cloud configuration is required"
+
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = False
+        config_copy["experiments"]["system_variant"] = "workers"
+
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        with CloudflareTestSequencePythonWorkers.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
+class CloudflareTestSequencePythonContainers(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_python,
+    architectures=architectures_cloudflare,
+    deployments=["container"],
+    deployment_name="cloudflare",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Python benchmarks on Cloudflare Containers."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Python containers."""
+        deployment_name = "cloudflare"
+        assert cloud_config, "Cloud configuration is required"
+
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = True
+        config_copy["experiments"]["system_variant"] = "container"
+
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        with CloudflareTestSequencePythonContainers.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
+class CloudflareTestSequenceNodejsWorkers(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_nodejs,
+    architectures=architectures_cloudflare,
+    deployments=["workers"],
+    deployment_name="cloudflare",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Node.js benchmarks on Cloudflare Workers."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Node.js workers."""
+        deployment_name = "cloudflare"
+        assert cloud_config, "Cloud configuration is required"
+
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = False
+        config_copy["experiments"]["system_variant"] = "workers"
+
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        with CloudflareTestSequenceNodejsWorkers.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
+class CloudflareTestSequenceNodejsContainers(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_nodejs,
+    architectures=architectures_cloudflare,
+    deployments=["container"],
+    deployment_name="cloudflare",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Node.js benchmarks on Cloudflare Containers."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Return an initialized Cloudflare deployment client for Node.js containers."""
+        deployment_name = "cloudflare"
+        assert cloud_config, "Cloud configuration is required"
+
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["container_deployment"] = True
+        config_copy["experiments"]["system_variant"] = "container"
+
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+
+        with CloudflareTestSequenceNodejsContainers.lock:
+            deployment_client.initialize(resource_prefix="regr")
+        return deployment_client
+
+
 # Stream result handler for concurrent test execution
 # Based on https://stackoverflow.com/questions/22484805/
 # a-simple-working-example-for-testtools-concurrentstreamtestsuite
@@ -1309,6 +1813,21 @@ def filter_out_benchmarks(
             and language_version in ["3.8", "3.9", "3.10", "3.11", "3.12"]
             and deployment_type == "function-gen1"):
         return "411.image-recognition" not in benchmark
+
+    # Cloudflare: only certain benchmarks are supported per language/deployment-type.
+    # None means all benchmarks are supported for that combination.
+    if deployment_name == "cloudflare":
+        from sebs.cloudflare.cloudflare import Cloudflare
+        is_container = deployment_type == "container"
+        allowed = Cloudflare.SUPPORTED_BENCHMARKS.get((language, is_container))
+        if allowed is not None:
+            # benchmark is the test method name, e.g. "test_cloudflare_120.uploader_x64_workers"
+            # Extract the numeric benchmark prefix (e.g. "120") from before the first "."
+            if "." in benchmark:
+                benchmark_id = benchmark.split(".")[-2].split("_")[-1]
+            else:
+                benchmark_id = benchmark.split("_")[-1]
+            return benchmark_id in allowed
     # fmt: on
 
     # All other benchmarks are supported
@@ -1322,6 +1841,8 @@ def regression_suite(
     deployment_config: dict,
     resource_prefix: str | None = None,
     benchmark_name: Optional[str] = None,
+    deployment_type: Optional[str] = None,
+    input_size: str = "test",
     selected_architecture: str | None = None,
     filter_output: bool = False,
 ):
@@ -1357,9 +1878,10 @@ def regression_suite(
     # Create the test suite
     suite = unittest.TestSuite()
 
-    # Make cloud_config available to test classes
-    global cloud_config
+    # Make cloud_config and input size available to test classes
+    global cloud_config, benchmark_input_size
     cloud_config = deployment_config
+    benchmark_input_size = input_size
 
     # Extract runtime configuration
     language = experiment_config["runtime"]["language"]
@@ -1418,6 +1940,53 @@ def regression_suite(
         elif language == "java":
             suite.addTest(
                 unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequenceJava)
+            )
+
+    # Add Cloudflare tests if requested
+    if "cloudflare" in providers:
+        assert (
+            "cloudflare" in cloud_config["deployment"]
+        ), "Cloudflare provider requested but not in deployment config"
+        if language == "python":
+            if deployment_type != "containers":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequencePythonWorkers
+                    )
+                )
+            if deployment_type != "functions":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequencePythonContainers
+                    )
+                )
+        elif language == "nodejs":
+            if deployment_type != "containers":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequenceNodejsWorkers
+                    )
+                )
+            if deployment_type != "functions":
+                suite.addTest(
+                    unittest.defaultTestLoader.loadTestsFromTestCase(
+                        CloudflareTestSequenceNodejsContainers
+                    )
+                )
+
+    # Add workflow tests (only for Python, workflows are Python-only)
+    if language == "python":
+        if "aws" in providers:
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceWorkflows)
+            )
+        if "gcp" in providers:
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(GCPTestSequenceWorkflows)
+            )
+        if "azure" in providers:
+            suite.addTest(
+                unittest.defaultTestLoader.loadTestsFromTestCase(AzureTestSequenceWorkflows)
             )
 
     # Prepare the list of tests to run
@@ -1499,6 +2068,8 @@ def regression_suite(
         AzureTestSequencePython.cli.shutdown()
     if hasattr(AzureTestSequenceJava, "cli"):
         AzureTestSequenceJava.cli.shutdown()
+    if hasattr(AzureTestSequenceWorkflows, "cli"):
+        AzureTestSequenceWorkflows.cli.shutdown()
 
     # Return True if any test failed
     return not result.all_correct

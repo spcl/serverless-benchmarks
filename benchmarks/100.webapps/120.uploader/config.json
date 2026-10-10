@@ -1,6 +1,21 @@
 {
   "timeout": 60,
   "memory": 128,
-  "languages": ["python", "nodejs"],
+  "languages": [
+    {
+      "language": "python",
+      "variants": {
+        "default": "default",
+        "cloudflare": {"workers": "cloudflare", "containers": "default"}
+      }
+    },
+    {
+      "language": "nodejs",
+      "variants": {
+        "default": "default",
+        "cloudflare": {"workers": "cloudflare", "containers": "default"}
+      }
+    }
+  ],
   "modules": ["storage"]
 }

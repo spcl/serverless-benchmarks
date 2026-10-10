@@ -1,0 +1,9 @@
+{
+    "root": "measure",
+    "states": {
+        "measure": {
+            "type": "task",
+            "func_name": "measure"
+        }
+    }
+}

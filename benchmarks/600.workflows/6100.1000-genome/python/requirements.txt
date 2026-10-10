@@ -1,0 +1,4 @@
+#numpy==1.17
+numpy==1.25 #1.25 triggers contourpy source build via matplotlib on the build image
+contourpy==1.2.1
+matplotlib
