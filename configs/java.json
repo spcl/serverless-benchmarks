@@ -87,18 +87,7 @@
         }
       }
     },
-    "local": {
-      "storage": {
-        "address": "",
-        "mapped_port": -1,
-        "access_key": "",
-        "secret_key": "",
-        "instance_id": "",
-        "input_buckets": [],
-        "output_buckets": [],
-        "type": "minio"
-      }
-    },
+    "local": {},
     "openwhisk": {
       "shutdownStorage": false,
       "removeCluster": false,
@@ -110,16 +99,6 @@
         "registry": "",
         "username": "",
         "password": ""
-      },
-      "storage": {
-        "address": "",
-        "mapped_port": -1,
-        "access_key": "",
-        "secret_key": "",
-        "instance_id": "",
-        "input_buckets": [],
-        "output_buckets": [],
-        "type": "minio"
       }
     }
   }

@@ -87,23 +87,7 @@
         }
       }
     },
-    "local": {
-      "storage": {
-        "object": {
-          "type": "rustfs",
-          "rustfs": {
-            "address": "",
-            "external_address": "",
-            "mapped_port": -1,
-            "access_key": "",
-            "secret_key": "",
-            "instance_id": "",
-            "input_buckets": [],
-            "output_buckets": []
-          }
-        }
-      }
-    },
+    "local": {},
     "openwhisk": {
       "shutdownStorage": false,
       "removeCluster": false,
@@ -115,21 +99,6 @@
         "registry": "",
         "username": "",
         "password": ""
-      },
-      "storage": {
-        "object": {
-          "type": "rustfs",
-          "rustfs": {
-            "address": "",
-            "external_address": "",
-            "mapped_port": -1,
-            "access_key": "",
-            "secret_key": "",
-            "instance_id": "",
-            "input_buckets": [],
-            "output_buckets": []
-          }
-        }
       }
     }
   }
