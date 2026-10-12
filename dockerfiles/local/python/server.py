@@ -7,6 +7,8 @@ import bottle
 from bottle import route, run, template, request
 
 CODE_LOCATION='/function'
+# Each container runs one server process, so its first request is a cold start
+cold_start = True
 
 @route('/alive', method='GET')
 def alive():
@@ -16,6 +18,8 @@ def alive():
 
 @route('/', method='POST')
 def process_request():
+    global cold_start
+    is_cold, cold_start = cold_start, False
     begin = datetime.datetime.now()
     from function import function
     end = datetime.datetime.now()
@@ -26,7 +30,7 @@ def process_request():
         'begin': begin.strftime('%s.%f'),
         'end': end.strftime('%s.%f'),
         "request_id": str(uuid.uuid4()),
-        "is_cold": False,
+        "is_cold": is_cold,
         "result": ret
     }
 

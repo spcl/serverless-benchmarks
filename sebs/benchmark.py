@@ -943,10 +943,12 @@ class Benchmark(LoggingBase):
         for bench_module in self._benchmark_config.modules:
             packages.extend(module_packages.get(bench_module.value, []))
 
-        # append to the end of requirements file, one requirement per line;
-        # the leading newline guards against a file without a trailing newline
-        if packages:
-            with open(os.path.join(output_dir, destination_file), "a") as out:
+        # Always create the requirements file: the installer expects it, and
+        # benchmarks without dependencies do not provide one.
+        with open(os.path.join(output_dir, destination_file), "a") as out:
+            # append one requirement per line; the leading newline
+            # guards against a file without a trailing newline
+            if packages:
                 out.write("\n" + "\n".join(packages) + "\n")
 
     def add_deployment_package_nodejs(self, output_dir: str) -> None:

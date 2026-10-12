@@ -11,7 +11,7 @@ Classes:
 import concurrent.futures
 import docker
 import json
-from typing import Optional
+from typing import Optional, cast
 
 from sebs.utils import is_linux
 from sebs.faas.function import ExecutionResult, Function, FunctionConfig, Trigger
@@ -141,6 +141,22 @@ class LocalFunction(Function):
             RuntimeError: If container IP address cannot be determined
         """
         super().__init__(benchmark, name, code_package_hash, config)
+        self._measurement_pid = measurement_pid
+        self.set_container(docker_container, port)
+
+    def set_container(self, docker_container, port: int) -> None:
+        """Attach the function to a (new) container, e.g., after a restart.
+
+        The new container can have another address, and on non-Linux systems another port,
+        so the invocation URL and the URLs of HTTP triggers are updated.
+
+        Args:
+            docker_container: Docker container instance running the function
+            port: Port number the function is listening on
+
+        Raises:
+            RuntimeError: If container IP address cannot be determined
+        """
         self._instance = docker_container
         self._instance_id = docker_container.id
         self._instance.reload()
@@ -161,8 +177,8 @@ class LocalFunction(Function):
             self._url = "{IPAddress}:{Port}".format(IPAddress=self._url, Port=port)
         else:
             self._url = f"localhost:{port}"
-
-        self._measurement_pid = measurement_pid
+        for trigger in self.triggers(Trigger.TriggerType.HTTP):
+            cast(HTTPTrigger, trigger).url = self._url
 
     @property
     def container(self) -> docker.models.containers.Container:
@@ -173,14 +189,14 @@ class LocalFunction(Function):
         """
         return self._instance
 
-    @container.setter
-    def container(self, instance: docker.models.containers.Container) -> None:
-        """Set the Docker container for this function.
+    @property
+    def port(self) -> int:
+        """Get the port the function is listening on.
 
-        Args:
-            instance: New Docker container instance
+        Returns:
+            int: Port number; on non-Linux systems, the port published on the host
         """
-        self._instance = instance
+        return self._port
 
     @property
     def url(self) -> str:
