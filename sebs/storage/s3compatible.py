@@ -420,9 +420,9 @@ class S3CompatibleStorage(PersistentStorage):
         Args:
             bucket: Name of the bucket to clean
         """
-        delete_object_list = map(
-            lambda x: minio.DeleteObject(x.object_name),
-            self.connection.list_objects(bucket_name=bucket_name),
+        # The pinned SDK expects object names, not DeleteObject instances
+        delete_object_list = (
+            obj.object_name for obj in self.connection.list_objects(bucket_name=bucket_name)
         )
         errors = self.connection.remove_objects(bucket_name, delete_object_list)
         for error in errors:
