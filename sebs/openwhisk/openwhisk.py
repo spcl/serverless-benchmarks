@@ -664,6 +664,41 @@ class OpenWhisk(System):
 
         return changed
 
+    def delete_function(self, func_name: str, function: Dict) -> None:
+        """
+        Delete an OpenWhisk action.
+
+        Warm containers of the action are not removed: they expire after the idle
+        timeout of the invoker. Deleting them is not safe, since an identical action
+        created later can select a deleted container (see remove_stale_containers).
+
+        Args:
+            func_name: Name of the action to delete
+            function: Cached function configuration
+
+        Raises:
+            RuntimeError: If WSK CLI is not accessible or the deletion fails
+        """
+        self.logging.info(f"Deleting OpenWhisk action {func_name}")
+        try:
+            subprocess.run(
+                [*self.get_wsk_cmd(), "action", "delete", func_name],
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                check=True,
+            )
+        except FileNotFoundError as e:
+            self.logging.error("Could not delete OpenWhisk function - is path to wsk correct?")
+            raise RuntimeError(e)
+        except subprocess.CalledProcessError as e:
+            # wsk returns the HTTP status minus 256: 148 is 404 Not Found.
+            if e.returncode == 148:
+                self.logging.warning(f"OpenWhisk action {func_name} does not exist!")
+                return
+            self.logging.error(f"Cannot delete action {func_name}.")
+            self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
+            raise RuntimeError(e)
+
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
