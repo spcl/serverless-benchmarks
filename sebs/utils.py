@@ -18,6 +18,7 @@ import subprocess
 import uuid
 import click
 import datetime
+import ipaddress
 import platform
 import socket
 import threading
@@ -736,7 +737,8 @@ def resolve_external_address(address: str, port: int) -> str:
     cluster, reach the storage through the host's IP and the port mapped on the host.
 
     Args:
-        address: User-provided IP or hostname, optionally with a port. When empty,
+        address: User-provided IP or hostname, optionally with a port. IPv6 addresses
+            with a port must be bracketed, e.g., "[2001:db8::1]:9011". When empty,
             the IP of the host's default-route interface is used.
         port: Port mapped on the host, appended when the address has no port.
 
@@ -747,6 +749,12 @@ def resolve_external_address(address: str, port: int) -> str:
     host = address if address else detect_external_address()
     if not host:
         return ""
+    try:
+        # A bare IPv6 address has colons but no port; bracket it for use in URLs.
+        if ipaddress.ip_address(host).version == 6:
+            return f"[{host}]:{port}"
+    except ValueError:
+        pass
     has_port = "]:" in host if host.startswith("[") else ":" in host
     return host if has_port else f"{host}:{port}"
 

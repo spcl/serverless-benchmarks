@@ -97,13 +97,17 @@ class SelfHostedResources(Resources):
             cache: Cache instance to store configurations in
         """
         super().update_cache(cache)
+        # Use the same layout as storage configuration files: storage.<type>.<impl>,
+        # as expected by _deserialize_storage.
+        storage_path = [self._name, "resources", "storage"]
         if self._object_storage is not None:
-            cast(MinioConfig, self._object_storage).update_cache(
-                [self._name, "resources", "storage"], cache
-            )
+            object_storage = cast(MinioConfig, self._object_storage)
+            cache.update_config(val=object_storage.type, keys=[*storage_path, "object", "type"])
+            object_storage.update_cache([*storage_path, "object", object_storage.type], cache)
         if self._nosql_storage is not None:
+            cache.update_config(val="scylladb", keys=[*storage_path, "nosql", "type"])
             cast(ScyllaDBConfig, self._nosql_storage).update_cache(
-                [self._name, "resources", "nosql"], cache
+                [*storage_path, "nosql", "scylladb"], cache
             )
 
     def _deserialize_storage(
