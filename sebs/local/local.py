@@ -270,12 +270,15 @@ class Local(System):
             "CONTAINER_GID": str(os.getgid()),
             "CONTAINER_USER": self._system_config.username(self.name(), code_package.language_name),
         }
+        # Function containers share the Docker bridge with the storage containers,
+        # so they use the internal addresses.
         if self.config.resources.storage_config:
-            environment = {**self.config.resources.storage_config.envs(), **environment}
+            storage_envs = self.config.resources.storage_config.envs(external=False)
+            environment = {**storage_envs, **environment}
 
         if code_package.uses_nosql:
             nosql_storage = self.system_resources.get_nosql_storage()
-            environment = {**environment, **nosql_storage.envs()}
+            environment = {**environment, **nosql_storage.envs(external=False)}
 
             for original_name, actual_name in nosql_storage.get_tables(
                 code_package.benchmark

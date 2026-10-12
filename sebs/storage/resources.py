@@ -97,13 +97,17 @@ class SelfHostedResources(Resources):
             cache: Cache instance to store configurations in
         """
         super().update_cache(cache)
+        # Use the same layout as storage configuration files: storage.<type>.<impl>,
+        # as expected by _deserialize_storage.
+        storage_path = [self._name, "resources", "storage"]
         if self._object_storage is not None:
-            cast(MinioConfig, self._object_storage).update_cache(
-                [self._name, "resources", "storage"], cache
-            )
+            object_storage = cast(MinioConfig, self._object_storage)
+            cache.update_config(val=object_storage.type, keys=[*storage_path, "object", "type"])
+            object_storage.update_cache([*storage_path, "object", object_storage.type], cache)
         if self._nosql_storage is not None:
+            cache.update_config(val="scylladb", keys=[*storage_path, "nosql", "type"])
             cast(ScyllaDBConfig, self._nosql_storage).update_cache(
-                [self._name, "resources", "nosql"], cache
+                [*storage_path, "nosql", "scylladb"], cache
             )
 
     def _deserialize_storage(
@@ -139,7 +143,7 @@ class SelfHostedResources(Resources):
             cached_config is not None
             and "resources" in cached_config
             and "storage" in cached_config["resources"]
-            and "object" in cached_config["resources"]["storage"]
+            and storage_type in cached_config["resources"]["storage"]
         ):
             storage_impl = cached_config["resources"]["storage"][storage_type]["type"]
             storage_config = cached_config["resources"]["storage"][storage_type][storage_impl]
@@ -244,7 +248,9 @@ class SelfHostedSystemResources(SystemResources):
             if storage_config is None:
                 self.logging.error(
                     f"The {self._name} deployment is missing the "
-                    "configuration of pre-allocated storage!"
+                    "configuration of pre-allocated storage! Start the storage with "
+                    "'sebs storage start object configs/storage.json --output-json storage.json' "
+                    "and pass the result with '--storage-configuration storage.json'."
                 )
                 raise RuntimeError(f"Cannot run {self._name} deployment without any object storage")
 
@@ -285,7 +291,9 @@ class SelfHostedSystemResources(SystemResources):
             if storage_config is None:
                 self.logging.error(
                     f"The {self._name} deployment is missing the configuration "
-                    "of pre-allocated NoSQL storage!"
+                    "of pre-allocated NoSQL storage! Start the storage with "
+                    "'sebs storage start nosql configs/storage.json --output-json storage.json' "
+                    "and pass the result with '--storage-configuration storage.json'."
                 )
                 raise RuntimeError("Cannot allocate NoSQL storage!")
 

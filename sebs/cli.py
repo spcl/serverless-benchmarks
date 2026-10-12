@@ -144,6 +144,38 @@ def common_params(func):
     return wrapper
 
 
+def storage_params(func):
+    """Decorator that adds CLI parameters for user-deployed storage."""
+
+    @click.option(
+        "--storage-configuration",
+        type=str,
+        multiple=True,
+        help="JSON configuration of deployed storage, as written by 'sebs storage start'.",
+    )
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        """Internal Click wrapper."""
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+def validate_external_address(address: Optional[str]) -> Optional[str]:
+    """Reject external storage addresses with a port.
+
+    Each storage instance appends its own mapped port, so a single port
+    would advertise the same endpoint for all storage types.
+    """
+    if address is not None and sebs.utils.address_has_port(address):
+        raise click.BadParameter(
+            f"'{address}' contains a port. Each storage instance appends its own mapped "
+            "port; to advertise a different port, edit external_address in the generated "
+            "storage configuration."
+        )
+    return address
+
+
 def parse_common_params(
     config,
     output_dir,
@@ -207,7 +239,7 @@ def parse_common_params(
             sebs_client.logging.info(f"Loading storage configuration from {cfg_f}")
 
             cfg = json.load(open(cfg_f, "r"))
-            append_nested_dict(config_obj, ["deployment", deployment, "storage"], cfg)
+            append_nested_dict(config_obj, ["deployment", selected_deployment, "storage"], cfg)
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
@@ -273,12 +305,7 @@ def benchmark():
     type=str,
     help="Attach prefix to generated Docker image tag.",
 )
-@click.option(
-    "--storage-configuration",
-    type=str,
-    multiple=True,
-    help="JSON configuration of deployed storage.",
-)
+@storage_params
 @click.option(
     "--validate/--no-validate",
     default=False,
@@ -483,12 +510,7 @@ def package(
     type=str,
     help="Run only the selected benchmark.",
 )
-@click.option(
-    "--storage-configuration",
-    type=str,
-    multiple=True,
-    help="JSON configuration of deployed storage.",
-)
+@storage_params
 @click.option(
     "--selected-architecture/--all-architectures",
     type=bool,
@@ -563,8 +585,23 @@ def storage():
     default=True,
     help="Remove containers after stopping.",
 )
-def storage_start(storage, config, output_json, remove_containers):
-    """Start local storage instances (object storage, NoSQL, or both)."""
+@click.option(
+    "--external-address",
+    default=None,
+    type=str,
+    callback=lambda ctx, param, value: validate_external_address(value),
+    help="Address (IP or hostname, without a port) advertised to benchmark functions. Each "
+    "storage instance appends its mapped port. Defaults to the IP of the host's default "
+    "network interface.",
+)
+def storage_start(storage, config, output_json, remove_containers, external_address):
+    """Start local storage instances (object storage, NoSQL, or both).
+
+    The written configuration contains two addresses per storage instance: the
+    address used by SeBS on this host, and the external address advertised to
+    benchmark functions, which is required for functions running outside of the
+    Docker bridge network, e.g., in a Kubernetes cluster.
+    """
     import docker
 
     sebs.utils.global_logging()
@@ -578,11 +615,14 @@ def storage_start(storage, config, output_json, remove_containers):
         storage_config = sebs.SeBS.get_storage_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["object"][storage_type_name])
         config.remove_containers = remove_containers
+        if external_address is not None:
+            config.external_address = external_address
 
         storage_instance = storage_type(docker.from_env(), None, None, True)
         storage_instance.config = config
 
         storage_instance.start()
+        storage_instance.check_external_address()
 
         user_storage_config["object"][storage_type_name] = storage_instance.serialize()
     else:
@@ -596,10 +636,13 @@ def storage_start(storage, config, output_json, remove_containers):
         storage_config = sebs.SeBS.get_nosql_config_implementation(storage_type_enum)
         config = storage_config.deserialize(user_storage_config["nosql"][storage_type_name])
         config.remove_containers = remove_containers
+        if external_address is not None:
+            config.external_address = external_address
 
         storage_instance = storage_type(docker.from_env(), None, config)
 
         storage_instance.start()
+        storage_instance.check_external_address()
 
         key, value = storage_instance.serialize()
         user_storage_config["nosql"][key] = value
@@ -662,12 +705,7 @@ def local():
 @click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
 @click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
-@click.option(
-    "--storage-configuration",
-    type=str,
-    multiple=True,
-    help="JSON configuration of deployed storage.",
-)
+@storage_params
 @click.option(
     "--measure-interval",
     type=int,

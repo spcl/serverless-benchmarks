@@ -89,14 +89,19 @@
     },
     "local": {
       "storage": {
-        "address": "",
-        "mapped_port": -1,
-        "access_key": "",
-        "secret_key": "",
-        "instance_id": "",
-        "input_buckets": [],
-        "output_buckets": [],
-        "type": "minio"
+        "object": {
+          "type": "minio",
+          "minio": {
+            "address": "",
+            "external_address": "",
+            "mapped_port": -1,
+            "access_key": "",
+            "secret_key": "",
+            "instance_id": "",
+            "input_buckets": [],
+            "output_buckets": []
+          }
+        }
       }
     },
     "openwhisk": {
@@ -112,14 +117,19 @@
         "password": ""
       },
       "storage": {
-        "address": "",
-        "mapped_port": -1,
-        "access_key": "",
-        "secret_key": "",
-        "instance_id": "",
-        "input_buckets": [],
-        "output_buckets": [],
-        "type": "minio"
+        "object": {
+          "type": "minio",
+          "minio": {
+            "address": "",
+            "external_address": "",
+            "mapped_port": -1,
+            "access_key": "",
+            "secret_key": "",
+            "instance_id": "",
+            "input_buckets": [],
+            "output_buckets": []
+          }
+        }
       }
     }
   }
