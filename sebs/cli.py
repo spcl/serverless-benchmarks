@@ -813,6 +813,7 @@ def experiment():
 @experiment.command("invoke")
 @click.argument("experiment", type=str)  # , help="Benchmark to be launched.")
 @common_params
+@storage_params
 def experiment_invoke(experiment, **kwargs):
     """Invoke an experiment workflow."""
     (

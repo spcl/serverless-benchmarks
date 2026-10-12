@@ -105,11 +105,12 @@ When the storage runs on a cloud VM and the functions run elsewhere, e.g., in a 
 
 ## Network Configuration
 
-To use the deployed storage with a benchmark, pass the generated configuration file with the `--storage-configuration` flag.
+To use the deployed storage with a benchmark or an experiment, pass the generated configuration file with the `--storage-configuration` flag.
 The storage configuration is merged into the deployment section of the SeBS configuration, so no manual editing of JSON files is needed:
 
 ```bash
 sebs benchmark invoke 210.thumbnailer test --config configs/openwhisk.json --storage-configuration storage.json
+sebs experiment invoke perf-cost --config configs/openwhisk.json --storage-configuration storage.json
 ```
 
 Functions running in OpenWhisk or another Kubernetes-based platform cannot reach the Docker bridge network of the host, even when the cluster runs on the same machine.
