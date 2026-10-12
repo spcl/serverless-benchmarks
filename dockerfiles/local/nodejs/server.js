@@ -28,9 +28,7 @@ app.post('/', function (req, res) {
       end: strftime('%s.%L', new Date(end)),
       request_id: uuidv4(),
       is_cold: false,
-      result: {
-        output: func_res
-      }
+      result: func_res
     }));
   },
   (reason) => {

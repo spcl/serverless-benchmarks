@@ -934,21 +934,20 @@ class Benchmark(LoggingBase):
         if not os.path.exists(os.path.join(output_dir, destination_file)):
             destination_file = "requirements.txt"
 
-        # append to the end of requirements file
-        with open(os.path.join(output_dir, destination_file), "a") as out:
-            packages = self._system_config.deployment_packages(
-                self._deployment_name, self.language_name
-            )
-            for package in packages:
-                out.write(package)
+        packages = list(
+            self._system_config.deployment_packages(self._deployment_name, self.language_name)
+        )
+        module_packages = self._system_config.deployment_module_packages(
+            self._deployment_name, self.language_name
+        )
+        for bench_module in self._benchmark_config.modules:
+            packages.extend(module_packages.get(bench_module.value, []))
 
-            module_packages = self._system_config.deployment_module_packages(
-                self._deployment_name, self.language_name
-            )
-            for bench_module in self._benchmark_config.modules:
-                if bench_module.value in module_packages:
-                    for package in module_packages[bench_module.value]:
-                        out.write(package)
+        # append to the end of requirements file, one requirement per line;
+        # the leading newline guards against a file without a trailing newline
+        if packages:
+            with open(os.path.join(output_dir, destination_file), "a") as out:
+                out.write("\n" + "\n".join(packages) + "\n")
 
     def add_deployment_package_nodejs(self, output_dir: str) -> None:
         """Add Node.js deployment packages to package.json.

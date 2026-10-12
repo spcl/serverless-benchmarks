@@ -86,7 +86,7 @@ class SeBSConfig:
 
     def deployment_module_packages(
         self, deployment_name: str, language_name: str
-    ) -> Dict[str, str]:
+    ) -> Dict[str, List[str]]:
         """Get deployment module packages for a specific deployment and language, e.g.,
         packages specific to object or NoSQL storage.
 
@@ -95,7 +95,8 @@ class SeBSConfig:
             language_name (str): Programming language name (e.g., 'python', 'nodejs').
 
         Returns:
-            Dict[str, str]: Dictionary mapping module package names to their versions.
+            Dict[str, List[str]]: Dictionary mapping benchmark modules to the package
+                specifications installed for them, e.g., "boto3==1.28.3".
         """
         return self._system_config[deployment_name]["languages"][language_name]["deployment"][
             "module_packages"

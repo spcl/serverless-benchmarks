@@ -26,7 +26,7 @@ from sebs.faas.system import System as FaaSSystem
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.nosql import NoSQLStorage
 from sebs.faas.config import Config
-from sebs.storage import minio, config, scylladb
+from sebs.storage import minio, rustfs, config, scylladb
 from sebs.utils import has_platform, LoggingHandlers, LoggingBase
 
 from sebs.experiments.config import Config as ExperimentConfig
@@ -389,7 +389,10 @@ class SeBS(LoggingBase):
         Raises:
             AssertionError: If the requested storage type is not supported
         """
-        _storage_implementations = {types.Storage.MINIO: minio.Minio}
+        _storage_implementations = {
+            types.Storage.MINIO: minio.Minio,
+            types.Storage.RUSTFS: rustfs.RustFS,
+        }
         impl = _storage_implementations.get(storage_type)
         assert impl, f"Storage type {storage_type} not supported"
         return impl
@@ -431,7 +434,10 @@ class SeBS(LoggingBase):
         Raises:
             AssertionError: If the requested storage type is not supported
         """
-        _storage_implementations = {types.Storage.MINIO: config.MinioConfig}
+        _storage_implementations = {
+            types.Storage.MINIO: config.MinioConfig,
+            types.Storage.RUSTFS: config.RustFSConfig,
+        }
         impl = _storage_implementations.get(storage_type)
         assert impl, f"Storage configuration for type {storage_type} not supported"
         return impl

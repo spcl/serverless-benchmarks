@@ -25,5 +25,5 @@ exports.handler = async function(event) {
     }
   );
   await promise;
-  return {result: {bucket: output_prefix, key: uploadName}}
+  return {result: {bucket: bucket, key: uploadName}}
 };

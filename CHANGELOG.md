@@ -2,6 +2,8 @@
 
 ### Features
 
+* [RustFS](https://github.com/rustfs/rustfs) is the new default S3-compatible object storage for local and OpenWhisk deployments. Minio is deprecated and kept for reproducibility (`configs/storage-minio.json`). The self-hosted object storage implementation is now shared between backends.
+
 ### Bug Fixes
 
 * Change to input of 120.uploader benchmark to conform with new Wikipedia policies (#308)
@@ -19,6 +21,8 @@
 * Self-hosted storage (Minio, ScyllaDB) advertises an externally reachable address to functions, detected automatically or set with `--external-address` when starting the storage. This removes the manual editing of storage addresses for OpenWhisk (#229).
 
 ### Deprecations
+
+* Local deployment: Python 3.7 and 3.8, and Node.js 14 and 16 are no longer supported.
 
 * Storage configuration files generated before 1.3 are no longer supported for OpenWhisk: they lack the `external_address` field, and functions would receive the Docker bridge address. Regenerate them with `sebs storage start`.
 

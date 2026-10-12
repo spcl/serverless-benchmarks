@@ -46,7 +46,7 @@ Infrastructure images follow this naming pattern:
 
 Examples:
 - `spcleth/serverless-benchmarks:build.aws.python.3.9-1.2.0`
-- `spcleth/serverless-benchmarks:run.local.nodejs.16-1.2.0`
+- `spcleth/serverless-benchmarks:run.local.nodejs.20-1.2.0`
 - `spcleth/serverless-benchmarks:manage.azure-1.2.0`
 
 ### Docker Image Build
