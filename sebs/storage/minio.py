@@ -58,8 +58,9 @@ class Minio(PersistentStorage):
     # The region setting is required by S3 API but not used for local MinIO
     MINIO_REGION = "us-east-1"
 
-    # Docker Hub no longer serves minio/minio; the same images are published on quay.io
-    MINIO_IMAGE = "quay.io/minio/minio"
+    # MinIO no longer publishes images on Docker Hub or quay.io.
+    # We serve archived releases for reproducibility; the tag is followed by the MinIO release.
+    MINIO_IMAGE = "spcleth/serverless-benchmarks:minio-reproducibility-archive"
 
     def __init__(
         self,
@@ -167,7 +168,7 @@ class Minio(PersistentStorage):
             self.logging.info(f"Starting storage Minio on port {self._cfg.mapped_port}")
             # Run the MinIO container
             self._storage_container = self._docker_client.containers.run(
-                f"{self.MINIO_IMAGE}:{self._cfg.version}",
+                f"{self.MINIO_IMAGE}-{self._cfg.version}",
                 command="server /data",
                 network_mode="bridge",
                 user=os.getuid(),
