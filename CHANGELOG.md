@@ -2,7 +2,7 @@
 
 ### Features
 
-* Support for [RustFS](https://github.com/rustfs/rustfs) as an S3-compatible object storage for local and OpenWhisk deployments, next to Minio. The self-hosted object storage implementation is now shared between backends.
+* [RustFS](https://github.com/rustfs/rustfs) is the new default S3-compatible object storage for local and OpenWhisk deployments. Minio is deprecated and kept for reproducibility (`configs/storage-minio.json`). The self-hosted object storage implementation is now shared between backends.
 
 ### Bug Fixes
 

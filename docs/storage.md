@@ -7,7 +7,7 @@ SeBS will automatically allocate resources and configure them.
 With open-source platforms like OpenWhisk or local deployment, SeBS needs a self-hosted storage instance.
 
 In this document, we explain how to deploy and configure storage systems for benchmarking with SeBS.
-For object storage, we support two S3-compatible systems: [Minio](https://github.com/minio/minio) and [RustFS](https://github.com/rustfs/rustfs).
+For object storage, we support two S3-compatible systems: [RustFS](https://github.com/rustfs/rustfs), the default, and [Minio](https://github.com/minio/minio), which is deprecated and kept for reproducibility of earlier results.
 For NoSQL storage, we use [ScyllaDB](https://github.com/scylladb/scylladb) with an adapter that provides a DynamoDB-compatible interface.
 The storage instance is deployed as a Docker container and can be retained across multiple experiments.
 While we provide a default configuration that automatically deploys each storage instance,
@@ -16,10 +16,19 @@ you can deploy them on any cloud resource and adapt the configuration to fit you
 ## Object Storage Backends
 
 Benchmark functions access object storage through the S3 API, so both backends are interchangeable and no benchmark code changes when switching between them.
-Select the backend with the `type` field of the object storage configuration; the default configuration files are `configs/storage.json` for Minio and `configs/storage-rustfs.json` for RustFS.
+Select the backend with the `type` field of the object storage configuration; the default configuration files are `configs/storage.json` for RustFS and `configs/storage-minio.json` for Minio.
 
-* **Minio** is the established default. Its community edition is no longer maintained and its images were removed from Docker Hub; SeBS pulls the pinned version from `quay.io/minio/minio`.
-* **RustFS** is an actively developed, Apache-2.0 licensed alternative. Its data is kept in a named Docker volume, since the container runs as a fixed unprivileged user. At the time of writing, RustFS has not published a stable release yet, so we pin a release candidate.
+Up to SeBS 1.2, Minio was the only object storage.
+In September 2026, we changed the default to RustFS:
+
+* The Minio community edition is no longer maintained, and Minio stopped publishing its server images: they were removed from Docker Hub, and `quay.io/minio/minio` no longer serves them without authentication. A fresh SeBS installation could no longer start the storage.
+* RustFS is an actively developed, Apache-2.0 licensed, S3-compatible object storage with published container images. We pin an exact release (`1.0.0`) in `configs/storage.json` to keep results reproducible.
+
+**RustFS** keeps its data in a named Docker volume, since the container runs as a fixed unprivileged user.
+
+**Minio** is deprecated and kept only to reproduce results obtained with earlier SeBS versions.
+SeBS pulls the last release it used, `RELEASE.2024-07-16T23-46-41Z`, from our archive of the image: `spcleth/serverless-benchmarks:minio-reproducibility-archive-RELEASE.2024-07-16T23-46-41Z`.
+To use it, start the storage with `configs/storage-minio.json`.
 
 ## Starting Storage Services
 
@@ -42,8 +51,8 @@ This file contains all the necessary information to connect to the storage servi
 ```json
 {
   "object": {
-    "type": "minio",
-    "minio": {
+    "type": "rustfs",
+    "rustfs": {
       "address": "172.17.0.2:9000",
       "external_address": "10.10.1.15:9011",
       "mapped_port": 9011,
@@ -52,9 +61,9 @@ This file contains all the necessary information to connect to the storage servi
       "instance_id": "XXX",
       "output_buckets": [],
       "input_buckets": [],
-      "version": "RELEASE.2024-07-16T23-46-41Z",
-      "data_volume": "minio-volume",
-      "type": "minio"
+      "version": "1.0.0",
+      "data_volume": "rustfs-volume",
+      "type": "rustfs"
     }
   },
   "nosql": {
@@ -80,7 +89,7 @@ This file contains all the necessary information to connect to the storage servi
 Each storage instance has two addresses:
 
 * `address` is used by SeBS itself, e.g., to upload benchmark inputs. On Linux, this is the container's address on the default Docker bridge network (`172.17.0.2`) and the container's port (`9000`). Functions of the local deployment run on the same bridge network and use this address as well.
-* `external_address` is advertised to benchmark functions that run outside of the Docker bridge network, e.g., in a Kubernetes cluster hosting OpenWhisk. It combines the IP address of the machine with the port mapped on the host: Minio is mapped to port 9011, and ScyllaDB to port 9012.
+* `external_address` is advertised to benchmark functions that run outside of the Docker bridge network, e.g., in a Kubernetes cluster hosting OpenWhisk. It combines the IP address of the machine with the port mapped on the host: the object storage is mapped to port 9011, and ScyllaDB to port 9012.
 
 The external address is detected automatically as the IP address of the host's default network interface, and SeBS verifies that the storage answers on it. To use a different interface or a hostname, pass the `--external-address` flag when starting the storage:
 
@@ -107,13 +116,12 @@ Functions running in OpenWhisk or another Kubernetes-based platform cannot reach
 They connect to the storage through the external address, which is detected when starting the storage.
 If the detected address is not reachable from the functions, e.g., because the machine has multiple network interfaces or the storage runs on a different host, provide the address when starting the storage with `--external-address`, or edit the `external_address` fields in the generated configuration file.
 
-You can validate that the storage is reachable with an HTTP request to Minio's health endpoint and ScyllaDB's root endpoint:
+You can validate that the storage is reachable with an HTTP request to the health endpoint of the object storage (`/health` for RustFS, `/minio/health/live` for Minio) and ScyllaDB's root endpoint:
 
 ```bash
-$ curl -i 10.10.1.15:9011/minio/health/live
+$ curl -i 10.10.1.15:9011/health
 HTTP/1.1 200 OK
 ...
-Server: MinIO
 
 $ curl -i 10.10.1.15:9012
 HTTP/1.1 200 OK

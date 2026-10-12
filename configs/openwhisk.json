@@ -27,8 +27,8 @@
       },
       "storage": {
         "object": {
-          "type": "minio",
-          "minio": {
+          "type": "rustfs",
+          "rustfs": {
             "address": "",
             "mapped_port": -1,
             "access_key": "",

@@ -124,7 +124,7 @@ jobs:
             docker network connect kind ${REGISTRY_NAME}
           fi
 
-      - name: Start Minio and ScyllaDB
+      - name: Start RustFS and ScyllaDB
         run: |
           set -o pipefail
           uv run sebs storage start all configs/storage.json --output-json storage.json

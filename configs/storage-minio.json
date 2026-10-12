@@ -1,10 +1,10 @@
 {
   "object": {
-    "type": "rustfs",
-    "rustfs": {
+    "type": "minio",
+    "minio": {
       "mapped_port": 9011,
-      "version": "1.0.0-rc.6",
-      "data_volume": "rustfs-volume"
+      "version": "RELEASE.2024-07-16T23-46-41Z",
+      "data_volume": "minio-volume"
     }
   },
   "nosql": {

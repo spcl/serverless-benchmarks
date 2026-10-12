@@ -90,8 +90,8 @@
     "local": {
       "storage": {
         "object": {
-          "type": "minio",
-          "minio": {
+          "type": "rustfs",
+          "rustfs": {
             "address": "",
             "external_address": "",
             "mapped_port": -1,
@@ -118,8 +118,8 @@
       },
       "storage": {
         "object": {
-          "type": "minio",
-          "minio": {
+          "type": "rustfs",
+          "rustfs": {
             "address": "",
             "external_address": "",
             "mapped_port": -1,

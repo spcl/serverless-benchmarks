@@ -464,4 +464,4 @@ To use that feature in SeBS, set the `experimentalManifest` flag to true.
 Start the storage with `sebs storage start` and pass the generated configuration to benchmark commands with `--storage-configuration`; see the [storage documentation](storage.md) for details, including how to set the address advertised to functions with `--external-address`.
 
 OpenWhisk has a `shutdownStorage` switch that controls the behavior of SeBS.
-When set to true, SeBS will stop the Minio and ScyllaDB instances after finishing all work.
+When set to true, SeBS will stop the object storage (RustFS or Minio) and ScyllaDB instances after finishing all work.

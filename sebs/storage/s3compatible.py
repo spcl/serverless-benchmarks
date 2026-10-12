@@ -224,7 +224,7 @@ class S3CompatibleStorage(PersistentStorage):
             if self._storage_container is None:
                 raise RuntimeError(
                     "Storage container is not available! Make sure that you deployed "
-                    "the Minio storage and provided configuration!"
+                    f"the {self.deployment_name()} storage and provided configuration!"
                 )
 
             # Reload to ensure we have the latest container attributes
@@ -304,7 +304,7 @@ class S3CompatibleStorage(PersistentStorage):
         """
         Stop the storage container.
 
-        Gracefully stops the running MinIO container if it exists.
+        Gracefully stops the running storage container if it exists.
         Logs an error if the container is not known.
         """
         if self._storage_container is not None:
@@ -438,7 +438,7 @@ class S3CompatibleStorage(PersistentStorage):
         Args:
             bucket: Name of the bucket to remove
         """
-        self.connection.remove_bucket(Bucket=bucket)
+        self.connection.remove_bucket(bucket)
 
     def correct_name(self, name: str) -> str:
         """
