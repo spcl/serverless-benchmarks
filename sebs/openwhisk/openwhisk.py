@@ -683,16 +683,49 @@ class OpenWhisk(System):
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark) -> None:
         """
-        Enforce cold start for functions (not implemented for OpenWhisk).
+        Enforce cold start for OpenWhisk actions.
+
+        The invoker reuses a warm container only when the cached action is identical
+        to the invoked one, including its version and annotations. Every action update
+        bumps the semantic version; we additionally change a dedicated annotation.
+        Annotations are merged on update, so this preserves all other settings -
+        unlike parameters, which are replaced in full.
+
+        Deleting and recreating the action does NOT work: the new action is identical
+        to the old one (version 0.0.1), and old warm containers are reused.
 
         Args:
             functions: List of functions to enforce cold start for
             code_package: Benchmark package configuration
 
         Raises:
-            NotImplementedError: Cold start enforcement not implemented for OpenWhisk
+            RuntimeError: If WSK CLI is not accessible or the update fails
         """
-        raise NotImplementedError()
+        self.cold_start_counter += 1
+        for func in functions:
+            try:
+                subprocess.run(
+                    [
+                        *self.get_wsk_cmd(),
+                        "action",
+                        "update",
+                        func.name,
+                        "--annotation",
+                        "sebs_cold_start",
+                        str(self.cold_start_counter),
+                    ],
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    check=True,
+                )
+            except FileNotFoundError as e:
+                self.logging.error("Could not update OpenWhisk function - is path to wsk correct?")
+                raise RuntimeError(e)
+            except subprocess.CalledProcessError as e:
+                self.logging.error(f"Cannot enforce cold start of {func.name}: {e}!")
+                self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
+                raise RuntimeError(e)
+        self.logging.info("Finished function updates enforcing cold starts.")
 
     def download_metrics(
         self,
