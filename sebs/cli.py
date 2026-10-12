@@ -161,6 +161,21 @@ def storage_params(func):
     return wrapper
 
 
+def validate_external_address(address: Optional[str]) -> Optional[str]:
+    """Reject external storage addresses with a port.
+
+    Each storage instance appends its own mapped port, so a single port
+    would advertise the same endpoint for all storage types.
+    """
+    if address is not None and sebs.utils.address_has_port(address):
+        raise click.BadParameter(
+            f"'{address}' contains a port. Each storage instance appends its own mapped "
+            "port; to advertise a different port, edit external_address in the generated "
+            "storage configuration."
+        )
+    return address
+
+
 def parse_common_params(
     config,
     output_dir,
@@ -574,8 +589,10 @@ def storage():
     "--external-address",
     default=None,
     type=str,
-    help="Address (IP or hostname) advertised to benchmark functions. Each storage instance "
-    "appends its mapped port. Defaults to the IP of the host's default network interface.",
+    callback=lambda ctx, param, value: validate_external_address(value),
+    help="Address (IP or hostname, without a port) advertised to benchmark functions. Each "
+    "storage instance appends its mapped port. Defaults to the IP of the host's default "
+    "network interface.",
 )
 def storage_start(storage, config, output_json, remove_containers, external_address):
     """Start local storage instances (object storage, NoSQL, or both).

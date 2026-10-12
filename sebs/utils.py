@@ -729,6 +729,26 @@ def detect_external_address() -> str:
         return ""
 
 
+def address_has_port(address: str) -> bool:
+    """
+    Check if an address (IP or hostname) contains a port.
+
+    Args:
+        address: IPv4 address, hostname, or IPv6 address; IPv6 addresses
+            with a port must be bracketed, e.g., "[2001:db8::1]:9011".
+
+    Returns:
+        bool: True if the address contains a port
+    """
+    try:
+        # A bare IPv6 address has colons but no port.
+        ipaddress.ip_address(address)
+        return False
+    except ValueError:
+        pass
+    return "]:" in address if address.startswith("[") else ":" in address
+
+
 def resolve_external_address(address: str, port: int) -> str:
     """
     Determine the address advertised to benchmark functions for self-hosted storage.
@@ -755,8 +775,7 @@ def resolve_external_address(address: str, port: int) -> str:
             return f"[{host}]:{port}"
     except ValueError:
         pass
-    has_port = "]:" in host if host.startswith("[") else ":" in host
-    return host if has_port else f"{host}:{port}"
+    return host if address_has_port(host) else f"{host}:{port}"
 
 
 def probe_http(url: str, timeout_seconds: int) -> Optional[str]:
