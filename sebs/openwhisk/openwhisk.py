@@ -9,6 +9,7 @@ deployment, execution, monitoring, and resource management for OpenWhisk cluster
 
 import json
 import os
+import re
 import subprocess
 from typing import cast, Callable, Dict, List, Optional, Tuple, Type
 
@@ -206,7 +207,6 @@ class OpenWhisk(System):
         benchmark: str,
         is_cached: bool,
     ) -> Tuple[str, float]:
-
         """
         Package benchmark code for OpenWhisk deployment.
 
@@ -726,6 +726,94 @@ class OpenWhisk(System):
                 self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
                 raise RuntimeError(e)
         self.logging.info("Finished function updates enforcing cold starts.")
+
+        if self.config.remove_stale_containers:
+            self.remove_stale_containers(functions)
+
+    def remove_stale_containers(self, functions: List[Function]) -> None:
+        """
+        Delete Kubernetes pods of OpenWhisk actions to free cluster resources.
+
+        The invoker does not watch pods: it keeps counting the memory of deleted
+        containers until it evicts them or they hit the idle timeout. Even worse,
+        when a deleted container still matches the invoked action, the invocation
+        is not rescheduled - it fails after the action timeout. Thus, this must
+        be called only after the action update in enforce_cold_start, which
+        guarantees that old containers are never selected again.
+
+        Requires the KubernetesContainerFactory, which labels each action pod
+        with 'openwhisk/action=<action name>'. Failures are only logged, since
+        cold starts are already guaranteed by the action update.
+
+        Args:
+            functions: Functions whose containers should be removed
+        """
+        names = []
+        for func in functions:
+            # The invoker silently skips the label when the name is not a valid label value.
+            if len(func.name) > 63 or not re.fullmatch(
+                r"[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?", func.name
+            ):
+                self.logging.warning(
+                    f"Cannot remove containers of {func.name}: "
+                    "name is not a valid Kubernetes label."
+                )
+            else:
+                names.append(func.name)
+        if not names:
+            return
+
+        kubectl = [self.config.kubectl_exec, "-n", self.config.kubernetes_namespace]
+        try:
+            # An empty result of the deletion is ambiguous: no warm containers,
+            # or a wrong namespace. The Helm chart labels the invoker pod with
+            # 'name=<release>-invoker', which lets us verify the namespace.
+            labels = subprocess.run(
+                kubectl
+                + [
+                    "get",
+                    "pods",
+                    "-l",
+                    "name",
+                    "-o",
+                    "jsonpath={.items[*].metadata.labels.name}",
+                ],
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                check=True,
+            )
+            if not any(
+                label.endswith("-invoker") for label in labels.stdout.decode("utf-8").split()
+            ):
+                self.logging.warning(
+                    "Could not remove stale containers: no OpenWhisk invoker found in "
+                    f"namespace {self.config.kubernetes_namespace}."
+                )
+                return
+
+            ret = subprocess.run(
+                kubectl
+                + [
+                    "delete",
+                    "pods",
+                    "-l",
+                    f"user-action-pod=true,openwhisk/action in ({','.join(names)})",
+                    "--ignore-not-found",
+                    "--wait=true",
+                    "-o",
+                    "name",
+                ],
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                check=True,
+            )
+            removed = len(ret.stdout.decode("utf-8").split())
+            self.logging.info(f"Removed {removed} stale containers of {len(names)} functions.")
+            self.logging.debug(f"Removed containers: {removed}.")
+        except FileNotFoundError:
+            self.logging.warning("Could not remove stale containers - is path to kubectl correct?")
+        except subprocess.CalledProcessError as e:
+            self.logging.warning(f"Could not remove stale containers: {e.stderr.decode('utf-8')}")
 
     def download_metrics(
         self,

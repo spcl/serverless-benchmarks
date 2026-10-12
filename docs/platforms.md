@@ -391,6 +391,25 @@ cluster after finishing experiments automatically.
 The boolean option `removeCluster` helps to automate the experiments
 that should be conducted on fresh instances of the system.
 
+### Cold Starts
+
+SeBS enforces cold starts by updating the action with a new value of the
+annotation `sebs_cold_start`. The invoker reuses a warm container only
+when the action is identical to the one it was created for, and every update
+changes the action version. Deleting and recreating the action does not work,
+as the new action is identical to the old one and old containers are reused.
+
+Old containers are not removed by OpenWhisk until they are evicted or
+reach the idle timeout (10 minutes by default). When OpenWhisk is deployed on
+Kubernetes, SeBS deletes their pods with `kubectl` after each cold start
+enforcement. Set `removeStaleContainers` to `false` to disable it. Use `kubectlExec` and
+`kubernetesNamespace` to configure the `kubectl` executable and the namespace
+of the OpenWhisk deployment (`openwhisk` by default). SeBS verifies the namespace
+by looking for the invoker pod deployed by the Helm chart, and skips the removal
+with a warning when it is not found. Never delete pods of actions without updating them:
+OpenWhisk does not detect removed pods and an invocation routed to a removed
+container fails after the function timeout.
+
 ### Docker
 
 In FaaS platforms, the function's code can usually be deployed as a code package
