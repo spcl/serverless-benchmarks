@@ -578,16 +578,22 @@ class Local(System):
         pass
 
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark) -> None:
-        """Enforce cold start for functions.
+        """Enforce cold start for functions by replacing their containers.
+
+        The next invocation runs in a new server process that imports the function again.
+        A new container also picks up the current container settings.
 
         Args:
             functions: List of functions to enforce cold start on
             code_package: Benchmark code package
-
-        Raises:
-            NotImplementedError: Cold start enforcement is not implemented for local
         """
-        raise NotImplementedError()
+        for func in functions:
+            local_func = cast(LocalFunction, func)
+            local_func.stop()
+            self._release_port(local_func)
+            self._start_container(code_package, local_func.name, local_func)
+            self.cache_client.update_function(local_func)
+        self.logging.info("Finished restarting containers enforcing cold starts.")
 
     @staticmethod
     def default_function_name(

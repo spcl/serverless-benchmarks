@@ -6,6 +6,9 @@ const http = require('http'),
 const { v4: uuidv4 } = require('uuid');
 
 
+// Each container runs one server process, so its first request is a cold start
+let coldStart = true;
+
 var app = express();
 app.use(express.json());
 
@@ -17,6 +20,8 @@ app.post('/alive', function (req, res) {
 
 app.post('/', function (req, res) {
 
+  const isCold = coldStart;
+  coldStart = false;
   let begin = Date.now();
   let ret = f.handler(req.body);
   ret.then((func_res) => {
@@ -27,7 +32,7 @@ app.post('/', function (req, res) {
       begin: strftime('%s.%L', new Date(begin)),
       end: strftime('%s.%L', new Date(end)),
       request_id: uuidv4(),
-      is_cold: false,
+      is_cold: isCold,
       result: func_res
     }));
   },
