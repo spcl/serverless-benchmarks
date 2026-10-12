@@ -405,9 +405,9 @@
           ],
           "packages": [],
           "module_packages": {
-            "storage": {
-              "minio": "^5.0.10"
-            },
+            "storage": [
+              "minio==7.2.7"
+            ],
             "nosql": [
               "boto3==1.28.3"
             ]
