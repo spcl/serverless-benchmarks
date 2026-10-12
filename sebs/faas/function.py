@@ -87,15 +87,19 @@ class ProviderTimes:
     Attributes:
         initialization: Function initialization time in microseconds
         execution: Function execution time in microseconds
+        waiting: Time the request waited in the platform before execution
+            in microseconds, e.g., OpenWhisk's waitTime (0 if not reported)
     """
 
     initialization: int
     execution: int
+    waiting: int
 
     def __init__(self):
         """Initialize with default values."""
         self.execution = 0
         self.initialization = 0
+        self.waiting = 0
 
     @staticmethod
     def deserialize(cached_obj: dict) -> "ProviderTimes":

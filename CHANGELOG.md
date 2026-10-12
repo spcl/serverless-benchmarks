@@ -4,6 +4,10 @@
 
 * [RustFS](https://github.com/rustfs/rustfs) is the new default S3-compatible object storage for local and OpenWhisk deployments. Minio is deprecated and kept for reproducibility (`configs/storage-minio.json`). The self-hosted object storage implementation is now shared between backends.
 
+* OpenWhisk: delete actions with `sebs resources cleanup --resource-type functions`.
+
+* OpenWhisk: provider metrics include the platform's `waitTime` as `provider_times.waiting`: the time from receiving the request to provisioning a container.
+
 ### Bug Fixes
 
 * Change to input of 120.uploader benchmark to conform with new Wikipedia policies (#308)
@@ -11,6 +15,8 @@
 * Pull Minio images from the SeBS archive `spcleth/serverless-benchmarks:minio-reproducibility-archive-<release>`, as MinIO no longer publishes images on Docker Hub or quay.io.
 
 * Fix restoring the cached configuration of self-hosted storage (Minio, ScyllaDB), and make the OpenWhisk `shutdownStorage` option work again.
+
+* OpenWhisk: store the Docker image of newly created actions in the function cache, and download provider metrics of invocations through the library trigger, which did not record the activation ID.
 
 ### Improvements
 

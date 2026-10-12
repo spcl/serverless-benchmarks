@@ -861,7 +861,10 @@ class OpenWhisk(System):
         metrics: dict,
     ):
         """
-        Download metrics for function executions (no-op for OpenWhisk).
+        Download metrics for function executions from OpenWhisk activation records.
+
+        Sets the execution time (duration), the initialization time (initTime,
+        only on cold starts), and the waiting time (waitTime) of each request.
 
         Args:
             function_name: Name of the function to download metrics for
@@ -869,9 +872,6 @@ class OpenWhisk(System):
             end_time: End time for metrics collection (epoch timestamp)
             requests: Dictionary mapping request IDs to execution results
             metrics: Dictionary to store downloaded metrics
-
-        Note:
-            OpenWhisk metrics collection is not currently implemented.
         """
 
         self.logging.info(
@@ -910,16 +910,20 @@ class OpenWhisk(System):
                 # Update execution time (convert milliseconds to microseconds)
                 requests[request_id].provider_times.execution = int(float(duration_ms) * 1000)
 
-                # Extract initTime from annotations (optional - only present on cold starts)
-                annotations = activation.get("annotations", [])
-                for annotation in annotations:
-                    if annotation.get("key") == "initTime":
-                        init_time_ms = annotation.get("value")
-                        if init_time_ms is not None:
-                            requests[request_id].provider_times.initialization = int(
-                                float(init_time_ms) * 1000
-                            )
-                        break
+                annotations = {
+                    annotation.get("key"): annotation.get("value")
+                    for annotation in activation.get("annotations", [])
+                }
+                # initTime is present only on cold starts
+                init_time_ms = annotations.get("initTime")
+                if init_time_ms is not None:
+                    requests[request_id].provider_times.initialization = int(
+                        float(init_time_ms) * 1000
+                    )
+                # waitTime: from receiving the request to provisioning a container
+                wait_time_ms = annotations.get("waitTime")
+                if wait_time_ms is not None:
+                    requests[request_id].provider_times.waiting = int(float(wait_time_ms) * 1000)
 
                 processed_count += 1
 
