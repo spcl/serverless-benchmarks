@@ -407,7 +407,6 @@ class OpenWhisk(System):
             )
 
             function_found = False
-            docker_image = ""
             for line in actions.stdout.decode().split("\n"):
                 if line and func_name in line.split()[0]:
                     function_found = True
@@ -481,7 +480,7 @@ class OpenWhisk(System):
                         check=True,
                     )
 
-                    function_cfg.docker_image = docker_image
+                    function_cfg.docker_image = docker_image_name
                     res = OpenWhiskFunction(
                         func_name,
                         code_package.benchmark,
@@ -665,6 +664,41 @@ class OpenWhisk(System):
 
         return changed
 
+    def delete_function(self, func_name: str, function: Dict) -> None:
+        """
+        Delete an OpenWhisk action.
+
+        Warm containers of the action are not removed: they expire after the idle
+        timeout of the invoker. Deleting them is not safe, since an identical action
+        created later can select a deleted container (see remove_stale_containers).
+
+        Args:
+            func_name: Name of the action to delete
+            function: Cached function configuration
+
+        Raises:
+            RuntimeError: If WSK CLI is not accessible or the deletion fails
+        """
+        self.logging.info(f"Deleting OpenWhisk action {func_name}")
+        try:
+            subprocess.run(
+                [*self.get_wsk_cmd(), "action", "delete", func_name],
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                check=True,
+            )
+        except FileNotFoundError as e:
+            self.logging.error("Could not delete OpenWhisk function - is path to wsk correct?")
+            raise RuntimeError(e)
+        except subprocess.CalledProcessError as e:
+            # wsk returns the HTTP status minus 256: 148 is 404 Not Found.
+            if e.returncode == 148:
+                self.logging.warning(f"OpenWhisk action {func_name} does not exist!")
+                return
+            self.logging.error(f"Cannot delete action {func_name}.")
+            self.logging.error(f"Output: {e.stderr.decode('utf-8')}")
+            raise RuntimeError(e)
+
     def default_function_name(
         self, code_package: Benchmark, resources: Optional[Resources] = None
     ) -> str:
@@ -827,7 +861,10 @@ class OpenWhisk(System):
         metrics: dict,
     ):
         """
-        Download metrics for function executions (no-op for OpenWhisk).
+        Download metrics for function executions from OpenWhisk activation records.
+
+        Sets the execution time (duration), the initialization time (initTime,
+        only on cold starts), and the waiting time (waitTime) of each request.
 
         Args:
             function_name: Name of the function to download metrics for
@@ -835,9 +872,6 @@ class OpenWhisk(System):
             end_time: End time for metrics collection (epoch timestamp)
             requests: Dictionary mapping request IDs to execution results
             metrics: Dictionary to store downloaded metrics
-
-        Note:
-            OpenWhisk metrics collection is not currently implemented.
         """
 
         self.logging.info(
@@ -876,16 +910,20 @@ class OpenWhisk(System):
                 # Update execution time (convert milliseconds to microseconds)
                 requests[request_id].provider_times.execution = int(float(duration_ms) * 1000)
 
-                # Extract initTime from annotations (optional - only present on cold starts)
-                annotations = activation.get("annotations", [])
-                for annotation in annotations:
-                    if annotation.get("key") == "initTime":
-                        init_time_ms = annotation.get("value")
-                        if init_time_ms is not None:
-                            requests[request_id].provider_times.initialization = int(
-                                float(init_time_ms) * 1000
-                            )
-                        break
+                annotations = {
+                    annotation.get("key"): annotation.get("value")
+                    for annotation in activation.get("annotations", [])
+                }
+                # initTime is present only on cold starts
+                init_time_ms = annotations.get("initTime")
+                if init_time_ms is not None:
+                    requests[request_id].provider_times.initialization = int(
+                        float(init_time_ms) * 1000
+                    )
+                # waitTime: from receiving the request to provisioning a container
+                wait_time_ms = annotations.get("waitTime")
+                if wait_time_ms is not None:
+                    requests[request_id].provider_times.waiting = int(float(wait_time_ms) * 1000)
 
                 processed_count += 1
 
