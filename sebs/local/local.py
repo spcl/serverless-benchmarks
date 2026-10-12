@@ -251,19 +251,12 @@ class Local(System):
         """
 
         variant = code_package.language_variant
-        if variant == "default":
-            container_name = "{}:run.local.{}.{}".format(
-                self._system_config.docker_repository(),
-                code_package.language_name,
-                code_package.language_version,
-            )
-        else:
-            container_name = "{}:run.local.{}.{}.{}".format(
-                self._system_config.docker_repository(),
-                code_package.language_name,
-                variant,
-                code_package.language_version,
-            )
+        language_version = code_package.language_version
+        if variant != "default":
+            language_version = f"{variant}.{language_version}"
+        container_name = self._system_config.docker_image_name(
+            self.name(), "run", code_package.language_name, language_version
+        )
 
         environment = {
             "CONTAINER_UID": str(os.getuid()),
