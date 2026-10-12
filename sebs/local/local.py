@@ -559,6 +559,11 @@ class Local(System):
             str: if the function container is not running, None otherwise.
         """
         container = cast(LocalFunction, cached_function).container
+        # The status is a snapshot from the last reload.
+        try:
+            container.reload()
+        except docker.errors.NotFound:
+            return f"container {container.short_id} no longer exists"
         if container.status != "running":
             return f"container {container.short_id} is not running (status: {container.status})"
         return None
