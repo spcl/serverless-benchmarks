@@ -27,9 +27,7 @@ def process_request():
         'end': end.strftime('%s.%f'),
         "request_id": str(uuid.uuid4()),
         "is_cold": False,
-        "result": {
-            "output": ret
-        }
+        "result": ret
     }
 
 sys.path.append(os.path.join(CODE_LOCATION))
