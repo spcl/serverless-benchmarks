@@ -362,7 +362,7 @@ class Local(System):
                 pid,
             )
         else:
-            func.container = container
+            func.set_container(container, port)
             func._measurement_pid = pid
 
         # Wait until server starts
