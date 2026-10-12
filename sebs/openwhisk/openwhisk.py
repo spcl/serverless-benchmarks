@@ -407,7 +407,6 @@ class OpenWhisk(System):
             )
 
             function_found = False
-            docker_image = ""
             for line in actions.stdout.decode().split("\n"):
                 if line and func_name in line.split()[0]:
                     function_found = True
@@ -481,7 +480,7 @@ class OpenWhisk(System):
                         check=True,
                     )
 
-                    function_cfg.docker_image = docker_image
+                    function_cfg.docker_image = docker_image_name
                     res = OpenWhiskFunction(
                         func_name,
                         code_package.benchmark,
