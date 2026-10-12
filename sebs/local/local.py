@@ -201,7 +201,7 @@ class Local(System):
         Args:
             directory: Directory containing the function code
             language: Programming language (e.g., "python", "nodejs")
-            language_version: Language version (e.g., "3.8", "14")
+            language_version: Language version (e.g., "3.11", "20")
             architecture: Target architecture (unused for local)
             benchmark: Benchmark name
             is_cached: Whether the package is from cache

@@ -20,8 +20,6 @@
       "python": {
         "base_images": {
           "x64": {
-            "3.7": "python:3.7-slim",
-            "3.8": "python:3.8-slim",
             "3.9": "python:3.9-slim",
             "3.10": "python:3.10-slim",
             "3.11": "python:3.11-slim"
@@ -48,8 +46,6 @@
       "nodejs": {
         "base_images": {
           "x64": {
-            "14": "ubuntu:22.04",
-            "16": "ubuntu:22.04",
             "18": "ubuntu:22.04",
             "20": "ubuntu:22.04"
           }

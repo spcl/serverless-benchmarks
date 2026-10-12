@@ -22,6 +22,8 @@
 
 ### Deprecations
 
+* Local deployment: Python 3.7 and 3.8, and Node.js 14 and 16 are no longer supported.
+
 * Storage configuration files generated before 1.3 are no longer supported for OpenWhisk: they lack the `external_address` field, and functions would receive the Docker bridge address. Regenerate them with `sebs storage start`.
 
 ### Contributors
