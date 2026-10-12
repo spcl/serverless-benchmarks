@@ -689,7 +689,7 @@ def has_platform(name: str) -> bool:
             import google.cloud.devtools  # noqa: F401
 
             return True
-        elif name in ("local", "openwhisk"):
+        elif name in ("local", "openwhisk", "cloudflare"):
             # these don't have specific dependencies
             return True
         else:
@@ -795,3 +795,50 @@ def ensure_benchmarks_data(logger: ColoredWrapper) -> Path:
             raise RuntimeError(f"Failed to initialize benchmarks-data submodule: {e.stderr}") from e
         except FileNotFoundError:
             raise RuntimeError("git command not found. Please install git to use SeBS") from None
+
+
+def replace_string_in_file(path: str, from_str: str, to_str: str):
+    """Replace all occurrences of a string in a text file."""
+    with open(path, "rt") as f:
+        data = f.read()
+    data = data.replace(from_str, to_str)
+    with open(path, "wt") as f:
+        f.write(data)
+
+
+def connect_to_redis_cache(host: str, password: str | None = None, username: str | None = None):
+    """Create and validate a Redis connection for measurement collection."""
+    from redis import Redis
+
+    redis = Redis(
+        host=host,
+        port=6379,
+        decode_responses=True,
+        socket_connect_timeout=10,
+        username=username,
+        password=password,
+    )
+    redis.ping()
+    return redis
+
+
+def download_measurements(
+    redis, workflow_name: str, after: float, request_id: str | None = None, **static_args
+):
+    """Download recent workflow measurement payloads from Redis."""
+    payloads = []
+    for key in redis.scan_iter(match=f"{workflow_name}/*"):
+        payload = redis.get(key)
+        redis.delete(key)
+        if payload:
+            try:
+                payload = json.loads(payload)
+                if payload["start"] > after:
+                    if request_id:
+                        payload["workflow.request_id"] = request_id
+                        payload["workflow.request_id_match"] = f"/{request_id}/" in key
+                    payload = {**payload, **static_args}
+                    payloads.append(payload)
+            except json.decoder.JSONDecodeError:
+                pass
+    return payloads

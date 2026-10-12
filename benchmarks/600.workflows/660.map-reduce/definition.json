@@ -1,0 +1,38 @@
+{
+    "root": "split",
+    "states": {
+        "split": {
+            "type": "task",
+            "func_name": "split",
+            "next": "map-state"
+        },
+        "map-state": {
+            "type": "map",
+            "root": "map",
+            "array": "list",
+            "next": "shuffle",
+            "states": {
+              "map": {
+                "type": "task",
+                "func_name": "map"
+              }
+            }
+        },
+        "shuffle": {
+            "type": "task",
+            "func_name": "shuffle",
+            "next": "reduce-state"
+        },
+        "reduce-state": {
+            "type": "map",
+            "root": "reduce",
+            "array": "list",
+            "states": {
+              "reduce": {
+                "type": "task",
+                "func_name": "reduce"
+              }
+            }
+        }
+    }
+}

@@ -214,6 +214,10 @@ class SeBS(LoggingBase):
             from sebs.openwhisk import OpenWhisk
 
             implementations["openwhisk"] = OpenWhisk
+        if has_platform("cloudflare"):
+            from sebs.cloudflare import Cloudflare
+
+            implementations["cloudflare"] = Cloudflare
 
         # Validate deployment platform
         if name not in implementations:

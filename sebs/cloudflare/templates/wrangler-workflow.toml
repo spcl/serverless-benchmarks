@@ -1,0 +1,36 @@
+# Template for Cloudflare Workflow orchestrators
+# This file is read and modified by the deployment system
+
+name = "PLACEHOLDER_WORKER_NAME"
+main = "workflow.ts"
+compatibility_date = "2025-11-18"
+account_id = "PLACEHOLDER_ACCOUNT_ID"
+compatibility_flags = ["nodejs_compat"]
+
+[[workflows]]
+name = "PLACEHOLDER_WORKFLOW_NAME"
+binding = "WORKFLOW"
+class_name = "BenchmarkWorkflow"
+
+[[workflows]]
+name = "PLACEHOLDER_ITEM_WORKFLOW_NAME"
+binding = "ITEM_WORKFLOW"
+class_name = "ItemWorkflow"
+
+[[durable_objects.bindings]]
+name = "FANIN"
+class_name = "FanInCoordinator"
+
+[[durable_objects.bindings]]
+name = "DISPATCHER"
+class_name = "DispatcherContainer"
+
+[[containers]]
+class_name = "DispatcherContainer"
+image = "PLACEHOLDER_CONTAINER_IMAGE"
+max_instances = 1
+instance_type = "lite"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["FanInCoordinator", "DispatcherContainer"]

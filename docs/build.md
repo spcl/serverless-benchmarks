@@ -92,22 +92,69 @@ additive on top of it.
 ### 1. Declaring variants in a benchmark (`config.json`)
 
 A benchmark opts into variant support by using the extended language object syntax in its
-`config.json`.  The legacy string form (`"python"`) implies only the `"default"` variant.
+`config.json`.  The legacy string form (`"python"`) implies only the `"default"` variant
+and should be kept for languages that have no variant-specific code or configuration.
 
 ```json
 {
   "timeout": 10,
   "memory": 128,
   "languages": [
-    { "language": "nodejs", "variants": ["default", "bun", "llrt"] },
-    { "language": "python", "variants": ["default", "pypy"] }
+    "java",
+    {
+      "language": "nodejs",
+      "variants": {
+        "default": "default",
+        "bun": "bun",
+        "llrt": "llrt"
+      }
+    },
+    {
+      "language": "python",
+      "variants": {
+        "default": "default",
+        "pypy": "pypy"
+      }
+    }
   ],
   "modules": []
 }
 ```
 
+The `variants` field is a **dict** mapping each variant name to the source overlay directory
+to apply for that variant (see [section 2](#2-variant-source-code-inside-a-benchmark) below).
+The special sentinel value `"default"` means *use the base language directory without any
+overlay* — no files are copied from a sub-directory.
+
 SeBS validates this at startup: if you request a variant that is not listed here, the run is
 rejected with an error.
+
+#### Deployment-mode-split variants
+
+Some variants behave differently depending on whether the function is deployed as a **code
+package** (workers) or as a **container image**.  For those cases the overlay directory can be
+specified per deployment mode using a nested dict:
+
+```json
+{
+  "language": "nodejs",
+  "variants": {
+    "default": "default",
+    "cloudflare": {"workers": "cloudflare", "containers": "default"}
+  }
+}
+```
+
+The inner dict must use the keys `"workers"` and/or `"containers"`.  A missing key means the
+variant is not supported in that deployment mode and SeBS will raise an error if it is
+requested.  A value of `"default"` means no overlay is applied for that mode (the base
+language files are used unchanged).
+
+This is useful when a variant requires platform-specific source changes for one deployment
+mode but can reuse the standard implementation for the other.  For example, the `cloudflare`
+variant of benchmarks that target Cloudflare Workers uses a Pyodide-aware implementation for
+the `workers` mode, but falls back to the standard CPython implementation (`"default"`) for
+the `containers` mode.
 
 ---
 
@@ -120,7 +167,11 @@ language directory of the benchmark:
 benchmarks/<id>/<language>/<variant>/
 ```
 
-Two strategies are supported:
+The overlay directory name comes from the value in the `variants` dict (or the inner
+`workers`/`containers` value for deployment-mode-split variants).  When that value is
+`"default"`, no sub-directory is consulted and the base language files are used as-is.
+
+Two strategies are supported for non-`"default"` overlay directories:
 
 #### Patch variant (small targeted changes)
 

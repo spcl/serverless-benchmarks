@@ -22,13 +22,25 @@ class storage:
                     random=str(uuid.uuid4()).split('-')[0]
                 )
 
-    def upload(self, bucket, file, filepath):
-        key_name = storage.unique_name(file)
+    def upload(self, bucket, file, filepath, unique_name=True):
+        key_name = storage.unique_name(file) if unique_name else file
         self.client.upload_file(filepath, bucket, key_name)
         return key_name
 
     def download(self, bucket, file, filepath):
         self.client.download_file(bucket, file, filepath)
+
+    def download_within_range(self, bucket, file, start_bytes, end_bytes):
+        response = self.client.get_object(
+            Bucket=bucket, Key=file, Range=f"bytes={start_bytes}-{end_bytes}"
+        )
+        return response["Body"].read().decode("utf-8")
+
+    def list_directory(self, bucket, prefix):
+        objects = self.client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        if 'Contents' not in objects:
+            return []
+        return [obj['Key'] for obj in objects['Contents']]
 
     def download_directory(self, bucket, prefix, path):
         objects = self.client.list_objects_v2(Bucket=bucket, Prefix=prefix)

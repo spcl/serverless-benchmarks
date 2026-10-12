@@ -1,0 +1,21 @@
+{
+    "root": "generate",
+    "states": {
+        "generate": {
+            "type": "task",
+            "func_name": "generate",
+            "next": "process-state"
+        },
+        "process-state": {
+            "type": "map",
+            "root": "process",
+            "array": "buffer",
+            "states": {
+              "process": {
+                "type": "task",
+                "func_name": "process"
+              }
+            }
+        }
+    }
+}

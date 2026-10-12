@@ -22,14 +22,19 @@ class storage:
                     random=str(uuid.uuid4()).split('-')[0]
                 )
 
-    def upload(self, container, file, filepath):
+    def upload(self, container, file, filepath, unique_name=True):
         with open(filepath, 'rb') as data:
-            return self.upload_stream(container, file, data)
+            return self.upload_stream(container, file, data, unique_name=unique_name)
 
     def download(self, container, file, filepath):
         with open(filepath, 'wb') as download_file:
             download_file.write( self.download_stream(container, file) )
-    
+
+    def list_directory(self, container, prefix):
+        client = self.client.get_container_client(container=container)
+        objects = client.list_blobs(name_starts_with=prefix)
+        return [obj.name for obj in objects]
+
     def download_directory(self, container, prefix, path):
         client = self.client.get_container_client(container=container)
         objects = client.list_blobs(name_starts_with=prefix)
@@ -38,19 +43,25 @@ class storage:
             path_to_file = os.path.dirname(file_name)
             os.makedirs(os.path.join(path, path_to_file), exist_ok=True)
             self.download(container, file_name, os.path.join(path, file_name))
-    
-    def upload_stream(self, container, file, data):
-        key_name = storage.unique_name(file)
-        client = self.client.get_blob_client(
-                container=container,
-                blob=key_name
-        )
-        client.upload_blob(data)
+
+    def upload_stream(self, container, file, data, unique_name=True):
+        key_name = storage.unique_name(file) if unique_name else file
+        client = self.client.get_blob_client(container=container, blob=key_name)
+        if hasattr(data, "seek"):
+            data.seek(0)
+        client.upload_blob(data, overwrite=not unique_name)
         return key_name
 
     def download_stream(self, container, file):
         client = self.client.get_blob_client(container=container, blob=file)
         return client.download_blob().readall()
+
+    def download_within_range(self, container, file, start_bytes, end_bytes):
+        client = self.client.get_blob_client(container=container, blob=file)
+        return client.download_blob(
+            offset=start_bytes,
+            length=end_bytes - start_bytes + 1,
+        ).readall().decode("utf-8")
     
     @staticmethod
     def get_instance(connection_string: Optional[str] = None):

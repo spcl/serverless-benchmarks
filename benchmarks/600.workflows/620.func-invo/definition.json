@@ -1,0 +1,15 @@
+{
+  "root": "gen",
+  "states": {
+    "gen": {
+      "type": "task",
+      "func_name": "gen",
+      "next": "process"
+    },
+    "process": {
+      "type": "repeat",
+      "func_name": "process",
+      "count": 8
+    }
+  }
+}

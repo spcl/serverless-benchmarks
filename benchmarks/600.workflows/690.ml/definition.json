@@ -1,0 +1,21 @@
+{
+    "root": "generate",
+    "states": {
+        "generate": {
+            "type": "task",
+            "func_name": "generate",
+            "next": "train-state"
+        },
+        "train-state": {
+            "type": "map",
+            "root": "train",
+            "array": "schedules",
+            "states": {
+              "train": {
+                "type": "task",
+                "func_name": "train"
+              }
+            }
+        }
+    }
+}

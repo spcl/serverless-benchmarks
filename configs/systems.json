@@ -25,6 +25,13 @@
             "3.9": "python:3.9-slim",
             "3.10": "python:3.10-slim",
             "3.11": "python:3.11-slim"
+          },
+          "arm64": {
+            "3.7": "python:3.7-slim",
+            "3.8": "python:3.8-slim",
+            "3.9": "python:3.9-slim",
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim"
           }
         },
         "images": [
@@ -71,12 +78,8 @@
         }
       }
     },
-    "architecture": [
-      "x64"
-    ],
-    "deployments": [
-      "package"
-    ]
+    "architecture": ["x64", "arm64"],
+    "deployments": ["package"]
   },
   "aws": {
     "languages": {
@@ -103,11 +106,14 @@
         "deployment": {
           "files": [
             "handler.py",
+            "handler_workflow.py",
             "storage.py",
             "nosql.py",
             "setup.py"
           ],
-          "packages": [],
+          "packages": [
+            "redis"
+          ],
           "module_packages": {}
         }
       },
@@ -214,10 +220,19 @@
         "deployment": {
           "files": [
             "handler.py",
+            "handler_workflow.py",
+            "main_workflow.py",
+            "run_workflow.py",
+            "run_subworkflow.py",
+            "fsm.py",
             "storage.py",
             "nosql.py"
           ],
-          "packages": [],
+          "packages": [
+            "azure-functions",
+            "azure-functions-durable==1.1.6",
+            "redis"
+          ],
           "module_packages": {
             "storage": [
               "azure-storage-blob"
@@ -304,11 +319,14 @@
         "deployment": {
           "files": [
             "handler.py",
+            "handler_workflow.py",
             "storage.py",
             "nosql.py",
             "setup.py"
           ],
-          "packages": [],
+          "packages": [
+            "redis"
+          ],
           "module_packages": {
             "storage": [
               "google-cloud-storage==3.10.1"
@@ -460,11 +478,97 @@
         }
       }
     },
-    "architecture": [
-      "x64"
-    ],
-    "deployments": [
-      "container"
-    ]
+    "architecture": ["x64"],
+    "deployments": ["container"]
+  }, 
+  "cloudflare": {
+    "languages": {
+      "python": {
+        "base_images": {
+          "x64": {
+            "3.8": "python:3.8-slim",
+            "3.9": "python:3.9-slim",
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim",
+            "3.12": "python:3.12-slim"
+          }
+        },
+        "container_images": {
+          "x64": {
+            "3.8": "python:3.8-slim",
+            "3.9": "python:3.9-slim",
+            "3.10": "python:3.10-slim",
+            "3.11": "python:3.11-slim",
+            "3.12": "python:3.12-slim"
+          }
+        },
+        "images": ["build"],
+        "supported_variants": ["default", "cloudflare"],
+        "deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py"
+          ],
+          "packages": [],
+          "module_packages": {}
+        },
+        "container_deployment": {
+          "files": [
+            "handler.py",
+            "storage.py",
+            "nosql.py"
+          ],
+          "packages": [],
+          "module_packages": {}
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "x64": {
+            "18": "node:18-slim",
+            "20": "node:20-slim"
+          }
+        },
+        "container_images": {
+          "x64": {
+            "18": "node:18-slim",
+            "20": "node:20-slim"
+          }
+        },
+        "images": ["build"],
+        "supported_variants": ["default", "cloudflare"],
+        "deployment": {
+          "files": [
+            "handler.js",
+            "storage.js",
+            "nosql.js",
+            "build.js",
+            "postprocess.js",
+            "request-polyfill.js"
+          ],
+          "packages": {
+            "uuid": "3.4.0"
+          }
+        },
+        "container_deployment": {
+          "files": [
+            "handler.js",
+            "storage.js",
+            "nosql.js"
+          ],
+          "packages": {
+            "uuid": "3.4.0"
+          }
+        }
+      }
+    },
+    "images": {
+      "manage": {
+        "username": "docker_user"
+      }
+    },
+    "architecture": ["x64"],
+    "deployments": ["workers", "container"]
   }
 }

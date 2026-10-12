@@ -1,0 +1,71 @@
+{
+    "root": "individuals",
+    "states": {
+        "individuals": {
+            "type": "map",
+            "root": "individuals_func",
+            "array": "blob",
+            "common_params": "benchmark_bucket,bucket,columns,columns_bucket,populations,sifting_input,individuals_file",
+            "next": "merge_and_sifting",
+            "states": {
+              "individuals_func": {
+                "type": "task",
+                "func_name": "individuals"
+              }
+            }
+        },
+        "merge_and_sifting": {
+            "type": "parallel", 
+            "parallel_functions": [{
+                "root": "individuals_merge",
+                "states": {
+                "individuals_merge": {
+                    "type": "task",
+                    "func_name": "individuals_merge"
+                }}},
+                { 
+                "root": "sifting",
+                "states": {
+                "sifting": {
+                    "type": "task",
+                    "func_name": "sifting"
+                 }
+            }}],
+            "next": "frequency_and_overlap"
+        },
+        "frequency_and_overlap": {
+            "type": "parallel",
+            "parallel_functions": [{
+                "root": "frequency",
+                "states": {
+                "frequency": {
+                    "type": "map",
+                    "root": "frequency_func",
+                    "array": "sifting.populations",
+                    "common_params": "sifting,individuals_merge",
+                    "states": {
+                      "frequency_func": {
+                        "type": "task",
+                        "func_name": "frequency"
+                      }
+                    }
+                }}},
+                {
+                "root": "mutation_overlap",
+                "states": {
+                "mutation_overlap": {
+                    "type": "map",
+                    "array": "sifting.populations",
+                    "common_params": "sifting,individuals_merge",
+                    "root": "mutation_overlap_func",
+                    "states": {
+                      "mutation_overlap_func": {
+                        "type": "task", 
+                        "func_name": "mutation_overlap"
+                      }
+                    }
+                }
+            }}]
+        }
+    }
+}

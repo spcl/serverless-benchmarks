@@ -345,6 +345,28 @@ class AzureResources(Resources):
         self._storage_accounts = storage_accounts or []
         self._data_storage_account = data_storage_account
         self._cosmosdb_account = cosmosdb_account
+        self._redis: Optional[Dict] = None
+
+    @property
+    def redis_host(self) -> Optional[str]:
+        """Get Redis host for workflow measurements."""
+        if self._redis:
+            return self._redis.get("host")
+        return None
+
+    @property
+    def redis_username(self) -> Optional[str]:
+        """Get Redis username for workflow measurements."""
+        if self._redis:
+            return self._redis.get("username")
+        return None
+
+    @property
+    def redis_password(self) -> Optional[str]:
+        """Get Redis password for workflow measurements."""
+        if self._redis:
+            return self._redis.get("password")
+        return None
 
     def set_region(self, region: str) -> None:
         """Set the Azure region for resource allocation.
@@ -698,7 +720,7 @@ class AzureResources(Resources):
         ret = cast(AzureResources, res)
         super(AzureResources, AzureResources).initialize(ret, dct)
 
-        ret._resource_group = dct["resource_group"]
+        ret._resource_group = dct.get("resource_group")
         if "storage_accounts" in dct:
             ret._storage_accounts = [
                 AzureResources.Storage.deserialize(x) for x in dct["storage_accounts"]
@@ -713,6 +735,8 @@ class AzureResources(Resources):
 
         if "cosmosdb_account" in dct:
             ret._cosmosdb_account = CosmosDBAccount.deserialize(dct["cosmosdb_account"])
+
+        ret._redis = dct.get("redis")
 
     def serialize(self) -> dict:
         """Serialize resources to dictionary.
@@ -751,6 +775,8 @@ class AzureResources(Resources):
         if cached_config and "resources" in cached_config and len(cached_config["resources"]) > 0:
             logging.info("Using cached resources for Azure")
             AzureResources.initialize(ret, cached_config["resources"])
+            if "resources" in config and "redis" in config["resources"]:
+                ret._redis = config["resources"]["redis"]
         else:
             # Check for new config
             if "resources" in config:
@@ -803,6 +829,21 @@ class AzureConfig(Config):
             AzureResources instance for resource management.
         """
         return self._resources
+
+    @property
+    def redis_host(self) -> Optional[str]:
+        """Get Redis host for workflow measurements."""
+        return self._resources.redis_host
+
+    @property
+    def redis_username(self) -> Optional[str]:
+        """Get Redis username for workflow measurements."""
+        return self._resources.redis_username
+
+    @property
+    def redis_password(self) -> Optional[str]:
+        """Get Redis password for workflow measurements."""
+        return self._resources.redis_password
 
     @staticmethod
     def initialize(cfg: Config, dct: dict) -> None:

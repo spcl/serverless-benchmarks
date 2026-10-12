@@ -1,0 +1,26 @@
+{
+  "root": "decode",
+  "states": {
+    "decode": {
+      "type": "task",
+      "func_name": "decode",
+      "next": "analyse-map"
+    },
+    "analyse-map": {
+      "type": "map",
+      "root": "analyse",
+      "array": "frames",
+      "next": "summarize",
+      "states": {
+        "analyse": {
+          "type": "task",
+          "func_name": "analyse"
+        }
+      }
+    },
+    "summarize": {
+      "type": "task",
+      "func_name": "summarize"
+    }
+  }
+}

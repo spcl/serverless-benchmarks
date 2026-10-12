@@ -80,6 +80,14 @@ jobs:
             language: java
             version: "17"
             architecture: "x64"
+          - platform: cloudflare
+            language: python
+            version: "3.12"
+            architecture: "x64"
+          - platform: cloudflare
+            language: nodejs
+            version: "18"
+            architecture: "x64"
       fail-fast: false
 
     uses: ./.github/workflows/_regression-job.yml
