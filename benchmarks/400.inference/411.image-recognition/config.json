@@ -3,5 +3,6 @@
   "memory": 768,
   "languages": ["python", "cpp"],
   "modules": ["storage"],
+  "system_variants": {"aws": ["container"]},
   "cpp_dependencies": ["sdk", "torch", "opencv"]
 }
