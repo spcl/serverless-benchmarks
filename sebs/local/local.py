@@ -543,6 +543,26 @@ class Local(System):
         """
         pass
 
+    def can_reuse_cached_function(
+        self, cached_function: Function, benchmark: Benchmark
+    ) -> Optional[str]:
+        """Check whether the container of a cached function is still running.
+
+        A cached function can point to a stopped container, e.g., when replacing
+        the container failed and containers are not removed automatically.
+
+        Args:
+            cached_function: Cached function selected from SeBS cache.
+            benchmark: Benchmark requesting the function.
+
+        Returns:
+            str: if the function container is not running, None otherwise.
+        """
+        container = cast(LocalFunction, cached_function).container
+        if container.status != "running":
+            return f"container {container.short_id} is not running (status: {container.status})"
+        return None
+
     def update_function_configuration(self, function: Function, code_package: Benchmark) -> None:
         """Update function configuration.
 
