@@ -403,10 +403,10 @@ class OpenWhiskConfig(Config):
 
         if cached_config:
             res.logging.info("Loading cached config for OpenWhisk")
-            OpenWhiskConfig.initialize(res, cached_config)
         else:
             res.logging.info("Using user-provided config for OpenWhisk")
-            OpenWhiskConfig.initialize(res, config)
+        # User-provided settings take precedence; cached values fill in the rest.
+        OpenWhiskConfig.initialize(res, {**(cached_config or {}), **config})
 
         return res
 
