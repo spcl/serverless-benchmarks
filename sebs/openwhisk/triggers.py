@@ -137,6 +137,8 @@ class LibraryTrigger(Trigger):
             return openwhisk_result
 
         return_content = json.loads(parsed_response)
+        # The function wrapper returns the activation ID, used to download metrics.
+        openwhisk_result.request_id = return_content.get("request_id", "")
         openwhisk_result.parse_benchmark_output(return_content)
         return openwhisk_result
 
