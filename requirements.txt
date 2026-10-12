@@ -5,7 +5,7 @@ requests
 #linting
 flake8
 black==22.8.0
-mypy
+mypy==2.3.0
 types-pycurl
 types-requests
 types-PyYAML

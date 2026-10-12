@@ -277,6 +277,10 @@ class OpenWhiskConfig(Config):
         wsk_exec: Path to WSK CLI executable
         wsk_bypass_security: Whether to bypass security checks in WSK CLI
         experimentalManifest: Whether to use experimental manifest features
+        remove_stale_containers: Whether to delete pods of old action versions
+            after enforcing cold starts (Kubernetes deployments only)
+        kubectl_exec: Path to kubectl executable
+        kubernetes_namespace: Kubernetes namespace of OpenWhisk action pods
         cache: Cache instance for configuration persistence
         dockerhub_repository: Repository at DockerHub to use for pushing images.
         _credentials: OpenWhisk credentials configuration
@@ -289,6 +293,9 @@ class OpenWhiskConfig(Config):
     wsk_exec: str
     wsk_bypass_security: bool
     experimentalManifest: bool
+    remove_stale_containers: bool
+    kubectl_exec: str
+    kubernetes_namespace: str
     dockerhub_repository: str
     cache: Cache
 
@@ -345,6 +352,9 @@ class OpenWhiskConfig(Config):
         config.wsk_bypass_security = dct["wskBypassSecurity"]
         config.experimentalManifest = dct["experimentalManifest"]
         config.dockerhub_repository = dct["dockerhubRepository"]
+        config.remove_stale_containers = dct.get("removeStaleContainers", True)
+        config.kubectl_exec = dct.get("kubectlExec", "kubectl")
+        config.kubernetes_namespace = dct.get("kubernetesNamespace", "openwhisk")
 
     def serialize(self) -> Dict[str, Any]:
         """
@@ -362,6 +372,9 @@ class OpenWhiskConfig(Config):
             "wskBypassSecurity": self.wsk_bypass_security,
             "experimentalManifest": self.experimentalManifest,
             "dockerhubRepository": self.dockerhub_repository,
+            "removeStaleContainers": self.remove_stale_containers,
+            "kubectlExec": self.kubectl_exec,
+            "kubernetesNamespace": self.kubernetes_namespace,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }
@@ -390,10 +403,10 @@ class OpenWhiskConfig(Config):
 
         if cached_config:
             res.logging.info("Loading cached config for OpenWhisk")
-            OpenWhiskConfig.initialize(res, cached_config)
         else:
             res.logging.info("Using user-provided config for OpenWhisk")
-            OpenWhiskConfig.initialize(res, config)
+        # User-provided settings take precedence; cached values fill in the rest.
+        OpenWhiskConfig.initialize(res, {**(cached_config or {}), **config})
 
         return res
 
@@ -413,5 +426,12 @@ class OpenWhiskConfig(Config):
         )
         cache.update_config(
             val=self.experimentalManifest, keys=["openwhisk", "experimentalManifest"]
+        )
+        cache.update_config(
+            val=self.remove_stale_containers, keys=["openwhisk", "removeStaleContainers"]
+        )
+        cache.update_config(val=self.kubectl_exec, keys=["openwhisk", "kubectlExec"])
+        cache.update_config(
+            val=self.kubernetes_namespace, keys=["openwhisk", "kubernetesNamespace"]
         )
         self.resources.update_cache(cache)

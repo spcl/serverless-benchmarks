@@ -102,6 +102,9 @@
       "wskBypassSecurity": "true",
       "wskExec": "wsk",
       "experimentalManifest": false,
+      "removeStaleContainers": true,
+      "kubectlExec": "kubectl",
+      "kubernetesNamespace": "openwhisk",
       "docker_registry": {
         "registry": "",
         "username": "",
