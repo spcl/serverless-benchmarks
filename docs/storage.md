@@ -80,8 +80,11 @@ The external address is detected automatically as the IP address of the host's d
 sebs storage start all configs/storage.json --output-json storage.json --external-address 10.10.1.15
 ```
 
+The mapped ports must be reachable from wherever the functions run.
+When the storage runs on a cloud VM and the functions run elsewhere, e.g., in a Kubernetes cluster, open the mapped ports (9011 and 9012 by default) in the VM's firewall and the cloud network security rules (security groups, firewall rules) for the address range of the cluster.
+
 > [!WARNING]
-> The mapped ports are bound on all interfaces of the host. On a machine with a public IP address, restrict access to these ports with a firewall or use a private address.
+> The mapped ports are bound on all interfaces of the host. On a machine with a public IP address, allow access to these ports only from the addresses of your functions, or use a private address.
 
 ## Network Configuration
 
@@ -94,13 +97,7 @@ sebs benchmark invoke 210.thumbnailer test --config configs/openwhisk.json --sto
 
 Functions running in OpenWhisk or another Kubernetes-based platform cannot reach the Docker bridge network of the host, even when the cluster runs on the same machine.
 They connect to the storage through the external address, which is detected when starting the storage.
-If the detected address is not reachable from the functions, e.g., because the machine has multiple network interfaces or the storage runs on a different host, override it without changing any files:
-
-```bash
-sebs benchmark invoke 210.thumbnailer test --config configs/openwhisk.json --storage-configuration storage.json --storage-address 10.10.1.15
-```
-
-The override applies to all storage instances, each with its own mapped port. Alternatively, provide the address once when starting the storage with `--external-address`.
+If the detected address is not reachable from the functions, e.g., because the machine has multiple network interfaces or the storage runs on a different host, provide the address when starting the storage with `--external-address`, or edit the `external_address` fields in the generated configuration file.
 
 You can validate that the storage is reachable with an HTTP request to Minio's health endpoint and ScyllaDB's root endpoint:
 

@@ -13,7 +13,7 @@ import functools
 import os
 import sys
 import traceback
-from typing import cast, Dict, List, Optional
+from typing import cast, List, Optional
 
 import click
 import docker
@@ -153,51 +153,12 @@ def storage_params(func):
         multiple=True,
         help="JSON configuration of deployed storage, as written by 'sebs storage start'.",
     )
-    @click.option(
-        "--storage-address",
-        default=None,
-        type=str,
-        help="Override the address (IP or hostname, optional port) that benchmark functions "
-        "use to reach self-hosted storage. Applied to all storage types.",
-    )
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         """Internal Click wrapper."""
         return func(*args, **kwargs)
 
     return wrapper
-
-
-def override_storage_address(
-    config_obj: dict, deployment: str, storage_address: str
-) -> Dict[str, str]:
-    """Override the externally reachable address of all self-hosted storage instances.
-
-    Each storage instance receives the given host combined with its own mapped
-    port, unless the user already provided a port.
-
-    Args:
-        config_obj: Full SeBS configuration
-        deployment: Name of the selected deployment
-        storage_address: IP address or hostname, optionally with a port
-
-    Returns:
-        Dict[str, str]: Applied address per storage type
-    """
-    from sebs.utils import resolve_external_address
-
-    applied: Dict[str, str] = {}
-    storage_cfg = config_obj.get("deployment", {}).get(deployment, {}).get("storage", {})
-    for storage_type, type_cfg in storage_cfg.items():
-        impl = type_cfg.get("type")
-        if impl is None or impl not in type_cfg:
-            continue
-        impl_cfg = type_cfg[impl]
-        impl_cfg["external_address"] = resolve_external_address(
-            storage_address, impl_cfg.get("mapped_port", -1)
-        )
-        applied[storage_type] = impl_cfg["external_address"]
-    return applied
 
 
 def parse_common_params(
@@ -219,7 +180,6 @@ def parse_common_params(
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
     storage_configuration: Optional[List[str]] = None,
-    storage_address: Optional[str] = None,
 ):
     """Parse and process common CLI parameters, initialize SeBS and deployment clients.
 
@@ -265,11 +225,6 @@ def parse_common_params(
 
             cfg = json.load(open(cfg_f, "r"))
             append_nested_dict(config_obj, ["deployment", selected_deployment, "storage"], cfg)
-
-    if storage_address is not None:
-        overrides = override_storage_address(config_obj, selected_deployment, storage_address)
-        for storage_type, address in overrides.items():
-            sebs_client.logging.info(f"Using storage address {address} for {storage_type} storage")
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
@@ -558,7 +513,6 @@ def regression(
     benchmark_input_size,
     benchmark_name,
     storage_configuration,
-    storage_address,
     selected_architecture,
     filter_output,
     **kwargs,
@@ -576,7 +530,6 @@ def regression(
     (config, output_dir, logging_filename, sebs_client, _) = parse_common_params(
         initialize_deployment=False,
         storage_configuration=storage_configuration,
-        storage_address=storage_address,
         **kwargs,
     )
     architecture = config["experiments"]["architecture"] if selected_architecture else None
@@ -760,7 +713,6 @@ def start(
     output,
     deployments,
     storage_configuration,
-    storage_address,
     measure_interval,
     remove_containers,
     architecture,
@@ -775,7 +727,6 @@ def start(
         update_storage=False,
         deployment="local",
         storage_configuration=storage_configuration,
-        storage_address=storage_address,
         system_variant="package",
         architecture=architecture,
         **kwargs,

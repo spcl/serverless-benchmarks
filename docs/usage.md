@@ -115,75 +115,26 @@ S3 buckets, DynamoDB tables, and ECR repositories.
 
 ## Local
 
-In addition to the cloud deployment, we provide an opportunity to launch benchmarks locally with the help of [minio](https://min.io/) storage.
+In addition to the cloud deployment, we provide an opportunity to launch benchmarks locally with self-hosted storage.
 This allows us to conduct debugging and a local characterization of the benchmarks.
 
-First, launch a storage instance. The command below is going to deploy a Docker container,
-map the container's port to port defined in the configuration on host network, and write storage 
-instance configuration to file `out_storage.json`
+First, launch the storage instances. The command below deploys object storage and the ScyllaDB NoSQL database as Docker containers,
+maps their ports to the ports defined in the configuration on the host network, and writes the
+configuration of the storage instances, including addresses and credentials, to the file `out_storage.json`:
 
 ```bash
 sebs storage start all configs/storage.json --output-json out_storage.json
 ```
 
-Then, we need to update the configuration of `local` deployment with information on the storage 
-instance. The `.deployment.local` object in the configuration JSON must contain a new object
-`storage`, with the data provided in the `out_storage.json` file. Fortunately, we can achieve
-this automatically with a single command by using `jq`:
-
-```bash
-jq '.deployment.local.storage = input' configs/example.json out_storage.json > configs/local_deployment.json
-```
-
-The output file will contain a JSON object that should look similar to this one:
-
-```json
-{
-  "deployment": {
-    "name": "local",
-    "local": {
-      "storage": {
-        "object": {
-          "type": "minio",
-          "minio": {
-            "address": "172.17.0.3:9000",
-            "mapped_port": 9011,
-            "access_key": "xxx",
-            "secret_key": "xxx",
-            "instance_id": "xxx",
-            "output_buckets": [],
-            "input_buckets": [],
-            "version": "xxx",
-            "data_volume": "minio-volume",
-            "type": "minio"
-          }
-        },
-        "nosql": {
-          "type": "scylladb",
-          "scylladb": {
-            "address": "172.17.0.4:8000",
-            "mapped_port": 9012,
-            "alternator_port": 8000,
-            "access_key": "xxx",
-            "secret_key": "xxx",
-            "instance_id": "xxx",
-            "region": "xxx",
-            "cpus": 1,
-            "memory": "xxx",
-            "version": "xxx",
-            "data_volume": "scylladb-volume"
-          }
-        }
-      }
-    },
-  }
-}
-```
+Then, pass this file to SeBS commands with the `--storage-configuration` flag.
+SeBS merges it into the configuration of the selected deployment, so no manual editing of configuration files is needed.
+The same file is used for the OpenWhisk deployment.
+See the [storage documentation](storage.md) for details on the generated configuration, the supported storage systems, and network configuration.
 
 To launch Docker containers, use the following command - this example launches benchmark `110.dynamic-html` with size `test`:
 
 ```bash
-sebs local start 110.dynamic-html test out_benchmark.json --config configs/local_deployment.json --deployments 1 --remove-containers --architecture=x64
+sebs local start 110.dynamic-html test out_benchmark.json --config configs/example.json --storage-configuration out_storage.json --deployments 1 --remove-containers --architecture=x64
 ```
 
 The output file `out_benchmark.json` will contain the information on containers deployed and the endpoints that can be used to invoke functions:

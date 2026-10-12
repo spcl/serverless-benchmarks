@@ -6,9 +6,9 @@
 
 * Change to input of 120.uploader benchmark to conform with new Wikipedia policies (#308)
 
-* Pull Minio images from quay.io, as the `minio/minio` repository was removed from Docker Hub.
+* Pull Minio images from the SeBS archive `spcleth/serverless-benchmarks:minio-reproducibility-archive-<release>`, as MinIO no longer publishes images on Docker Hub or quay.io.
 
-* Restore cached ScyllaDB configuration independently of Minio; make the OpenWhisk `shutdownStorage` option work again.
+* Fix restoring the cached configuration of self-hosted storage (Minio, ScyllaDB), and make the OpenWhisk `shutdownStorage` option work again.
 
 ### Improvements
 
@@ -16,9 +16,11 @@
 
 * Support for new versions of Python and Java on AWS (#311).
 
-* Self-hosted storage (Minio, ScyllaDB) advertises an externally reachable address to functions, detected automatically or set with `--external-address` when starting the storage, and overridable with `--storage-address` when running benchmarks. This removes the manual editing of storage addresses for OpenWhisk (#229).
+* Self-hosted storage (Minio, ScyllaDB) advertises an externally reachable address to functions, detected automatically or set with `--external-address` when starting the storage. This removes the manual editing of storage addresses for OpenWhisk (#229).
 
 ### Deprecations
+
+* Storage configuration files generated before 1.3 are no longer supported for OpenWhisk: they lack the `external_address` field, and functions would receive the Docker bridge address. Regenerate them with `sebs storage start`.
 
 ### Contributors
 
