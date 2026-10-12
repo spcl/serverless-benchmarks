@@ -16,7 +16,8 @@ ENV SCRIPT_FILE=/mnt/function/package.sh
 ENV PATH="${NVM_DIR}/current/bin:$PATH"
 
 RUN mkdir -p /sebs
-RUN cd /sebs/ && npm install -g uuid strftime express minio
+# uuid 12+ is ESM-only, which Node.js 18 cannot load with require()
+RUN cd /sebs/ && npm install -g uuid@9.0.1 strftime@0.10.3 express@5.3.0 minio@7.0.16
 # Global modules are installed in the directory of the Node.js version
 ENV NODE_PATH=${NVM_DIR}/current/lib/node_modules
 
