@@ -229,6 +229,35 @@ class Local(System):
 
         return directory, bytes_size
 
+    def _release_port(self, func: LocalFunction) -> None:
+        """Return the host port of a stopped function container to the pool.
+
+        Only non-Linux systems publish function containers on host ports.
+
+        Args:
+            func: Function whose container was stopped
+        """
+        if not is_linux():
+            self.config.resources.allocated_ports.discard(func.port)
+
+    def _release_stale_ports(self) -> None:
+        """Release allocated ports that no running container publishes.
+
+        Ports remain allocated when containers are stopped outside of this
+        deployment client, e.g., with 'sebs local stop', or when SeBS exits
+        without stopping them. Allocated ports are stored in the cache, so they
+        would otherwise never become available again.
+        """
+        published = set()
+        for container in self._docker_client.containers.list():
+            for bindings in (container.ports or {}).values():
+                for binding in bindings or []:
+                    published.add(int(binding["HostPort"]))
+        stale = self.config.resources.allocated_ports - published
+        if stale:
+            self.logging.info(f"Releasing ports of stopped containers: {sorted(stale)}")
+            self.config.resources.allocated_ports.difference_update(stale)
+
     def _start_container(
         self, code_package: Benchmark, func_name: str, func: Optional[LocalFunction]
     ) -> LocalFunction:
@@ -304,6 +333,7 @@ class Local(System):
         # Check if the system is NOT Linux or that it is WSL
         port = self.DEFAULT_PORT
         if not is_linux():
+            self._release_stale_ports()
             port_found = False
             for p in range(self.DEFAULT_PORT, self.DEFAULT_PORT + 1000):
                 # check no container has been deployed on docker's port p
@@ -471,6 +501,7 @@ class Local(System):
 
         func = cast(LocalFunction, function)
         func.stop()
+        self._release_port(func)
         self.logging.info("Allocating a new function container with updated code")
         self._start_container(code_package, function.name, func)
 

@@ -190,6 +190,15 @@ class LocalFunction(Function):
         return self._instance
 
     @property
+    def port(self) -> int:
+        """Get the port the function is listening on.
+
+        Returns:
+            int: Port number; on non-Linux systems, the port published on the host
+        """
+        return self._port
+
+    @property
     def url(self) -> str:
         """Get the URL for function invocation.
 
