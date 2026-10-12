@@ -1,9 +1,8 @@
-benchmarks
-benchmarks-data
-config
-
-# Files that might be created during development
-cache
-python-venv
-regression-*
-*_code
+# Infrastructure images ('sebs docker build') use the repository root as the
+# build context, but only copy files from the directories below. Excluding
+# everything else keeps the context small: the Docker client sends all
+# non-excluded files, including virtual environments, caches and results.
+# Function images are built in their own directory and do not use this file.
+*
+!dockerfiles
+!third-party
