@@ -54,7 +54,7 @@ sebs docker build --image-type build --language python --deployment aws --langua
 sebs docker build --deployment local --language python --language-version 3.11 --multi-platform
 ```
 
-A multi-platform build pushes the images for both architectures, and the combined manifest, to the repository.
+A multi-platform build pushes the images for both architectures, and the combined manifest, to the repository. `sebs docker push --multi-platform` skips these images; without the flag, it pushes the locally built single-platform image.
 
 When rebuilding build images (not necessary for regular users, only for developers), make sure that your Docker installation supports multi-platform images, e.g., [you use `containerd` image store](https://docs.docker.com/engine/storage/containerd/) - old Docker installations might not change the storage type after an upgrade to Docker 29.0, where `containerd` is the default.
 

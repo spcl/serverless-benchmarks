@@ -341,26 +341,29 @@ class DockerImageBuilder(LoggingBase):
         image_type: str,
         language: Optional[str] = None,
         version: Optional[str] = None,
+        multi_platform: bool = False,
         **kwargs,  # Ignore extra args like version_name, platform, parallel
     ) -> bool:
         """
         Execute the actual push operation for a single image.
 
-        Multi-platform images (see _should_use_multiplatform) are skipped
-        as they are already pushed during the build process.
+        With multi_platform, multi-platform images (see _should_use_multiplatform)
+        are skipped, as the multi-platform build already pushed them. Otherwise,
+        the locally built image is pushed.
 
         Args:
             system: Deployment platform
             image_type: Type of image
             language: Programming language, optional
             version: Language version, optional
+            multi_platform: If the images were built for both x64 and arm64
             **kwargs: Additional arguments (ignored for push)
 
         Returns:
             True if push succeeded, False otherwise
         """
         # Skip multi-platform images - they're already pushed during build
-        if self._should_use_multiplatform(system, image_type, language):
+        if multi_platform and self._should_use_multiplatform(system, image_type, language):
             image_name = self.config.docker_image_name(system, image_type, language, version)
             self.logging.info(
                 f"Skipping push for multi-platform image (pushed during build): {image_name}"
@@ -446,7 +449,7 @@ class DockerImageBuilder(LoggingBase):
                 parallel,
             )
         elif operation == "push":
-            success = self._execute_push(system, image_type, language, version)
+            success = self._execute_push(system, image_type, language, version, multi_platform)
         else:
             raise ValueError(f"Unknown operation: {operation}")
 
@@ -782,6 +785,7 @@ class DockerImageBuilder(LoggingBase):
         language_version: Optional[str] = None,
         architecture: str = "x64",
         dependency_type: Optional[str] = None,
+        multi_platform: bool = False,
     ) -> List[str]:
         """
         Push Docker images to registry.
@@ -799,6 +803,8 @@ class DockerImageBuilder(LoggingBase):
             language_version: Specific version, pushes all if None
             architecture: Target architecture, default "x64"
             dependency_type: Specific dependency for cpp, optional
+            multi_platform: If the images were built for both x64 and arm64;
+                skips the images that the multi-platform build already pushed
 
         Returns:
             Names of the images that failed to push (empty if all succeeded)
@@ -811,6 +817,7 @@ class DockerImageBuilder(LoggingBase):
             language_version=language_version,
             architecture=architecture,
             dependency_type=dependency_type,
+            multi_platform=multi_platform,
         )
         return list(self._failed)
 

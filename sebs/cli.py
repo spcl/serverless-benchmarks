@@ -1157,6 +1157,12 @@ def _exit_on_failed_images(operation: str, failed: List[str]) -> None:
     type=str,
     help="Specific dependency for cpp (opencv, boost, etc.)",
 )
+@click.option(
+    "--multi-platform/--no-multi-platform",
+    default=False,
+    type=bool,
+    help="When true, skip multi-platform images: their build already pushed them",
+)
 @click.option("--verbose/--no-verbose", default=False, help="Enable verbose output")
 def docker_push_images(
     deployment,
@@ -1165,12 +1171,14 @@ def docker_push_images(
     language_version,
     architecture,
     dependency_type,
+    multi_platform,
     verbose,
 ):
     """Push Docker infrastructure images to registry.
 
     This command pushes infrastructure images (build, run, manage, dependencies)
     to DockerHub. Images must be built locally first using 'docker build'.
+    Pass the same --multi-platform flag as to 'docker build'.
     """
     from sebs.config import SeBSConfig
     from sebs.docker_builder import DockerImageBuilder
@@ -1189,6 +1197,7 @@ def docker_push_images(
         language_version=language_version,
         architecture=architecture,
         dependency_type=dependency_type,
+        multi_platform=multi_platform,
     )
     _exit_on_failed_images("push", failed)
 
