@@ -18,7 +18,7 @@ import json
 import os
 import time
 from enum import Enum
-from typing import TYPE_CHECKING, cast, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, cast, Dict, List, Optional, Tuple
 
 import boto3
 
@@ -227,6 +227,10 @@ class AWSResources(Resources):
         _lambda_role: IAM role ARN for Lambda execution
         _http_apis: Dictionary of HTTP API configurations
     """
+
+    # Statement IDs of resource-based policy entries granting public Function URL access.
+    FUNCTION_URL_PUBLIC_ACCESS_SID = "FunctionURLAllowPublicAccess"
+    FUNCTION_URL_INVOKE_ACCESS_SID = "FunctionURLAllowInvokeAccess"
 
     class HTTPApi:
         """HTTP API configuration for AWS API Gateway.
@@ -472,9 +476,9 @@ class AWSResources(Resources):
     def lambda_role(self, boto3_session: boto3.session.Session) -> str:
         """Get or create IAM role for Lambda execution.
 
-        Creates a Lambda execution role with S3 and basic execution permissions
-        if it doesn't already exist. The role allows Lambda functions to access
-        S3 and write CloudWatch logs.
+        Creates a Lambda execution role with S3, DynamoDB, and basic execution
+        permissions if it doesn't already exist. The role allows Lambda functions
+        to access S3 and DynamoDB, and write CloudWatch logs.
 
         Args:
             boto3_session: Boto3 session for AWS API calls
@@ -500,6 +504,7 @@ class AWSResources(Resources):
             role_name = "sebs-lambda-role"
             attached_policies = [
                 "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+                "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess",
                 "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
             ]
             try:
@@ -517,7 +522,7 @@ class AWSResources(Resources):
                     "Sleep 10 seconds to avoid problems when using role immediately."
                 )
                 time.sleep(10)
-            # Attach basic AWS Lambda and S3 policies.
+            # Attach basic AWS Lambda, S3, and DynamoDB policies.
             for policy in attached_policies:
                 iam_client.attach_role_policy(RoleName=role_name, PolicyArn=policy)
         return self._lambda_role
@@ -749,21 +754,36 @@ class AWSResources(Resources):
                 "WARNING: This function will have unrestricted public access. "
                 "Anyone with the URL can invoke this function."
             )
-            try:
-                lambda_client.add_permission(
-                    FunctionName=func.name,
-                    StatementId="FunctionURLAllowPublicAccess",
-                    Action="lambda:InvokeFunctionUrl",
-                    Principal="*",
-                    FunctionUrlAuthType="NONE",
-                )
-                self.logging.info(
-                    f"Applied public access permission for Function URL on {func.name}"
-                )
-            except lambda_client.exceptions.ResourceConflictException:
-                # Permission with this StatementId already exists on the function.
-                # This is expected if the permission was previously added.
-                self.logging.info(f"Public access permission already exists for {func.name}")
+            # Since October 2025, AWS requires both lambda:InvokeFunctionUrl and
+            # lambda:InvokeFunction for public Function URLs. The latter is restricted
+            # to invocations coming through the Function URL.
+            permissions: List[Dict[str, Any]] = [
+                {
+                    "StatementId": AWSResources.FUNCTION_URL_PUBLIC_ACCESS_SID,
+                    "Action": "lambda:InvokeFunctionUrl",
+                    "FunctionUrlAuthType": "NONE",
+                },
+                {
+                    "StatementId": AWSResources.FUNCTION_URL_INVOKE_ACCESS_SID,
+                    "Action": "lambda:InvokeFunction",
+                    "InvokedViaFunctionUrl": True,
+                },
+            ]
+            for permission in permissions:
+                try:
+                    lambda_client.add_permission(
+                        FunctionName=func.name, Principal="*", **permission
+                    )
+                    self.logging.info(
+                        f"Applied {permission['Action']} permission for Function URL "
+                        f"on {func.name}"
+                    )
+                except lambda_client.exceptions.ResourceConflictException:
+                    # Permission with this StatementId already exists on the function.
+                    # This is expected if the permission was previously added.
+                    self.logging.info(
+                        f"{permission['Action']} permission already exists for {func.name}"
+                    )
 
         function_url_obj = AWSResources.FunctionURL(url, func.name, auth_type)
         self._function_urls[func.name] = function_url_obj
@@ -791,15 +811,19 @@ class AWSResources(Resources):
             # Only remove the public access permission if auth_type was NONE
             # (AWS_IAM auth type doesn't create this permission)
             if cached_auth_type is None or cached_auth_type == FunctionURLAuthType.NONE:
-                try:
-                    lambda_client.remove_permission(
-                        FunctionName=function_name,
-                        StatementId="FunctionURLAllowPublicAccess",
-                    )
-                except lambda_client.exceptions.ResourceNotFoundException:
-                    # Permission doesn't exist - either it was already removed,
-                    # or the function was using AWS_IAM auth type
-                    pass
+                for statement_id in [
+                    AWSResources.FUNCTION_URL_PUBLIC_ACCESS_SID,
+                    AWSResources.FUNCTION_URL_INVOKE_ACCESS_SID,
+                ]:
+                    try:
+                        lambda_client.remove_permission(
+                            FunctionName=function_name,
+                            StatementId=statement_id,
+                        )
+                    except lambda_client.exceptions.ResourceNotFoundException:
+                        # Permission doesn't exist - either it was already removed,
+                        # or the function was using AWS_IAM auth type
+                        pass
         except lambda_client.exceptions.ResourceNotFoundException:
             self.logging.info(f"No Function URL found for {function_name}")
             return False
