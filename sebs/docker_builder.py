@@ -386,7 +386,7 @@ class DockerImageBuilder(LoggingBase):
         try:
             # Parse image name into repository and tag
             # Format: repository:tag
-            repository, tag = image_name.split(":", 1)
+            repository, tag = image_name.rsplit(":", 1)
 
             DockerImageBuilder.push_image_with_progress(
                 self.docker_client, repository, tag, self.logging, disable_rich_output=False
