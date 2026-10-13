@@ -73,8 +73,11 @@ sufficient to manage functions and S3 resources.
 Additionally, the account must have `AmazonAPIGatewayAdministrator` permission to set up
 automatically an AWS HTTP trigger.
 You can provide a [role](https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html)
-with permissions to access AWS Lambda and S3; otherwise, one will be created automatically.
-To use a user-defined Lambda role, set the name in the config JSON - see an example in `configs/example.json`.
+with permissions to access AWS Lambda, S3, and DynamoDB; otherwise, one will be created automatically.
+The automatically created role `sebs-lambda-role` has the following managed policies attached:
+`AWSLambdaBasicExecutionRole` (CloudWatch logs), `AmazonS3FullAccess` (benchmark input and output data),
+and `AmazonDynamoDBFullAccess` (NoSQL storage used by benchmarks such as `130.crud-api`).
+To use a user-defined Lambda role, set its ARN in the config JSON - see an example in `configs/example.json`.
 
 You can pass the credentials either using the default AWS-specific environment variables:
 
@@ -125,6 +128,13 @@ However, an API gateway can still be used for benchmarking. The switch between t
 
 > [!WARNING]
 > SeBS implements the "NONE" authentication mode for function URLs, making Lambda functions publicly accessible without any authentication.
+
+To make a function URL public, SeBS adds two statements to the function's resource-based policy,
+as [required by AWS](https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html) for function URLs created since October 2025:
+`lambda:InvokeFunctionUrl` (statement `FunctionURLAllowPublicAccess`) and `lambda:InvokeFunction`
+restricted to invocations through the function URL (statement `FunctionURLAllowInvokeAccess`).
+Both statements are removed when the function URL is deleted.
+These permissions are attached to the function, not to the Lambda execution role.
 
 ## Azure Functions
 
