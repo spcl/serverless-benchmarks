@@ -10,6 +10,11 @@ are required.
 In the following subsections, we discuss the mandatory and optional customization
 points for each platform.
 
+> [!NOTE]
+> Most of the cloud providers offer free usage allowances and promotional credits, subject to account eligibility, service, plan, and region.
+> Function execution and supporting services, such as storage and builds, are usually included with certain free allocations.
+> Review the current terms before deploying benchmarks.
+
 > [!WARNING]
 > On many platforms, credentials can be provided as environment variables or through the SeBS configuration. SeBS will not store your credentials in the cache. When saving results, SeBS stores user benchmark and experiment configuration for documentation and reproducibility, except for credentials that are erased. If you provide the credentials through JSON input configuration, do not commit or publish these files anywhere.
 
@@ -59,7 +64,10 @@ jq 'del(.config.deployment.credentials)' <file.json> | sponge <file.json>
 
 # AWS Lambda
 
-AWS provides one year of free services, including a significant amount of computing time in AWS Lambda.
+AWS Lambda provides an ongoing monthly free allowance for Lambda requests and compute time. Supporting services,
+such as S3, have separate pricing and free allowances - see "always free" on AWS website.
+Additionally, new AWS accounts receive credits for additional usage.
+
 To work with AWS, you need to provide access and secret keys to a role with permissions
 sufficient to manage functions and S3 resources.
 Additionally, the account must have `AmazonAPIGatewayAdministrator` permission to set up
@@ -120,7 +128,7 @@ However, an API gateway can still be used for benchmarking. The switch between t
 
 ## Azure Functions
 
-Azure provides a free tier for 12 months.
+Azure provides a free tier for 12 months, with certain services providing free allocations beyond that.
 You need to create an account and add a [service principal](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal)
 to enable non-interactive login through CLI.
 Since this process has [an easy, one-step CLI solution](https://docs.microsoft.com/en-us/cli/azure/ad/sp?view=azure-cli-latest#az-ad-sp-create-for-rbac),
@@ -146,9 +154,9 @@ AZURE_SECRET_PASSWORD = XXXXXXXXXXXXX
 You can pass the credentials either using the environment variables:
 
 ```
-export AZURE_SECRET_APPLICATION_ID = XXXXXXXXXXXXXXXX
-export AZURE_SECRET_TENANT = XXXXXXXXXXXX
-export AZURE_SECRET_PASSWORD = XXXXXXXXXXXXX
+export AZURE_SECRET_APPLICATION_ID=XXXXXXXXXXXXXXXX
+export AZURE_SECRET_TENANT=XXXXXXXXXXXX
+export AZURE_SECRET_PASSWORD=XXXXXXXXXXXXX
 ```
 
 or in the JSON input configuration:
@@ -157,7 +165,7 @@ or in the JSON input configuration:
 "deployment": {
   "name": "azure",
   "azure": {
-    "region": "westeurope"
+    "region": "westeurope",
     "credentials": {
       "appID": "YOUR SECRET APPLICATION ID",
       "tenant": "YOUR SECRET TENANT",
@@ -184,10 +192,13 @@ or in the JSON input configuration:
 
 ## Google Cloud Functions
 
-The Google Cloud Free Tier gives free resources. It has two parts:
+The Google Cloud Free Tier gives free access to certain cloud resources. It has two parts:
 
-- A 12-month free trial with $300 credit to use with any Google Cloud services.
-- Always Free, which provides limited access to many common Google Cloud resources, free of charge.
+- A free trial for new customers with credit to use with eligible Google Cloud services (time-limited).
+- A free tier, which provides limited access to many common Google Cloud resources, free of charge.
+
+A valid Cloud Billing account is required, including for Free Tier usage.
+Function execution, builds, artifact storage, and other supporting services have their own pricing and free allowances.
 
 You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions. From the Google Cloud Console, download the cloud credentials saved as a JSON file.
 You should have at least write access to **Cloud Functions** (`Cloud Functions Admin`) and **Logging**. Furthermore, SeBS needs the permissions to create Firestore databases through
