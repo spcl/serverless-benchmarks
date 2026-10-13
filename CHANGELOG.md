@@ -14,7 +14,7 @@
 
 * `sebs docker build` and `sebs docker push` exit with status 1 and list the failed images when an image fails; they always exited with 0.
 
-* Python packages for x64 functions built on ARM machines (e.g., Apple Silicon) contained ARM binaries: multi-platform build images run natively there, so the installer now downloads x86 wheels for x64 targets.
+* Python packages for x64 functions built on ARM machines (e.g., Apple Silicon) contained ARM binaries: multi-platform build images run natively there, so the installer now downloads x86 wheels for x64 targets. Cross-architecture builds accept all manylinux wheels compatible with the build image's glibc instead of only `manylinux_2_17`, which rejected old pinned packages (e.g., Pillow 8.0.0) and new releases (e.g., numpy for Python 3.14). Python dependencies are always installed from wheels.
 
 * Change to input of 120.uploader benchmark to conform with new Wikipedia policies (#308)
 
