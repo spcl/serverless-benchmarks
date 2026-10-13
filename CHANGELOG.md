@@ -12,6 +12,8 @@
 
 ### Bug Fixes
 
+* Python packages for x64 functions built on ARM machines (e.g., Apple Silicon) contained ARM binaries: multi-platform build images run natively there, so the installer now downloads x86 wheels for x64 targets.
+
 * Change to input of 120.uploader benchmark to conform with new Wikipedia policies (#308)
 
 * Pull Minio images from the SeBS archive `spcleth/serverless-benchmarks:minio-reproducibility-archive-<release>`, as MinIO no longer publishes images on Docker Hub or quay.io.
