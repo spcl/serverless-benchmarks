@@ -1095,9 +1095,9 @@ def docker_build(
     try:
         builder = DockerImageBuilder(config, get_project_root(), verbose=verbose)
     except docker.errors.DockerException:
-        return
+        sys.exit(1)
 
-    builder.build(
+    failed = builder.build(
         deployment=deployment,
         image_type=image_type,
         language=language,
@@ -1108,6 +1108,21 @@ def docker_build(
         multi_platform=multi_platform,
         parallel=parallel,
     )
+    _exit_on_failed_images("build", failed)
+
+
+def _exit_on_failed_images(operation: str, failed: List[str]) -> None:
+    """Exit with status 1 and list the images whose build or push failed.
+
+    Args:
+        operation: 'build' or 'push'
+        failed: Names of the failed images
+    """
+    if failed:
+        click.echo(f"Failed to {operation} {len(failed)} image(s):", err=True)
+        for name in failed:
+            click.echo(f"  {name}", err=True)
+        sys.exit(1)
 
 
 @docker_cmd.command("push")
@@ -1165,9 +1180,9 @@ def docker_push_images(
     try:
         builder = DockerImageBuilder(config, get_project_root(), verbose=verbose)
     except docker.errors.DockerException:
-        return
+        sys.exit(1)
 
-    builder.push(
+    failed = builder.push(
         deployment=deployment,
         image_type=image_type,
         language=language,
@@ -1175,6 +1190,7 @@ def docker_push_images(
         architecture=architecture,
         dependency_type=dependency_type,
     )
+    _exit_on_failed_images("push", failed)
 
 
 def main():

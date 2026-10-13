@@ -12,6 +12,8 @@
 
 ### Bug Fixes
 
+* `sebs docker build` and `sebs docker push` exit with status 1 and list the failed images when an image fails; they always exited with 0.
+
 * Python packages for x64 functions built on ARM machines (e.g., Apple Silicon) contained ARM binaries: multi-platform build images run natively there, so the installer now downloads x86 wheels for x64 targets.
 
 * Change to input of 120.uploader benchmark to conform with new Wikipedia policies (#308)

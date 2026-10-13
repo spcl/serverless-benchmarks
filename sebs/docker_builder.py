@@ -64,6 +64,8 @@ class DockerImageBuilder(LoggingBase):
         self.config = config
         self.project_dir = project_dir
         self.dockerfiles_dir = os.path.join(project_dir, "dockerfiles")
+        # Images whose build or push failed in the current operation
+        self._failed: List[str] = []
 
         if docker_client is None:
             try:
@@ -433,7 +435,7 @@ class DockerImageBuilder(LoggingBase):
 
         # Execute the appropriate operation
         if operation == "build":
-            return self._execute_build(
+            success = self._execute_build(
                 system,
                 image_type,
                 language,
@@ -444,9 +446,15 @@ class DockerImageBuilder(LoggingBase):
                 parallel,
             )
         elif operation == "push":
-            return self._execute_push(system, image_type, language, version)
+            success = self._execute_push(system, image_type, language, version)
         else:
             raise ValueError(f"Unknown operation: {operation}")
+
+        if not success:
+            self._failed.append(
+                self.config.docker_image_name(system, image_type, language, version)
+            )
+        return success
 
     def _process_language(
         self,
@@ -681,6 +689,7 @@ class DockerImageBuilder(LoggingBase):
             parallel: Number of parallel workers, default 1
         """
         systems_config = self.config._system_config
+        self._failed = []
 
         if deployment:
             if deployment in systems_config:
@@ -699,6 +708,7 @@ class DockerImageBuilder(LoggingBase):
                 )
             else:
                 self.logging.error(f"Unknown deployment: {deployment}")
+                self._failed.append(deployment)
         else:
             for system, system_dict in systems_config.items():
                 self._process_system(
@@ -726,7 +736,7 @@ class DockerImageBuilder(LoggingBase):
         platform: Optional[str] = None,
         multi_platform: bool = False,
         parallel: int = 1,
-    ) -> None:
+    ) -> List[str]:
         """
         Build Docker images for SeBS infrastructure.
 
@@ -746,6 +756,9 @@ class DockerImageBuilder(LoggingBase):
             platform: Docker platform override, optional
             multi_platform: If we should build both x64 and arm64
             parallel: Number of parallel workers, default 1
+
+        Returns:
+            Names of the images that failed to build (empty if all succeeded)
         """
         self._process(
             operation="build",
@@ -759,6 +772,7 @@ class DockerImageBuilder(LoggingBase):
             multi_platform=multi_platform,
             parallel=parallel,
         )
+        return list(self._failed)
 
     def push(
         self,
@@ -768,7 +782,7 @@ class DockerImageBuilder(LoggingBase):
         language_version: Optional[str] = None,
         architecture: str = "x64",
         dependency_type: Optional[str] = None,
-    ) -> None:
+    ) -> List[str]:
         """
         Push Docker images to registry.
 
@@ -785,6 +799,9 @@ class DockerImageBuilder(LoggingBase):
             language_version: Specific version, pushes all if None
             architecture: Target architecture, default "x64"
             dependency_type: Specific dependency for cpp, optional
+
+        Returns:
+            Names of the images that failed to push (empty if all succeeded)
         """
         self._process(
             operation="push",
@@ -795,6 +812,7 @@ class DockerImageBuilder(LoggingBase):
             architecture=architecture,
             dependency_type=dependency_type,
         )
+        return list(self._failed)
 
     @staticmethod
     def show_progress(txt: str, progress: Progress, layer_tasks: Dict[str, TaskID]):
