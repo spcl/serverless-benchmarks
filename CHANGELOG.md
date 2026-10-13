@@ -22,6 +22,8 @@
 
 ### Improvements
 
+* Local deployment on ARM machines (Apple Silicon, Graviton): the local build and run images for Python and Node.js are multi-platform (x64 and arm64), and SeBS warns when the configured architecture differs from the host's.
+
 * PAPI hardware counters in local Python images use the distribution's PAPI through a small C binding with overflow sampling (`sebs_papi`). It replaces the pypapi submodule, whose bundled PAPI predates many current CPUs, and is compiled in the run images, which previously shipped pypapi without its native module. Requires the updated local run images.
 
 * Support for multiple variants of the same programming language (#286).

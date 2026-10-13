@@ -701,6 +701,12 @@ def has_platform(name: str) -> bool:
         return False
 
 
+def host_architecture() -> str:
+    """Architecture of this machine in SeBS's naming: "x64" or "arm64"."""
+    machine = platform.machine().lower()
+    return "arm64" if machine in ("arm64", "aarch64") else "x64"
+
+
 def is_linux() -> bool:
     """
     Check if the system is Linux and not Windows Subsystem for Linux.

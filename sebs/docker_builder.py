@@ -82,10 +82,10 @@ class DockerImageBuilder(LoggingBase):
     ) -> bool:
         """Check if multi-platform build should be used for this image.
 
-        Multi-platform builds (x64 + arm64) are only enabled for:
-        - AWS platform
-        - Build images only
-        - Python or Node.js languages
+        Multi-platform builds (x64 + arm64) are enabled for:
+        - AWS build images of Python, Node.js, and Java;
+        - local build and run images of Python and Node.js: local functions run
+          on the host, so x86 and ARM machines pull the image of their architecture.
 
         Args:
             system: Deployment platform (e.g., 'aws', 'gcp')
@@ -95,9 +95,11 @@ class DockerImageBuilder(LoggingBase):
         Returns:
             True if multi-platform build should be used, False otherwise
         """
-        return (
-            system == "aws" and image_type == "build" and language in ["python", "nodejs", "java"]
-        )
+        if system == "aws":
+            return image_type == "build" and language in ["python", "nodejs", "java"]
+        if system == "local":
+            return image_type in ["build", "run"] and language in ["python", "nodejs"]
+        return False
 
     def _execute_multiplatform_build(
         self,
@@ -254,8 +256,9 @@ class DockerImageBuilder(LoggingBase):
         """
         Execute the actual build operation for a single image.
 
-        For AWS Python/Node.js build images, uses multi-platform build (x64 + arm64).
-        For all other images, uses standard single-platform build.
+        With multi_platform, AWS build images and local build and run images are built
+        for x64 and arm64 (see _should_use_multiplatform). All other images use a
+        standard single-platform build.
 
         Args:
             system: Deployment platform
@@ -341,7 +344,7 @@ class DockerImageBuilder(LoggingBase):
         """
         Execute the actual push operation for a single image.
 
-        Multi-platform images (AWS Python/Node.js build images) are skipped
+        Multi-platform images (see _should_use_multiplatform) are skipped
         as they are already pushed during the build process.
 
         Args:

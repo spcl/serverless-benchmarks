@@ -31,7 +31,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.experiments.config import SystemVariant
 from sebs.storage.resources import SelfHostedSystemResources
-from sebs.utils import LoggingHandlers, is_linux
+from sebs.utils import LoggingHandlers, host_architecture, is_linux
 from sebs.local.config import LocalConfig
 from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
@@ -202,13 +202,21 @@ class Local(System):
             directory: Directory containing the function code
             language: Programming language (e.g., "python", "nodejs")
             language_version: Language version (e.g., "3.11", "20")
-            architecture: Target architecture (unused for local)
+            architecture: Target architecture; must match the host's, since local
+                containers run natively (a mismatch is reported as a warning)
             benchmark: Benchmark name
             is_cached: Whether the package is from cache
 
         Returns:
             Tuple[str, int]: (package_path, size_bytes)
         """
+
+        if architecture != host_architecture():
+            self.logging.warning(
+                f"Packaging for {architecture}, but local functions run on this machine's "
+                f"architecture ({host_architecture()}): set the experiment's architecture to "
+                f"{host_architecture()}, or dependencies with native code may not load."
+            )
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
