@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import uuid
 import click
+import docker
 import datetime
 import ipaddress
 import platform
@@ -701,10 +702,33 @@ def has_platform(name: str) -> bool:
         return False
 
 
+def _sebs_architecture(machine: str) -> str:
+    """Translate a machine name ("x86_64", "aarch64", ...) to SeBS's naming.
+
+    Returns "x64" or "arm64"; other architectures are returned unchanged.
+    """
+    machine = machine.lower()
+    if machine in ("x86_64", "amd64"):
+        return "x64"
+    if machine in ("arm64", "aarch64"):
+        return "arm64"
+    return machine
+
+
 def host_architecture() -> str:
-    """Architecture of this machine in SeBS's naming: "x64" or "arm64"."""
-    machine = platform.machine().lower()
-    return "arm64" if machine in ("arm64", "aarch64") else "x64"
+    """Architecture of this Python process in SeBS's naming, e.g., "x64" or "arm64".
+
+    It can differ from the machine's, e.g., for x86 Python under Rosetta on Apple Silicon.
+    """
+    return _sebs_architecture(platform.machine())
+
+
+def docker_architecture(docker_client: docker.client.DockerClient) -> str:
+    """Architecture of the Docker daemon in SeBS's naming, e.g., "x64" or "arm64".
+
+    Containers run natively on this architecture.
+    """
+    return _sebs_architecture(docker_client.info()["Architecture"])
 
 
 def is_linux() -> bool:
