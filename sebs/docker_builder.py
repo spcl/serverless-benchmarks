@@ -316,13 +316,15 @@ class DockerImageBuilder(LoggingBase):
         self.logging.debug(f"Building {image_name} from {dockerfile}")
         self.logging.debug(f"Build args: {buildargs}")
 
+        if platform_arg:
+            return self._execute_platform_build(image_name, dockerfile, buildargs, platform_arg)
+
         try:
             self.docker_client.images.build(
                 path=str(self.project_dir),
                 dockerfile=dockerfile,
                 buildargs=buildargs,
                 tag=image_name,
-                platform=platform_arg,
             )
             self.logging.info(f"Successfully built: {image_name}")
             return True
@@ -334,6 +336,52 @@ class DockerImageBuilder(LoggingBase):
                 if "stream" in line:
                     self.logging.debug(line["stream"].strip())
             return False
+
+    def _execute_platform_build(
+        self, image_name: str, dockerfile: str, buildargs: dict, platform: str
+    ) -> bool:
+        """Build a single-platform image for the given platform with BuildKit.
+
+        The build API of the Docker daemon, used by docker-py, runs the legacy builder.
+        With the containerd image store (default since Docker 29), it fails on images
+        for a platform other than the host's: "image ... does not provide the specified
+        platform".
+
+        Args:
+            image_name: Docker image tag
+            dockerfile: Path to Dockerfile
+            buildargs: Build args
+            platform: Docker platform, e.g., linux/amd64
+
+        Returns:
+            True if build succeeded, False otherwise
+        """
+        cmd = [
+            "docker",
+            "build",
+            "--platform",
+            platform,
+            "--provenance",
+            "false",
+            "--load",
+            "-f",
+            dockerfile,
+            "-t",
+            image_name,
+        ]
+        for key, value in buildargs.items():
+            cmd.extend(["--build-arg", f"{key}={value}"])
+        cmd.append(str(self.project_dir))
+
+        try:
+            output = execute(cmd, cwd=str(self.project_dir))
+        except RuntimeError as exc:
+            self.logging.error(f"Build failed for {image_name}")
+            self.logging.error(exc)
+            return False
+        self.logging.debug(f"Build log:\n{output}")
+        self.logging.info(f"Successfully built: {image_name}")
+        return True
 
     def _execute_push(
         self,

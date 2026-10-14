@@ -12,6 +12,8 @@
 
 ### Bug Fixes
 
+* `sebs docker build --platform` for another architecture (e.g., x64 images on an ARM machine) failed with Docker's containerd image store, the default since Docker 29: "image ... does not provide the specified platform". Docker's build API runs the legacy builder, so SeBS now builds such images with BuildKit (`docker build --platform`).
+
 * `sebs docker build` and `sebs docker push` exit with status 1 and list the failed images when an image fails; they always exited with 0.
 
 * Node.js packages built for another architecture (e.g., arm64 functions on an x86 machine) contained native binaries of the build machine: npm selects platform-specific packages, such as sharp's `@img/sharp-linux-arm64`, by `--cpu`, `--os`, and `--libc`, not by `--arch`. The installer now passes all of them. Requires rebuilding the build images.
