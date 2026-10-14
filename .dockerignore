@@ -5,4 +5,3 @@
 # Function images are built in their own directory and do not use this file.
 *
 !dockerfiles
-!third-party

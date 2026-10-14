@@ -6,7 +6,19 @@ RUN deps=''\
   # for route and sudo
   && apt-get install --no-install-recommends -y curl gosu net-tools sudo ${deps}\
   && apt-get purge -y --auto-remove ${deps}\
-  && pip3 install cffi minio==7.2.7 bottle
+  && pip3 install minio==7.2.7 bottle
+
+# PAPI hardware counters (sebs_papi.py): build the wrapper against the distribution's PAPI,
+# then remove the compiler and headers, keeping the PAPI and libpfm4 runtime libraries.
+COPY dockerfiles/local/python/papi/sebs_papi.c /tmp/sebs_papi.c
+RUN apt-get update\
+  && apt-get install --no-install-recommends -y gcc libc6-dev libpapi-dev\
+  && gcc -O2 -Wall -fPIC -shared -o /usr/local/lib/libsebs_papi.so /tmp/sebs_papi.c -lpapi\
+  && apt-mark manual $(dpkg-query -W -f='${binary:Package}\n' | grep -E '^lib(papi|pfm)[0-9]')\
+  && apt-get purge -y --auto-remove gcc libc6-dev libpapi-dev\
+  && rm -rf /var/lib/apt/lists/* /tmp/sebs_papi.c\
+  && ldconfig\
+  && ldd /usr/local/lib/libsebs_papi.so | grep -q 'libpapi.so.* => /'
 
 RUN mkdir -p /sebs
 COPY dockerfiles/local/run.sh /sebs/
@@ -15,7 +27,6 @@ COPY dockerfiles/local/python/*.py /sebs/
 COPY dockerfiles/local/python/run_server.sh /sebs/
 COPY dockerfiles/local/python/timeit.sh /sebs/
 COPY dockerfiles/local/python/runners.json /sebs/
-ADD third-party/pypapi/pypapi /sebs/pypapi
 ENV PYTHONPATH=/sebs/.python_packages/lib/site-packages:$PYTHONPATH
 
 COPY dockerfiles/local/entrypoint.sh /sebs/entrypoint.sh

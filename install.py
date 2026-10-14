@@ -19,7 +19,6 @@ for deployment in ["aws", "azure", "gcp", "openwhisk"]:
 for deployment in ["local"]:
     parser.add_argument(f"--{deployment}", action="store_const", default=True, const=True, dest=deployment)
     parser.add_argument(f"--no-{deployment}", action="store_const", const=False, dest=deployment)
-parser.add_argument("--with-pypapi", action="store_true")
 args = parser.parse_args()
 
 def execute(cmd, cwd=None):
@@ -93,14 +92,3 @@ except RuntimeError as error:
             execute(f"git clone https://github.com/spcl/serverless-benchmarks-data.git {data_dir}")
     else:
         raise error
-
-if args.with_pypapi:
-    print("Build and install pypapi")
-    cur_dir = os.getcwd()
-    os.chdir(os.path.join("third-party", "pypapi"))
-    execute("git checkout low_api_overflow")
-    execute("pip3 install -r requirements.txt")
-    execute("python3 setup.py build")
-    execute("python3 pypapi/papi_build.py")
-    os.chdir(cur_dir)
-

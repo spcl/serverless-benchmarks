@@ -7,55 +7,46 @@ from tools import *
 # imported function
 from function import function
 
-import pypapi.exceptions
+from sebs_papi import PAPI, PAPIError
 
 class papi_benchmarker:
-    from pypapi import papi_low as papi
-    from pypapi import events as papi_events
 
     def __init__(self, papi_cfg):
-        self.events = []
-        self.events_names = []
-        self.count = 0
+        try:
+            self.papi = PAPI(papi_cfg['events'])
+        except PAPIError as err:
+            print('Adding events failed: {err}'.format(err=err))
+            sys.exit(100)
 
-        self.papi.library_init()
-        self.events = self.papi.create_eventset()
-        for event in papi_cfg['events']:
-            try:
-                self.papi.add_event(self.events, getattr(self.papi_events, event))
-            except pypapi.exceptions.PapiInvalidValueError as err:
-                print('Adding event {event} failed!'.format(event=event))
-                sys.exit(100)
-
-        self.events_names = papi_cfg['events']
-        self.count = len(papi_cfg['events'])
+        self.events_names = self.papi.events
+        self.count = len(self.events_names)
         self.results = []
 
         self.ins_granularity = papi_cfg['overflow_instruction_granularity']
         self.buffer_size = papi_cfg['overflow_buffer_size']
         self.start_time = datetime.datetime.now()
-        
-        self.papi.overflow_sampling(self.events, self.papi_events.PAPI_TOT_INS,
+
+        # Every N instructions, record the values of all events
+        self.papi.overflow(papi_cfg.get('overflow_event', 'PAPI_TOT_INS'),
                 int(self.ins_granularity), int(self.buffer_size))
 
     def start_overflow(self):
-        self.papi.start(self.events)
+        self.papi.start()
 
     def stop_overflow(self):
-        self.papi.stop(self.events)
+        self.papi.stop()
 
     def get_results(self):
-        data = self.papi.overflow_sampling_results(self.events)
-        for vals in data:
-            for i in range(0, len(vals), self.count + 1):
-                chunks = vals[i:i+self.count+1]
-                measurement_time = datetime.datetime.fromtimestamp(chunks[0]/1e6)
-                time = (measurement_time - self.start_time) / datetime.timedelta(microseconds = 1)
-                self.results.append([measurement_time.strftime("%s.%f"), time] + list(chunks[1:]))
+        if self.papi.dropped:
+            print('Dropped {} samples: increase overflow_buffer_size'.format(self.papi.dropped),
+                  file=sys.stderr)
+        for timestamp, values in self.papi.samples():
+            measurement_time = datetime.datetime.fromtimestamp(timestamp/1e6)
+            time = (measurement_time - self.start_time) / datetime.timedelta(microseconds = 1)
+            self.results.append([measurement_time.strftime("%s.%f"), time] + values)
 
     def finish(self):
-        self.papi.cleanup_eventset(self.events)
-        self.papi.destroy_eventset(self.events)
+        self.papi.finish()
 
 
 cfg = json.load(open(sys.argv[1], 'r'))

@@ -75,9 +75,6 @@ cloud resources.
 `tools` scripts used to automatize additional functionalities, such as cloud credentials creation
 or Docker image rebuild.
 
-`third-party/pypapi/` - a submodule for [our fork of pypapi](https://github.com/mcopik/pypapi),
-used for microarchitectural analysis of local invocations.
-
 `scripts` - legacy scripts for low-level analysis of functions.
 
 ## CLI Interface
@@ -142,9 +139,12 @@ The `docker` directory contains all necessary Dockerfiles, and the script
 
 We build a fleet of Docker images that run a simple HTTP server that accept invocations of
 Python and Node.js functions.
-In addition to a server with a language worker, they can contain our fork of `pypapi`, the Python version
-of PAPI library for hardware counters. These can be used for low-overhead, detailed profiling
-of functions.
+In addition to a server with a language worker, Python images contain `sebs_papi`, a small binding
+to the [PAPI](https://icl.utk.edu/papi/) library for hardware counters, built against the PAPI of the
+image's distribution. It counts events and samples them on overflow, e.g., all counters every million
+instructions, for low-overhead, detailed profiling of functions (`dockerfiles/local/python/papi-runner.py`).
+Counting requires access to performance counters: SeBS starts local containers as privileged,
+and the host must allow user-space counting (`kernel.perf_event_paranoid` of 2 or lower).
 
 The `sebs/local/` directory implements the FaaS interface for a local deployment,
 and implements the `minio` storage as a replacement for cloud storage.
