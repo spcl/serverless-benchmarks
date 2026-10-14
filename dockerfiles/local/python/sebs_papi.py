@@ -74,8 +74,12 @@ class PAPI:
 
     def overflow(self, event: str, threshold: int, max_samples: int = 1_000_000) -> None:
         """Sample all events every `threshold` occurrences of `event` (must be added)."""
+        # ctypes silently truncates integers that don't fit the C int.
+        threshold = int(threshold)
+        if not 0 < threshold < 2 ** (8 * ctypes.sizeof(ctypes.c_int) - 1):
+            raise PAPIError(f"overflow threshold {threshold} must be a positive C int")
         self._check(
-            self._lib.sebs_papi_overflow(event.encode(), int(threshold), int(max_samples)),
+            self._lib.sebs_papi_overflow(event.encode(), threshold, int(max_samples)),
             f"overflow sampling on {event}",
         )
 

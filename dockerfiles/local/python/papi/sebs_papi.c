@@ -15,6 +15,7 @@
  * One event set per process; the functions are not thread-safe.
  */
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -90,7 +91,11 @@ int sebs_papi_overflow(const char *event, int threshold, long long max_samples)
   if (threshold <= 0 || max_samples <= 0 || num_events == 0)
     return PAPI_EINVAL;
 
+  if ((unsigned long long)max_samples > SIZE_MAX / sizeof(long long) / (num_events + 1))
+    return PAPI_EINVAL;
+
   free(samples);
+  capacity = 0;
   samples = calloc((size_t)max_samples * (num_events + 1), sizeof(long long));
   if (!samples)
     return PAPI_ENOMEM;
