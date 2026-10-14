@@ -53,6 +53,8 @@ class Local(System):
     """
 
     DEFAULT_PORT = 9000
+    # Seconds to wait for the function server to start
+    STARTUP_TIMEOUT = 30
 
     @staticmethod
     def name() -> str:
@@ -412,8 +414,8 @@ class Local(System):
             func.set_container(container, port)
             func._measurement_pid = pid
 
-        # Wait until server starts
-        max_attempts = 10
+        # Wait until server starts; emulated containers (e.g., x64 on arm64) start slower.
+        max_attempts = int(Local.STARTUP_TIMEOUT / 0.25)
         attempts = 0
         while attempts < max_attempts:
             try:
