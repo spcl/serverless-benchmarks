@@ -2,7 +2,7 @@
 
 **Type:** Inference
 **Languages:** Python
-**Architecture:** arm64 (AWS container, Python 3.12)
+**Architecture:** arm64, x64 (AWS container, Python 3.12)
 
 ## Description
 
