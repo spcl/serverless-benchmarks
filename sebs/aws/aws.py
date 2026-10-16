@@ -17,6 +17,7 @@ from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 
 import boto3
 import docker
+from botocore.config import Config
 
 from sebs.aws.dynamodb import DynamoDB
 from sebs.aws.resources import AWSSystemResources
@@ -181,6 +182,7 @@ class AWS(System):
             self.client = self.session.client(
                 service_name="lambda",
                 region_name=self.config.region,
+                config=Config(read_timeout=self.config.lambda_client_read_timeout),
             )
         return self.client
 

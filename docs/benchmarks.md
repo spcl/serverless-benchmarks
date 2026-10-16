@@ -63,6 +63,10 @@ Create a .zip file for a group of files in storage and return to user to downloa
 
 Image recognition with ResNet and pytorch. [Details →](../benchmarks/400.inference/411.image-recognition/README.md)
 
+### 421.llm-inference - LLM Inference
+
+LLM inference using vLLM in a CPU only environment. [Details →](../benchmarks/400.inference/421.llm-inference/README.md)
+
 ## Scientific
 
 ### 501.graph-pagerank - Graph PageRank

@@ -1,0 +1,42 @@
+diff --git a/csrc/cpu/utils.hpp b/csrc/cpu/utils.hpp
+index 2bf7b89..b365f32 100644
+--- a/csrc/cpu/utils.hpp
++++ b/csrc/cpu/utils.hpp
+@@ -59,24 +59,29 @@ struct Counter {
+ };
+ 
+ inline int64_t get_available_l2_size() {
+-#if defined(__s390x__) || defined(__powerpc__)
++#if defined(__s390x__) || defined(__powerpc__) || \
++    (defined(__linux__) && defined(__aarch64__))
+   static int64_t size = []() {
+-    uint32_t l2_cache_size = 0;
++    int64_t l2_cache_size = 0;
+     auto caps = at::cpu::get_cpu_capabilities();
+     auto it = caps.find("l2_cache_size");
+-    if (it != caps.end()) {
+-      l2_cache_size = static_cast<uint32_t>(it->second.toInt());
++    if (it != caps.end() && it->second.isInt()) {
++      l2_cache_size = it->second.toInt();
+     }
+-    if (l2_cache_size == 0) {
++    // Restricted environments (e.g. AWS Lambda) may not expose CPU cache info.
++    if (l2_cache_size <= 0) {
+       long sys_l2 = sysconf(_SC_LEVEL2_CACHE_SIZE);
+       if (sys_l2 > 0) {
+-        l2_cache_size = static_cast<uint32_t>(sys_l2);
++        l2_cache_size = sys_l2;
+       }
+     }
+-    if (l2_cache_size == 0) {
++    if (l2_cache_size <= 0) {
++      TORCH_WARN_ONCE(
++          "Unable to determine CPU L2 cache size; assuming 256 KiB "
++          "and using 128 KiB for CPU kernel scheduling.");
+       l2_cache_size = 256 * 1024;
+     }
+-    return static_cast<int64_t>(l2_cache_size) >> 1;
++    return l2_cache_size >> 1;
+   }();
+   return size;
+ #else
