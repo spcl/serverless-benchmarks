@@ -46,6 +46,7 @@
     "name": "aws",
     "aws": {
       "region": "us-east-1",
+      "lambda-client-read-timeout": 60,
       "lambda-role": "",
       "resources": {
         "use-function-url": true,

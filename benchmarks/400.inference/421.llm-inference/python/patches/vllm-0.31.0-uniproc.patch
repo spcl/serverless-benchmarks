@@ -1,0 +1,15 @@
+diff --git a/vllm/v1/executor/uniproc_executor.py b/vllm/v1/executor/uniproc_executor.py
+index da1f2c5..56c57d9 100644
+--- a/vllm/v1/executor/uniproc_executor.py
++++ b/vllm/v1/executor/uniproc_executor.py
+@@ -59,7 +59,9 @@ class UniProcExecutor(Executor):
+             rank=rank,
+             distributed_init_method=distributed_init_method,
+             is_driver_worker=True,
+-            shared_worker_lock=Lock(),
++            shared_worker_lock=(
++                Lock() if self.model_config.supports_multimodal_inputs else None
++            ),
+         )
+ 
+         # Set net device env vars for the worker if VLLM_GPU_NIC_PCIE_MAPPING is set

@@ -1146,16 +1146,25 @@ class AWSConfig(Config):
         _resources: AWS resource management configuration
     """
 
-    def __init__(self, credentials: AWSCredentials, resources: AWSResources) -> None:
+    def __init__(
+        self,
+        credentials: AWSCredentials,
+        resources: AWSResources,
+        lambda_client_read_timeout: int = 60,
+    ) -> None:
         """Initialize AWS configuration.
 
         Args:
             credentials: AWS authentication credentials
             resources: AWS resource management configuration
+            lambda_client_read_timeout: SDK socket read timeout in seconds
         """
         super().__init__(name="aws")
         self._credentials = credentials
         self._resources = resources
+        if type(lambda_client_read_timeout) is not int or lambda_client_read_timeout <= 0:
+            raise ValueError("lambda-client-read-timeout must be a positive integer in seconds")
+        self._lambda_client_read_timeout = lambda_client_read_timeout
 
     @staticmethod
     def typename() -> str:
@@ -1183,6 +1192,11 @@ class AWSConfig(Config):
             AWSResources: AWS resource management configuration
         """
         return self._resources
+
+    @property
+    def lambda_client_read_timeout(self) -> int:
+        """Get the Lambda SDK socket read timeout in seconds."""
+        return self._lambda_client_read_timeout
 
     @staticmethod
     def initialize(cfg: Config, dct: dict) -> None:
@@ -1213,7 +1227,11 @@ class AWSConfig(Config):
         cached_config = cache.get_config("aws")
         credentials = cast(AWSCredentials, AWSCredentials.deserialize(config, cache, handlers))
         resources = cast(AWSResources, AWSResources.deserialize(config, cache, handlers))
-        config_obj = AWSConfig(credentials, resources)
+        config_obj = AWSConfig(
+            credentials,
+            resources,
+            lambda_client_read_timeout=config.get("lambda-client-read-timeout", 60),
+        )
         config_obj.logging_handlers = handlers
         # Load cached values
         if cached_config:
@@ -1248,6 +1266,7 @@ class AWSConfig(Config):
         out = {
             "name": "aws",
             "region": self._region,
+            "lambda-client-read-timeout": self.lambda_client_read_timeout,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
         }

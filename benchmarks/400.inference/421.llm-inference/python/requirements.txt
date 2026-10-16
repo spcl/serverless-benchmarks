@@ -1,0 +1,3 @@
+# Full build/runtime closures are in requirements.txt.{arm64,x64}.lock.
+awslambdaric==4.2.1
+boto3==1.40.53
