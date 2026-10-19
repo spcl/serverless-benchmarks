@@ -1180,7 +1180,44 @@ class Benchmark(LoggingBase):
 
         return previous_version_image_name, current_version_image_name
 
-    def install_dependencies(self, output_dir: str) -> None:
+    def resolve_builder_image(self) -> Optional[str]:
+        """Find the builder image, pulling it if needed.
+
+        Tries the current SeBS version image first and falls back to the
+        previous major version image.
+
+        Returns:
+            Image reference of the available builder image,
+            or None if the platform has no builder image for the language.
+
+        Raises:
+            RuntimeError: when neither image exists locally or can be pulled.
+        """
+        # do we have docker image for this run and language?
+        if "build" not in self._system_config.docker_image_types(
+            self._deployment_name, self.language_name
+        ):
+            return None
+        repo_name = self._system_config.docker_repository()
+        previous_version_image_name, current_version_image_name = self.builder_image_name()
+        for name in (current_version_image_name, previous_version_image_name):
+            try:
+                self._docker_client.images.get(f"{repo_name}:{name}")
+                return f"{repo_name}:{name}"
+            except docker.errors.ImageNotFound:
+                pass
+            try:
+                self.logging.info(f"Docker pull of image {repo_name}:{name}")
+                self._docker_client.images.pull(repo_name, name)
+                return f"{repo_name}:{name}"
+            except docker.errors.APIError as e:
+                self.logging.warning(f"Docker pull of image {repo_name}:{name} failed: {e}")
+        raise RuntimeError(
+            f"Neither {current_version_image_name} nor {previous_version_image_name} "
+            "builder image is available!"
+        )
+
+    def install_dependencies(self, output_dir: str, builder_image: Optional[str]) -> None:
         """Install benchmark dependencies using Docker.
 
         Uses Docker containers to install language-specific dependencies
@@ -1197,15 +1234,12 @@ class Benchmark(LoggingBase):
 
         Args:
             output_dir: Directory containing the code package to build
+            builder_image: Builder image, or None if the platform has no builder image
 
         Raises:
-            RuntimeError: If Docker image pull fails
             docker.errors.ContainerError: If dependency installation fails
         """
-        # do we have docker image for this run and language?
-        if "build" not in self._system_config.docker_image_types(
-            self._deployment_name, self.language_name
-        ):
+        if builder_image is None:
             self.logging.info(
                 (
                     "There is no Docker build image for {deployment} run in {language}, "
@@ -1213,48 +1247,6 @@ class Benchmark(LoggingBase):
                 ).format(deployment=self._deployment_name, language=self.language_name)
             )
         else:
-            repo_name = self._system_config.docker_repository()
-            previous_version_image_name, current_version_image_name = self.builder_image_name()
-
-            def ensure_image(name: str) -> None:
-                """Internal implementation of checking for Docker image existence.
-
-                Args:
-                    name: image name
-
-                Raises:
-                    RuntimeError: when image does not exist locally or cannot be pulled.
-                """
-                try:
-                    self._docker_client.images.get(repo_name + ":" + name)
-                except docker.errors.ImageNotFound:
-                    try:
-                        self.logging.info(
-                            "Docker pull of image {repo}:{image}".format(repo=repo_name, image=name)
-                        )
-                        self._docker_client.images.pull(repo_name, name)
-                    except docker.errors.APIError:
-                        raise RuntimeError(
-                            "Docker pull of image {}:{} failed!".format(repo_name, name)
-                        )
-
-            # Try current version image first, fallback to previous version if not available
-            image_name = current_version_image_name
-            try:
-                ensure_image(current_version_image_name)
-            except RuntimeError as e:
-                self.logging.warning(
-                    "Failed to ensure image {}, falling back to {}: {}".format(
-                        current_version_image_name, previous_version_image_name, e
-                    )
-                )
-                try:
-                    ensure_image(previous_version_image_name)
-                    # update `image_name` to the fallback image name
-                    image_name = previous_version_image_name
-                except RuntimeError:
-                    raise
-
             # Create set of mounted volumes
             volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
             package_script = os.path.abspath(
@@ -1279,7 +1271,7 @@ class Benchmark(LoggingBase):
                 try:
                     self.logging.info(
                         "Docker build of benchmark dependencies in container "
-                        "of image {repo}:{image}".format(repo=repo_name, image=image_name)
+                        f"of image {builder_image}"
                     )
                     self.logging.info(
                         "Docker mount of benchmark code from path {path}".format(
@@ -1287,7 +1279,7 @@ class Benchmark(LoggingBase):
                         )
                     )
                     container = self._docker_client.containers.run(
-                        "{}:{}".format(repo_name, image_name),
+                        builder_image,
                         volumes=volumes,
                         environment={
                             "CONTAINER_UID": str(os.getuid()),
@@ -1434,57 +1426,15 @@ class Benchmark(LoggingBase):
         """
 
         self._container_uri = None
+        # Only C++ function images build in a builder stage; others install dependencies
+        # on top of the runtime image.
+        builder_image = (
+            self.resolve_builder_image()
+            if not self.system_variant.is_container or self.language == Language.CPP
+            else None
+        )
         if self.system_variant.is_container:
             assert container_client is not None
-
-            repo_name = self._system_config.docker_repository()
-            previous_version_image_name, current_version_image_name = self.builder_image_name()
-
-            # Try current version build image first, fallback to previous version
-            image_name = current_version_image_name
-            current_available = False
-            try:
-                self._docker_client.images.get(f"{repo_name}:{current_version_image_name}")
-                current_available = True
-            except Exception:
-                # Not available locally, try to pull it
-                try:
-                    self.logging.info(
-                        f"Docker pull of build image {repo_name}:{current_version_image_name}"
-                    )
-                    self._docker_client.images.pull(repo_name, current_version_image_name)
-                    current_available = True
-                except Exception:
-                    pass
-
-            if not current_available:
-                # Current version not available, try previous version
-                try:
-                    self._docker_client.images.get(f"{repo_name}:{previous_version_image_name}")
-                    image_name = previous_version_image_name
-                    self.logging.info(
-                        f"Using previous version build image {previous_version_image_name} "
-                        "(current version not available)"
-                    )
-                except Exception:
-                    # Previous version not local, try to pull it
-                    try:
-                        self.logging.info(
-                            f"Docker pull of build image {repo_name}:{previous_version_image_name}"
-                        )
-                        self._docker_client.images.pull(repo_name, previous_version_image_name)
-                        image_name = previous_version_image_name
-                        self.logging.info(
-                            f"Using previous version build image {previous_version_image_name} "
-                            "(current version not available)"
-                        )
-                    except Exception:
-                        # Neither version available - use current and let build fail
-                        self.logging.warning(
-                            f"Neither current ({current_version_image_name}) nor previous "
-                            f"({previous_version_image_name}) version build image available, "
-                            "build may fail"
-                        )
 
             """
                 Generate custom Dockerfile for C++ benchmarks
@@ -1526,7 +1476,7 @@ class Benchmark(LoggingBase):
                 self.architecture,
                 self.benchmark,
                 self.is_cached_valid,
-                f"{repo_name}:{image_name}",
+                builder_image,
             )
             self.logging.info(
                 f"Created function container {self._container_uri},"
@@ -1549,7 +1499,7 @@ class Benchmark(LoggingBase):
                 )
 
         else:
-            self.install_dependencies(self._output_dir)
+            self.install_dependencies(self._output_dir, builder_image)
 
             self._code_location, self._code_size = package_build_step(
                 os.path.abspath(self._output_dir),
