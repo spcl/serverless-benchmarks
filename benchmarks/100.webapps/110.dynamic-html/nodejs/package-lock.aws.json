@@ -1,0 +1,26 @@
+{
+  "name": "function",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "version": "1.0.0",
+      "dependencies": {
+        "mustache": "^3.2.1"
+      }
+    },
+    "node_modules/mustache": {
+      "version": "3.2.1",
+      "resolved": "https://registry.npmjs.org/mustache/-/mustache-3.2.1.tgz",
+      "integrity": "sha512-RERvMFdLpaFfSRIEe632yDm5nsd0SDKn8hGmcUwswnyiE5mtdZLDybtHAz6hjJhawokF0hXvGLtx9mrQfm6FkA==",
+      "license": "MIT",
+      "bin": {
+        "mustache": "bin/mustache"
+      },
+      "engines": {
+        "npm": ">=1.4.0"
+      }
+    }
+  }
+}
