@@ -1,0 +1,17 @@
+version = 1
+revision = 3
+requires-python = ">=3.10"
+resolution-markers = [
+    "sys_platform == 'linux'",
+]
+supported-markers = [
+    "sys_platform == 'linux'",
+]
+
+[[package]]
+name = "sebs-010-sleep"
+version = "0"
+source = { virtual = "." }
+
+[package.metadata]
+provides-extras = ["aws", "azure", "gcp", "local", "openwhisk"]

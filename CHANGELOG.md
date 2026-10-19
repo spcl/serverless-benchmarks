@@ -10,6 +10,8 @@
 
 * OpenWhisk: provider metrics include the platform's `waitTime` as `provider_times.waiting`: the time from receiving the request to provisioning a container.
 
+* Reproducible Python dependencies: every Python benchmark now ships a `pyproject.toml` and a `uv.lock` to pin dependencies by their hash.
+
 ### Bug Fixes
 
 * Change to input of 120.uploader benchmark to conform with new Wikipedia policies (#308)
@@ -33,6 +35,8 @@
 ### Deprecations
 
 * Local deployment: Python 3.7 and 3.8, and Node.js 14 and 16 are no longer supported.
+
+* Python 3.7 and 3.9 are no longer supported on local, Azure and OpenWhisk: the benchmark lockfiles require Python 3.10 or newer.
 
 * Storage configuration files generated before 1.3 are no longer supported for OpenWhisk: they lack the `external_address` field, and functions would receive the Docker bridge address. Regenerate them with `sebs storage start`.
 

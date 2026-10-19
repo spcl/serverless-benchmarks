@@ -1304,9 +1304,8 @@ def filter_out_benchmarks(
     if (deployment_name == "aws" and architecture == "arm64"):
         return "411.image-recognition" not in benchmark
 
-    # Filter out image recognition on newer Python versions on GCP
+    # Filter out image recognition on GCP gen1 functions
     if (deployment_name == "gcp" and language == "python"
-            and language_version in ["3.8", "3.9", "3.10", "3.11", "3.12"]
             and deployment_type == "function-gen1"):
         return "411.image-recognition" not in benchmark
     # fmt: on
