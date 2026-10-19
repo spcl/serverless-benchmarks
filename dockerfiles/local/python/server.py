@@ -21,7 +21,7 @@ def process_request():
     global cold_start
     is_cold, cold_start = cold_start, False
     begin = datetime.datetime.now()
-    from function import function
+    from function import function, environment
     end = datetime.datetime.now()
     # FIXME: measurements?
     ret = function.handler(request.json)
@@ -31,7 +31,8 @@ def process_request():
         'end': end.strftime('%s.%f'),
         "request_id": str(uuid.uuid4()),
         "is_cold": is_cold,
-        "result": ret
+        "result": ret,
+        "environment": environment.collect()
     }
 
 sys.path.append(os.path.join(CODE_LOCATION))

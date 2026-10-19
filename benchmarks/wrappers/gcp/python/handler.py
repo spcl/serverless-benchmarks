@@ -55,6 +55,9 @@ def handler(req):
     if "cold_start" in os.environ:
         cold_start_var = os.environ["cold_start"]
 
+    from function import environment
+    env = environment.collect()
+
     return json.dumps({
             'begin': begin.strftime('%s.%f'),
             'end': end.strftime('%s.%f'),
@@ -64,4 +67,5 @@ def handler(req):
             'request_id': req_id,
             'cold_start_var': cold_start_var,
             'container_id': container_id,
+            'environment': env,
         }), 200, {'ContentType': 'application/json'}

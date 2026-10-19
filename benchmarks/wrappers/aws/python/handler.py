@@ -52,6 +52,8 @@ def handler(event, context):
     if "cold_start" in os.environ:
         cold_start_var = os.environ["cold_start"]
 
+    from function import environment
+
     return {
         'statusCode': 200,
         'body': json.dumps({
@@ -63,6 +65,7 @@ def handler(event, context):
             'request_id': context.aws_request_id,
             'cold_start_var': cold_start_var,
             'container_id': container_id,
+            'environment': environment.collect(),
         })
     }
 

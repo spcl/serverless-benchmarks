@@ -1,7 +1,8 @@
 const http = require('http'),
       strftime = require('strftime'),
       express = require('express'),
-      f = require('/function/function/function');
+      f = require('/function/function/function'),
+      environment = require('/function/function/environment');
 //import { v4 as uuidv4 } from 'uuid';
 const { v4: uuidv4 } = require('uuid');
 
@@ -33,7 +34,8 @@ app.post('/', function (req, res) {
       end: strftime('%s.%L', new Date(end)),
       request_id: uuidv4(),
       is_cold: isCold,
-      result: func_res
+      result: func_res,
+      environment: environment.collect()
     }));
   },
   (reason) => {

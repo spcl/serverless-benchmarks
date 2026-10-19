@@ -30,6 +30,9 @@ def main(args):
 
         results_time = (end - begin) / datetime.timedelta(microseconds=1)
 
+        from function import environment
+        env = environment.collect()
+
         is_cold = False
         fname = "cold_run"
         if not os.path.exists(fname):
@@ -43,6 +46,7 @@ def main(args):
             "results_time": results_time,
             "is_cold": is_cold,
             "result": log_data,
+            "environment": env,
         }
     except Exception as e:
         end = datetime.datetime.now()

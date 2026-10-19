@@ -1,6 +1,7 @@
 // Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
 const path = require('path'), fs = require('fs');
+const environment = require('./function/environment');
 
 if('NOSQL_STORAGE_DATABASE' in process.env) {
   const nosql = require('./function/nosql');
@@ -18,6 +19,7 @@ exports.handler = async function(req, res) {
       var elapsed = process.hrtime(start);
       var end = Date.now()/1000;
       var micro = elapsed[1] / 1e3 + elapsed[0] * 1e6;
+      var env = environment.collect();
 
       var is_cold = false;
       var fname = path.join('/tmp','cold_run');
@@ -33,7 +35,8 @@ exports.handler = async function(req, res) {
           results_time: 0,
           result: result,
           is_cold: is_cold,
-          request_id: requestId
+          request_id: requestId,
+          environment: env
         });
     },
     (error) => {

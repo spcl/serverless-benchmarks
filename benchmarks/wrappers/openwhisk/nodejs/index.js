@@ -17,12 +17,14 @@ async function main(args) {
   });
 
   var func = require('/function/function.js');
+  var environment = require('/function/environment.js');
   var begin = Date.now() / 1000;
   var start = process.hrtime();
   var ret = await func.handler(args);
   var elapsed = process.hrtime(start);
   var end = Date.now() / 1000;
   var micro = elapsed[1] / 1e3 + elapsed[0] * 1e6;
+  var env = environment.collect();
   var is_cold = false;
   var fname = path.join('/tmp', 'cold_run');
   if (!fs.existsSync(fname)) {
@@ -38,6 +40,7 @@ async function main(args) {
     result: ret,
     request_id: process.env.__OW_ACTIVATION_ID,
     is_cold: is_cold,
+    environment: env,
   };
 }
 
