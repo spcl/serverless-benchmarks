@@ -42,6 +42,9 @@ jobs:
       - name: Python static code verification with mypy
         run: uv run mypy sebs --config-file=.mypy.ini
 
+      - name: Check that benchmark Python lockfiles are current
+        run: uv run tools/lock_python_benchmarks.py --check
+
       - name: Check for Python documentation coverage
         run: uv run interrogate -v --fail-under 100 sebs
 
