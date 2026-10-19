@@ -20,7 +20,7 @@ import docker
 import platform
 import os
 import shutil
-from typing import Tuple
+from typing import Optional, Tuple
 
 from sebs.config import SeBSConfig
 from sebs.docker_builder import DockerImageBuilder
@@ -212,7 +212,7 @@ class DockerContainer(LoggingBase):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        builder_image: str,
+        builder_image: Optional[str],
     ) -> Tuple[bool, str, float]:
         """
             Build benchmark Docker image.
@@ -232,7 +232,7 @@ class DockerContainer(LoggingBase):
             architecture: CPU architecture
             benchmark: benchmark name
             is_cached: true if the image is currently cached
-            builder_image: Base image for containers
+            builder_image: Builder image for multi-stage builds, if the platform has one
 
         Returns:
             Tuple[bool, str, float]: True if image was rebuilt, and image URI and size in MB
@@ -298,7 +298,7 @@ class DockerContainer(LoggingBase):
         buildargs = {
             "VERSION": language_version,
             "BASE_IMAGE": base_image,
-            "BASE_IMAGE_BUILDER": builder_image,
+            "BASE_IMAGE_BUILDER": builder_image or "",
             "TARGET_ARCHITECTURE": architecture,
             "BASE_REPOSITORY": self.system_config.docker_repository(),
         }
