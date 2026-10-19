@@ -242,3 +242,15 @@ operating system and CPU architecture.
 | `name`                      | Function name on the platform.                                                                                                                                                                                                                                                       |
 | `benchmark`                 | Benchmark the function runs.                                                                                                                                                                                                                                                         |
 | `config`                    | Function configuration: memory (MB), timeout (s), runtime, architecture. Reflects the configuration at the end of the run.                                                                                                                                                           |
+
+## Function environment records
+
+Records collected inside the function are not part of the manifest; they are stored with each
+invocation in `experiments.json`, under `output.environment`. Supported on all platforms
+with Python and Node.js; local deployments require rebuilding the run images.
+
+| Field         | Description                                                                                                                                                                                                                                                                                                                            |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `boot_id`     | Kernel boot ID. Unique per VM on platforms with one kernel per sandbox (e.g., AWS); shared by all containers on a local host, and by clones restored from the same snapshot. |
+| `static`      | Full environment record, returned only on the first invocation in a process, so its presence marks a cold start. Contains runtime, OS, CPU, memory, cgroup limits, virtualization hints (DMI, `/proc/version`, kernel command line), allowlisted environment variables, and its own `unavailable` map. |
+| `probe_us`    | Present with `static`: time spent collecting it, in microseconds. It is not part of the benchmark timing.                                                                                                                                                                                                                        |

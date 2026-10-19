@@ -673,7 +673,7 @@ class Benchmark(LoggingBase):
         List the files that define the benchmark's code package.
 
         This includes language-specific files, the variant overlay (or patch),
-        and the deployment wrappers.
+        deployment wrappers, and the wrappers shared by all deployments.
         The order is deterministic for a given directory content.
 
         Returns:
@@ -714,11 +714,12 @@ class Benchmark(LoggingBase):
                 else:
                     files.extend(matching(variant_dir))
         files.extend(self._wrapper_files(self._deployment_name))
+        files.extend(self._wrapper_files("common"))
         return files
 
     def _wrapper_files(self, wrappers_dir: str) -> List[str]:
         """
-        List the wrapper files of a wrapper directory, e.g., a deployment.
+        List the wrapper files of a wrapper directory, e.g., a deployment or `common`.
 
         Args:
             wrappers_dir: Name of the directory in `benchmarks/wrappers`
@@ -923,7 +924,9 @@ class Benchmark(LoggingBase):
         integrate the benchmark code with the target FaaS platform's
         execution environment.
 
-        Files are sourced from `benchmarks/wrappers/{deployment_name}/{language_name}/`.
+        Files are sourced from `benchmarks/wrappers/{deployment_name}/{language_name}/`,
+        plus the wrappers in `benchmarks/wrappers/common/{language_name}/` shared by all
+        deployments.
 
         Args:
             output_dir: Directory where deployment files should be added
@@ -937,6 +940,7 @@ class Benchmark(LoggingBase):
                 self._deployment_name, self.language_name
             )
         ]
+        handlers.extend(self._wrapper_files("common"))
 
         for file in handlers:
             destination = os.path.join(output_dir, os.path.basename(file))

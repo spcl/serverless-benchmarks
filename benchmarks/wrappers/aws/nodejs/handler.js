@@ -37,7 +37,8 @@ exports.handler = async function(event, context) {
           results_time: 0,
           result: result,
           is_cold: is_cold,
-          request_id: context.awsRequestId
+          request_id: context.awsRequestId,
+          environment: require('./function/environment').collect()
         }, http_trigger)
       };
     },
