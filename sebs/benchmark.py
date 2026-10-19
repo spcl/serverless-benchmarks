@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import docker
 
+from sebs import dependencies
 from sebs.cpp_dependencies import CppDependencies
 
 from sebs.config import SeBSConfig
@@ -941,26 +942,21 @@ class Benchmark(LoggingBase):
                 out.write("\n" + "\n".join(packages) + "\n")
 
     def add_deployment_package_nodejs(self, output_dir: str) -> None:
-        """Add Node.js deployment packages to package.json.
+        """Add the deployment packages and the benchmark's lockfile for this deployment.
 
-        Modifies the package.json file to include platform-specific
-        Node.js dependencies required for deployment.
+        See `sebs.dependencies.add_nodejs_lockfile`.
 
         Args:
-            output_dir: Directory containing the package.json file to modify
+            output_dir: Directory containing the package.json file to extend
         """
-        # modify package.json
-        packages = self._system_config.deployment_packages(
-            self._deployment_name, self.language_name
+        dependencies.add_nodejs_lockfile(
+            output_dir,
+            os.path.join(self._benchmark_path, self.language_name),
+            self._language_variant,
+            self._system_config,
+            self._deployment_name,
+            [module.value for module in self._benchmark_config.modules],
         )
-        if len(packages):
-            package_config = os.path.join(output_dir, "package.json")
-            with open(package_config, "r") as package_file:
-                package_json = json.load(package_file)
-            for key, val in packages.items():
-                package_json["dependencies"][key] = val
-            with open(package_config, "w") as package_file:
-                json.dump(package_json, package_file, indent=2)
 
     def format_maven_dependency(self, group_artifact: str, version: str) -> str:
         """Helper method to format Java system dependencies.

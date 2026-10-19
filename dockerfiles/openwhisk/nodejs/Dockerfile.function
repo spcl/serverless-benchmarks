@@ -2,5 +2,5 @@ ARG BASE_IMAGE
 FROM $BASE_IMAGE
 COPY . /function/
 RUN cd /function \
-    && npm install --no-package-lock --production \
+    && npm ci --omit=dev \
     && npm cache clean --force

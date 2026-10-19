@@ -30,7 +30,7 @@ sequenceDiagram
 
 **Add Platform-Specific Wrappers** - we add lightweight shims to implement the cloud-specific API and keep benchmark applications generic and portable.
 
-**Add Deployment Packages** - some platforms require installing specific dependencies, such as cloud storage SDKs in Azure and Google Cloud, as well as the Minio SDK for OpenWhisk. We extend function configuration to add those packages, as they will be installed in the next step. In C++, we generate a customized CMake configuration that includes all packages required by the function, e.g., OpenCV or Torch. Each function defines its **modules** that need to be added, such as `storage` for object storage
+**Add Deployment Packages** - some platforms require installing specific dependencies, such as cloud storage SDKs in Azure and Google Cloud, as well as the Minio SDK for OpenWhisk. In Python, we extend function configuration to add those packages, as they will be installed in the next step. In Node.js, we use the benchmark's lockfile for the deployment, which already includes them (see [Node.js dependencies](modularity.md#nodejs-dependencies)). In C++, we generate a customized CMake configuration that includes all packages required by the function, e.g., OpenCV or Torch. Each function defines its **modules** that need to be added, such as `storage` for object storage
 and `nosql` for NoSQL databases. Each module corresponds to a set of packages that need to be installed for the function to work on a specific platform.
 
 **Install Dependencies** - in this step, we use the Docker builder container. We mount the working copy as a volume in the container, and install dependencies inside it. In C++, we perform the CMake configuration and build steps here.
@@ -153,7 +153,12 @@ benchmarks/100.webapps/110.dynamic-html/
     package.json
     bun/
       package.json            ← replaces the default package.json for bun
+      package-lock.<deployment>.json  ← generated lockfiles of the bun package.json
 ```
+
+A Node.js variant that changes the dependencies must ship its own `package.json`, which
+`tools/lock_nodejs_benchmarks.py` locks like the default one; patch variants cannot change
+`package.json`.
 
 Use this when the variant needs a substantially different implementation (e.g. a complete
 rewrite using runtime-specific APIs).

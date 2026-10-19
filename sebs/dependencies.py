@@ -9,11 +9,13 @@ directory, i.e., the benchmark's `nodejs/` and each variant directory with its o
 package.json, has one lockfile per deployment: `package-lock.<deployment>.json` locks
 the package.json with the deployment packages merged in.
 
-`tools/lock_nodejs_benchmarks.py` generates and checks the lockfiles.
+`tools/lock_nodejs_benchmarks.py` generates the lockfiles. The build merges the same
+package.json and verifies that the lockfile was generated from it.
 """
 
 import json
 import os
+import shutil
 from typing import Iterable, List
 
 from sebs.config import SeBSConfig
@@ -96,3 +98,42 @@ def nodejs_sources(language_dir: str) -> List[str]:
 def nodejs_lockfile(source_dir: str, deployment: str) -> str:
     """Return the lockfile of a deployment in a Node.js source directory."""
     return os.path.join(source_dir, f"package-lock.{deployment}.json")
+
+
+def add_nodejs_lockfile(
+    output_dir: str,
+    language_dir: str,
+    variant: str,
+    config: SeBSConfig,
+    deployment: str,
+    modules: Iterable[str],
+) -> None:
+    """Prepare the locked installation of a benchmark's Node.js dependencies.
+
+    Merges the deployment packages into the package.json of the output directory
+    and adds the deployment's lockfile as package-lock.json. A variant directory with
+    its own package.json has its own lockfiles.
+
+    Args:
+        output_dir: Directory with the benchmark's package.json
+        language_dir: The benchmark's `nodejs/` directory
+        variant: Name of the language variant
+        config: SeBS configuration with the deployment packages
+        deployment: Name of the deployment
+        modules: Modules used by the benchmark, e.g., `storage`
+
+    Raises:
+        RuntimeError: If the lockfile is missing or was not generated from the package.json
+    """
+    lockfile = nodejs_lockfile(nodejs_source(language_dir, variant), deployment)
+    package_json_path = os.path.join(output_dir, "package.json")
+    with open(package_json_path) as f:
+        package_json = nodejs_package_json(json.load(f), config, deployment, modules)
+    if not nodejs_lockfile_is_current(lockfile, package_json):
+        # A patch variant changing package.json ends up here as well:
+        # it must ship its own package.json to be locked.
+        raise RuntimeError(f"{lockfile} is missing or stale; run tools/lock_nodejs_benchmarks.py")
+
+    with open(package_json_path, "w") as f:
+        json.dump(package_json, f, indent=2)
+    shutil.copy2(lockfile, os.path.join(output_dir, "package-lock.json"))
