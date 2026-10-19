@@ -9,34 +9,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 set -euo pipefail
 
-# This currently points to 7.0.2 - will likely change in the future, but we do not have
-# a persistent link.
-if [[ "${TARGET_ARCHITECTURE}" == "arm64" ]]; then
-    FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz"
-else
-    FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+# Static ffmpeg build (https://github.com/wader/static-ffmpeg), pinned by digest
+# of the multi-arch index so that every deployment gets the exact same binary.
+FFMPEG_IMAGE="mwader/static-ffmpeg:9.0.2@sha256:7d9bdaaf887f7e6ce6151f67325c344074b5ff1fb75316011c3376503e449a7b"
+
+# SeBS calls the x86_64 architecture "x64", Docker calls it "amd64".
+DOCKER_ARCH="${TARGET_ARCHITECTURE}"
+if [[ "${DOCKER_ARCH}" == "x64" ]]; then
+    DOCKER_ARCH="amd64"
 fi
 
-if command -v wget &>/dev/null; then
-    wget "${FFMPEG_URL}" -P "${DIR}"
-elif command -v curl &>/dev/null; then
-    curl -fsL "${FFMPEG_URL}" -o "${DIR}/$(basename ${FFMPEG_URL})"
-else
-    echo "ERROR: neither wget nor curl available" >&2
-    exit 1
-fi
+docker build --quiet --platform "linux/${DOCKER_ARCH}" \
+    --output "type=local,dest=${DIR}/ffmpeg" - <<EOF
+FROM scratch
+COPY --from=${FFMPEG_IMAGE} /ffmpeg /ffmpeg
+EOF
 
-pushd "${DIR}" >/dev/null
-tar -xf ffmpeg-release-*-static.tar.xz
-rm *.tar.xz
-mv ffmpeg-* ffmpeg
-rm -f ffmpeg/ffprobe 
-# make the binary executable
-chmod 755 ffmpeg/ffmpeg
-popd >/dev/null
-
-# Fail loudly if the binary isn't actually there.
-# Sanity check - avoid issues where download silently fails.
+# Sanity check - avoid issues where extraction silently fails.
 if [ ! -x "${DIR}/ffmpeg/ffmpeg" ]; then
     echo "ERROR: ffmpeg binary missing after packaging" >&2
     exit 1
