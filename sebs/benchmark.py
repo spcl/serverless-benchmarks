@@ -9,7 +9,6 @@ various serverless platforms, including caching mechanisms to avoid redundant bu
 from __future__ import annotations
 
 import glob
-import hashlib
 import json
 import subprocess
 import os
@@ -28,7 +27,14 @@ from sebs.faas.config import Resources
 from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
 from sebs.faas.storage import PersistentStorage
-from sebs.utils import find_benchmark, get_resource_path, ensure_benchmarks_data, LoggingBase
+from sebs.utils import (
+    find_benchmark,
+    get_project_root,
+    get_resource_path,
+    ensure_benchmarks_data,
+    LoggingBase,
+    sha256_files,
+)
 from sebs.sebs_types import BenchmarkModule, Language
 from typing import TYPE_CHECKING
 
@@ -536,16 +542,14 @@ class Benchmark(LoggingBase):
         """
         Get the hash of the benchmark code.
 
-        Computes an MD5 hash of the benchmark directory to determine if
-        the code has changed since the last build.
+        Computes a SHA-256 hash over the paths (relative to the project root) and
+        contents of benchmark's source files, to determine if code has changed
+        since the last build.
 
         Returns:
-            str: MD5 hash as a hexadecimal string
+            str: SHA-256 hash as a hexadecimal string
         """
-        path = os.path.join(self.benchmark_path, self.language_name)
-        self._hash_value = Benchmark.hash_directory(
-            path, self._deployment_name, self.language, self._language_variant
-        )
+        self._hash_value = sha256_files(self.source_files(), str(get_project_root()))
         return self._hash_value
 
     @hash.setter  # noqa: A003
@@ -556,7 +560,7 @@ class Benchmark(LoggingBase):
         Used only for testing purposes.
 
         Args:
-            val: MD5 hash as a hexadecimal string
+            val: SHA-256 hash as a hexadecimal string
         """
         self._hash_value = val
 
@@ -661,76 +665,83 @@ class Benchmark(LoggingBase):
         self._uses_storage: bool = False
         self._uses_nosql: bool = False
 
-    @staticmethod
-    def hash_directory(
-        directory: str, deployment: str, language: Language, variant: str = "default"
-    ):
+    def source_files(self) -> List[str]:
         """
-        Compute MD5 hash of an entire directory.
+        List the files that define the benchmark's code package.
 
-        Calculates a hash of the benchmark source code by combining hashes of all
-        relevant files. This includes language-specific files, deployment wrappers,
-        and shared files like shell scripts and JSON configuration.
-
-        Args:
-            directory: Path to the directory to hash
-            deployment: Name of the deployment platform
-            language: Programming language name
+        This includes language-specific files, the variant overlay (or patch),
+        and the deployment wrappers.
+        The order is deterministic for a given directory content.
 
         Returns:
-            str: MD5 hash as a hexadecimal string
+            List[str]: Paths of all source files
         """
-        hash_sum = hashlib.md5()
+        directory = os.path.join(self.benchmark_path, self.language_name)
+        language = self.language
+        variant = self._language_variant
         FILES = {
             Language.PYTHON: ["*.py", "requirements.txt*"],
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: ["*.java", "pom.xml"],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
         }
+        NON_LANG_FILES = ["*.sh", "*.json"]
+        selected_files = FILES[language] + NON_LANG_FILES
+
+        def matching(source_dir: str) -> List[str]:
+            """Files in `source_dir` that match the selected patterns, each listed once."""
+            # Patterns overlap, e.g., package.json and *.json; list each file once.
+            return sorted(
+                {
+                    f
+                    for pattern in selected_files
+                    for f in glob.glob(os.path.join(source_dir, pattern))
+                }
+            )
+
+        files = matching(directory)
+        # Include variant overlay files (or patch) so that a change
+        # to the variant directory invalidates the cached package.
+        if variant != "default":
+            variant_dir = os.path.join(directory, variant)
+            if os.path.isdir(variant_dir):
+                patch_file = os.path.join(variant_dir, "patch.diff")
+                if os.path.exists(patch_file):
+                    files.append(patch_file)
+                else:
+                    files.extend(matching(variant_dir))
+        files.extend(self._wrapper_files(self._deployment_name))
+        return files
+
+    def _wrapper_files(self, wrappers_dir: str) -> List[str]:
+        """
+        List the wrapper files of a wrapper directory, e.g., a deployment.
+
+        Args:
+            wrappers_dir: Name of the directory in `benchmarks/wrappers`
+
+        Returns:
+            List[str]: Sorted paths of the wrapper files for the benchmark's language
+        """
         WRAPPERS = {
             Language.PYTHON: ["*.py"],
             Language.NODEJS: ["*.js"],
             Language.JAVA: ["src"],
             Language.CPP: ["*.cpp", "*.hpp"],
         }
-        NON_LANG_FILES = ["*.sh", "*.json"]
-        selected_files = FILES[language] + NON_LANG_FILES
-        for file_type in selected_files:
-            for f in glob.glob(os.path.join(directory, file_type)):
-                path = os.path.join(directory, f)
-                with open(path, "rb") as opened_file:
-                    hash_sum.update(opened_file.read())
-        # Include variant overlay files (or patch) in the hash so that a
-        # change to the variant directory invalidates the cached package.
-        if variant != "default":
-            variant_dir = os.path.join(directory, variant)
-            if os.path.isdir(variant_dir):
-                patch_file = os.path.join(variant_dir, "patch.diff")
-                if os.path.exists(patch_file):
-                    with open(patch_file, "rb") as pf:
-                        hash_sum.update(pf.read())
-                else:
-                    for file_type in selected_files:
-                        for f in glob.glob(os.path.join(variant_dir, file_type)):
-                            with open(f, "rb") as opened_file:
-                                hash_sum.update(opened_file.read())
-        # wrappers
-        wrapper_patterns = WRAPPERS[language]
-        for pattern in wrapper_patterns:
+        files: List[str] = []
+        for pattern in WRAPPERS[self.language]:
             wrappers = get_resource_path(
-                "benchmarks", "wrappers", deployment, language.value, pattern
+                "benchmarks", "wrappers", wrappers_dir, self.language_name, pattern
             )
-            for f in glob.glob(str(wrappers)):
+            for f in sorted(glob.glob(str(wrappers))):
                 if os.path.isdir(f):
-                    for root, _, files in os.walk(f):
-                        for file in files:
-                            path = os.path.join(root, file)
-                            with open(path, "rb") as opened_file:
-                                hash_sum.update(opened_file.read())
+                    for root, dirs, dir_files in os.walk(f):
+                        dirs.sort()
+                        files.extend(os.path.join(root, file) for file in sorted(dir_files))
                 else:
-                    with open(f, "rb") as opened_file:
-                        hash_sum.update(opened_file.read())
-        return hash_sum.hexdigest()
+                    files.append(f)
+        return files
 
     def serialize(self) -> dict:
         """

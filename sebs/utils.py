@@ -10,6 +10,7 @@ This module provides common utilities used throughout the framework, including:
 - Platform detection functions
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -119,6 +120,24 @@ class JSONSerializer(json.JSONEncoder):
                 return vars(o)
             except TypeError:
                 return str(o)
+
+
+def sha256_files(paths: List[str], root: str) -> str:
+    """SHA-256 over the paths, relative to root, and contents of files in the given order.
+
+    Args:
+        paths: Files to hash
+        root: Directory the recorded paths are relative to
+
+    Returns:
+        str: SHA-256 hash as a hexadecimal string
+    """
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(os.path.relpath(path, root).encode())
+        with open(path, "rb") as f:
+            digest.update(f.read())
+    return digest.hexdigest()
 
 
 def serialize(obj) -> str:
