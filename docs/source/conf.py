@@ -47,7 +47,7 @@ suppress_warnings = ["autosectionlabel.*"]
 
 # -- MyST configuration -----------------------------------------------------
 myst_enable_extensions = ["colon_fence"]
-myst_heading_anchors = 3  # generate anchors for h1–h3, needed for #section links
+myst_heading_anchors = 4  # generate anchors for h1–h4, needed for #section links
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -249,7 +249,7 @@ def _load_benchmarks():
 
 # Pages whose content is loaded from docs/*.md one level above docs/source/
 _DOC_PAGES = frozenset(
-    {"usage", "build", "design", "experiments", "modularity", "platforms", "storage", "resource-management"}
+    {"usage", "manifest", "build", "design", "experiments", "modularity", "platforms", "storage", "resource-management"}
 )
 
 

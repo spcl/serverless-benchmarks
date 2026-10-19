@@ -14,6 +14,7 @@ SeBS: Serverless Benchmark Suite
    :caption: Documentation
 
    usage
+   manifest
    benchmarks
    experiments
    platforms

@@ -25,7 +25,9 @@ from sebs.sebs_types import NoSQLStorage as NoSQLStorageTypes
 from sebs.regression import regression_suite
 from sebs.utils import get_project_root, update_nested_dict, append_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
+from sebs.experiments.config import Config as ExperimentConfig
 from sebs.faas.function import Trigger
+from sebs.manifest import write_manifest
 from sebs.statistics import print_stats
 
 deployment_client: Optional[FaaSSystem] = None
@@ -54,6 +56,23 @@ class ExceptionProcesser(click.Group):
                 deployment_client.shutdown()
             if sebs_client is not None:
                 sebs_client.shutdown()
+
+
+def save_manifest(
+    output_dir: str,
+    client: SeBS,
+    deployment: FaaSSystem,
+    experiment_config: ExperimentConfig,
+    experiment: Optional[str],
+) -> None:
+    """Write the reproducibility manifest, logging errors instead of failing the run."""
+    try:
+        manifest_file = write_manifest(
+            output_dir, client, deployment, experiment_config, experiment
+        )
+        client.logging.info("Save manifest to {}".format(os.path.abspath(manifest_file)))
+    except Exception as e:
+        client.logging.warning(f"Could not write the reproducibility manifest: {e}")
 
 
 def simplified_common_params(func):
@@ -400,6 +419,7 @@ def invoke(
     with open(result_file, "w") as out_f:
         out_f.write(sebs.utils.serialize(result))
     sebs_client.logging.info("Save results to {}".format(os.path.abspath(result_file)))
+    save_manifest(output_dir, sebs_client, deployment_client, experiment_config, None)
 
 
 @benchmark.command()
@@ -827,6 +847,7 @@ def experiment_invoke(experiment, **kwargs):
     experiment = sebs_client.get_experiment(experiment, config["experiments"])
     experiment.prepare(sebs_client, deployment_client)
     experiment.run()
+    save_manifest(output_dir, sebs_client, deployment_client, experiment.config, experiment.name())
 
 
 @experiment.command("process")
