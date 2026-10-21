@@ -15,6 +15,7 @@ _LAZY_EXPORTS = {
 
 
 def __getattr__(name):
+    """Load a public package export lazily when it is first accessed."""
     try:
         module_name, attribute_name = _LAZY_EXPORTS[name]
     except KeyError:
@@ -26,4 +27,5 @@ def __getattr__(name):
 
 
 def __dir__():
+    """Return the package attributes, including those that can be lazy-loaded."""
     return sorted(set(globals()) | set(__all__))
