@@ -5,6 +5,7 @@ This guide provides essential information for developers contributing to SeBS.
 ## Table of Contents
 
 - [Code Quality](#code-quality)
+- [Approved Pull Request Tests](#approved-pull-request-tests)
 - [Docker Images](#docker-images)
 - [Project Structure](#project-structure)
 
@@ -26,6 +27,60 @@ pip install .[dev]
 
 # with uv
 uv sync --extra dev
+```
+
+## Approved Pull Request Tests
+
+Maintainers with repository **write**, **maintain**, or **admin** access can
+request regression tests directly from a pull request conversation, including
+pull requests from forks. Review the changes, copy the full current head commit
+SHA, and post one of these commands as a new comment:
+
+```text
+/test cloud <full-40-character-lowercase-head-SHA>
+/test openwhisk <full-40-character-lowercase-head-SHA>
+```
+
+`cloud` runs the existing AWS/GCP/Azure matrix; `openwhisk` runs the existing
+OpenWhisk matrix on kind. Each command must occupy the whole comment. Editing
+an existing comment does not launch tests. Bot comments, ordinary issue comments,
+and commands from users without repository write access are ignored.
+
+The command authorizes execution of that specific commit. The controller checks
+the author's current repository permissions and verifies that the PR is open,
+targets `master`, and still has the specified head SHA. The dispatched workflow
+checks the target again before starting. A later push requires a new review and
+command; an earlier success remains attached only to the commit actually tested.
+
+Results appear in the PR's status checks as `regression/cloud` or
+`regression/openwhisk`, with a link to the run and its artifacts. For rejected
+commands, inspect the **Run PR tests** request run in Actions. The same suites can
+also be launched using **Actions → Run PR tests → Run workflow**, selecting branch
+`master` and supplying the PR number, suite, and reviewed head SHA.
+
+### Enabling and extending the commands
+
+Merge `.github/workflows/pr-tests.yml`, its controller script, and the reusable
+workflow changes into `master` first. Commands then work on already-open PRs;
+the contributor does not need to rebase. The workflow token must be allowed to
+dispatch Actions workflows and publish commit statuses. No personal access token
+is needed. An environment approval configured on a regression job still applies.
+
+The request and status jobs check out only the trusted workflow commit. The
+regression jobs use workflow definitions from that same commit, check out the
+approved PR SHA, and receive a read-only GitHub token. The cloud suite uses the
+existing cloud secrets, so review the PR before issuing a command and use cloud
+credentials restricted to regression resources. OpenWhisk receives no inherited
+cloud secrets. PR runs disable the uv cache to avoid writing PR-controlled cache
+contents into the default branch's cache scope.
+
+To add a suite, extend the controller's explicit suite allowlist and command
+parser, add a choice and a separate reusable-workflow job in `pr-tests.yml`, and
+include that job's result in the reporting step. Keep workflow paths literal and
+the approved checkout SHA explicit. Run the controller tests with:
+
+```bash
+node --test .github/scripts/pr-tests.test.cjs
 ```
 
 ## Docker Images
@@ -130,4 +185,3 @@ sebs/
 ├── tools/                    # Utility scripts
 ├── docs/                     # Documentation
 ```
-

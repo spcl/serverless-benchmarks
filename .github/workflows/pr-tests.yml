@@ -1,0 +1,118 @@
+name: Run PR tests
+run-name: "PR tests — ${{ inputs.pr || github.event.issue.number }} — ${{ inputs.suite || 'request' }}"
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number
+        type: string
+        required: true
+      reviewed_sha:
+        description: Full PR head SHA you reviewed
+        type: string
+        required: true
+      suite:
+        description: Test suite
+        type: choice
+        options: [cloud, openwhisk]
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  request:
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      github.event.comment.user.type == 'User' &&
+      startsWith(github.event.comment.body, '/test ')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: write
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Authorize comment and dispatch selected suite
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            await require('./.github/scripts/pr-tests.cjs').request({ github, context, core });
+
+  resolve:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    outputs:
+      sha: ${{ steps.target.outputs.sha }}
+      suite: ${{ steps.target.outputs.suite }}
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate reviewed commit and publish pending status
+        id: target
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          TEST_PR: ${{ inputs.pr }}
+          TEST_SUITE: ${{ inputs.suite }}
+          TEST_SHA: ${{ inputs.reviewed_sha }}
+        with:
+          script: |
+            await require('./.github/scripts/pr-tests.cjs').resolve({ github, context, core });
+
+  cloud:
+    needs: resolve
+    if: needs.resolve.outputs.suite == 'cloud'
+    permissions:
+      contents: read
+    uses: $/.github/workflows/regression.yml
+    with:
+      code_ref: ${{ needs.resolve.outputs.sha }}
+    secrets: inherit
+
+  openwhisk:
+    needs: resolve
+    if: needs.resolve.outputs.suite == 'openwhisk'
+    permissions:
+      contents: read
+    uses: $/.github/workflows/regression-whisk.yml
+    with:
+      code_ref: ${{ needs.resolve.outputs.sha }}
+
+  report:
+    needs: [resolve, cloud, openwhisk]
+    if: always() && needs.resolve.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Publish result on the approved PR commit
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          TEST_SHA: ${{ needs.resolve.outputs.sha }}
+          TEST_SUITE: ${{ needs.resolve.outputs.suite }}
+          CLOUD_RESULT: ${{ needs.cloud.result }}
+          OPENWHISK_RESULT: ${{ needs.openwhisk.result }}
+        with:
+          script: |
+            await require('./.github/scripts/pr-tests.cjs').report({ github, context });

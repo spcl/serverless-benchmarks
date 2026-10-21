@@ -1,6 +1,13 @@
 name: OpenWhisk Regression on kind
 
 on:
+  workflow_call:
+    inputs:
+      code_ref:
+        description: Approved commit to test; empty uses the triggering commit
+        type: string
+        required: false
+        default: ""
   workflow_dispatch:
   push:
     branches:
@@ -45,6 +52,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.code_ref || github.sha }}
           submodules: recursive
           persist-credentials: false
 
@@ -82,6 +90,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          enable-cache: ${{ inputs.code_ref == '' }}
 
       - name: Create virtual environment and install SeBS
         run: |

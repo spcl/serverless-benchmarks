@@ -1,6 +1,13 @@
 name: Regression Tests
 
 on:
+  workflow_call:
+    inputs:
+      code_ref:
+        description: Approved commit to test; empty uses the triggering commit
+        type: string
+        required: false
+        default: ""
   push:
     branches:
       - master
@@ -84,6 +91,7 @@ jobs:
 
     uses: $/.github/workflows/_regression-job.yml
     with:
+      code_ref: ${{ inputs.code_ref }}
       platform: ${{ matrix.platform }}
       language: ${{ matrix.language }}
       version: ${{ matrix.version }}
