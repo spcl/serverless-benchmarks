@@ -47,6 +47,7 @@ class ExceptionProcesser(click.Group):
                 logging.error(e)
                 logging.error("# Experiments failed! See out.log for details")
             traceback.print_exc()
+            raise SystemExit(1)
         finally:
             # Close
             if deployment_client is not None:
