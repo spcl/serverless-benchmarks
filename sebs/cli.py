@@ -766,6 +766,8 @@ def start(
     Start a given number of function instances and a storage instance.
     """
 
+    import sebs.local
+
     (config, output_dir, logging_filename, sebs_client, deployment_client) = parse_common_params(
         update_code=False,
         update_storage=False,
