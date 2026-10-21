@@ -5,6 +5,7 @@ This guide provides essential information for developers contributing to SeBS.
 ## Table of Contents
 
 - [Code Quality](#code-quality)
+- [Approved Pull Request Tests](#approved-pull-request-tests)
 - [Docker Images](#docker-images)
 - [Project Structure](#project-structure)
 
@@ -27,6 +28,35 @@ pip install .[dev]
 # with uv
 uv sync --extra dev
 ```
+
+## Approved Pull Request Tests
+
+Maintainers with repository **write**, **maintain**, or **admin** access can
+request regression tests directly from a pull request conversation, including
+pull requests from forks. Review the changes, copy the full current head commit
+SHA, and post one of these commands as a new comment:
+
+```text
+/test cloud <full-40-character-lowercase-head-SHA>
+/test openwhisk <full-40-character-lowercase-head-SHA>
+```
+
+`cloud` runs the existing AWS/GCP/Azure matrix; `openwhisk` runs the existing
+OpenWhisk matrix on kind. Each command must occupy the whole comment. Editing
+an existing comment does not launch tests. Bot comments, ordinary issue comments,
+and commands from users without repository write access are ignored.
+
+The command authorizes execution of that specific commit. The controller checks
+the author's current repository permissions and verifies that the PR is open,
+targets `master`, and still has the specified head SHA. The dispatched workflow
+checks the target again before starting. A later push requires a new review and
+command; an earlier success remains attached only to the commit actually tested.
+
+Results appear in the PR's status checks as `regression/cloud` or
+`regression/openwhisk`, with a link to the run and its artifacts. For rejected
+commands, inspect the **Run PR tests** request run in Actions. The same suites can
+also be launched using **Actions → Run PR tests → Run workflow**, selecting branch
+`master` and supplying the PR number, suite, and reviewed head SHA.
 
 ## Docker Images
 
@@ -130,4 +160,3 @@ sebs/
 ├── tools/                    # Utility scripts
 ├── docs/                     # Documentation
 ```
-
