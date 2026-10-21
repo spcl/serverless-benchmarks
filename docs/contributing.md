@@ -58,27 +58,6 @@ commands, inspect the **Run PR tests** request run in Actions. The same suites c
 also be launched using **Actions → Run PR tests → Run workflow**, selecting branch
 `master` and supplying the PR number, suite, and reviewed head SHA.
 
-### Enabling and extending the commands
-
-Merge `.github/workflows/pr-tests.yml`, its controller script, and the reusable
-workflow changes into `master` first. Commands then work on already-open PRs;
-the contributor does not need to rebase. The workflow token must be allowed to
-dispatch Actions workflows and publish commit statuses. No personal access token
-is needed. An environment approval configured on a regression job still applies.
-
-The request and status jobs check out only the trusted workflow commit. The
-regression jobs use workflow definitions from that same commit, check out the
-approved PR SHA, and receive a read-only GitHub token. The cloud suite uses the
-existing cloud secrets, so review the PR before issuing a command and use cloud
-credentials restricted to regression resources. OpenWhisk receives no inherited
-cloud secrets. PR runs disable the uv cache to avoid writing PR-controlled cache
-contents into the default branch's cache scope.
-
-To add a suite, extend the controller's explicit suite allowlist and command
-parser, add a choice and a separate reusable-workflow job in `pr-tests.yml`, and
-include that job's result in the reporting step. Keep workflow paths literal and
-the approved checkout SHA explicit.
-
 ## Docker Images
 
 SeBS uses Docker images for building functions and running benchmarks:
