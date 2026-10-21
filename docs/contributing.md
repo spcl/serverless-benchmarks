@@ -77,11 +77,7 @@ contents into the default branch's cache scope.
 To add a suite, extend the controller's explicit suite allowlist and command
 parser, add a choice and a separate reusable-workflow job in `pr-tests.yml`, and
 include that job's result in the reporting step. Keep workflow paths literal and
-the approved checkout SHA explicit. Run the controller tests with:
-
-```bash
-node --test .github/scripts/pr-tests.test.cjs
-```
+the approved checkout SHA explicit.
 
 ## Docker Images
 
