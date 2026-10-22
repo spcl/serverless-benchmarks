@@ -18,7 +18,7 @@ diff --git a/vllm/utils/cpu_resource_utils.py b/vllm/utils/cpu_resource_utils.py
 +                "lscpu --json --extended=CPU,CORE,NODE --online", shell=True, text=True
 +            )
 +    except subprocess.CalledProcessError as error:
-+        if sys.platform != "linux" or platform.machine() not in ("aarch64", "arm64"):
++        if sys.platform != "linux" or platform.machine() not in ("aarch64", "arm64", "x86_64"):
 +            raise
 +        cpu_ids = sorted(os.sched_getaffinity(0))
 +        if not cpu_ids:
@@ -31,7 +31,7 @@ diff --git a/vllm/utils/cpu_resource_utils.py b/vllm/utils/cpu_resource_utils.py
 +            ) from error
 +        memory_node = memory_nodes[0]
 +        logger.warning(
-+            "lscpu failed (%s); using ARM CPU affinity %s with one core per CPU "
++            "lscpu failed (%s); using CPU affinity %s with one core per CPU "
 +            "and memory node %s.",
 +            error, cpu_ids, memory_node,
          )

@@ -10,6 +10,7 @@
 | Multimedia      | 220.video-processing    | Python, Node.js   | x64, arm64 | Add a watermark and generate gif of a video file. |
 | Utilities      | 311.compression    | Python, Node.js   | x64, arm64 | Create a .zip file for a group of files in storage and return to user to download. |
 | Inference      | 411.image-recognition    | Python, C++ | x64 | Image recognition with ResNet and pytorch. |
+| Inference      | 421.llm-inference    | Python | x64, arm64 | CPU text generation with vLLM. |
 | Scientific      | 501.graph-pagerank    | Python, Node.js, C++ | x64, arm64 | PageRank implementation with igraph. |
 | Scientific      | 502.graph-mst    | Python    | x64, arm64 | Minimum spanning tree (MST)  implementation with igraph. |
 | Scientific      | 503.graph-bfs    | Python, C++ | x64, arm64 | Breadth-first search (BFS) implementation with igraph. |

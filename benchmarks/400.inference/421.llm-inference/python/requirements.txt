@@ -1,3 +1,2 @@
-# Full build/runtime closures are in requirements.txt.{arm64,x64}.lock.
-awslambdaric==4.2.1
-boto3==1.40.53
+# vLLM build/runtime dependencies are in requirements.txt.{arm64,x64}.lock.
+vllm==0.31.0
