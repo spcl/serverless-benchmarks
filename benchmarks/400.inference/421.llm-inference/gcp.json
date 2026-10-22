@@ -1,0 +1,43 @@
+{
+  "experiments": {
+    "update_code": false,
+    "update_storage": false,
+    "download_results": false,
+    "architecture": "x64",
+    "system_variant": "container",
+    "runtime": {
+      "language": "python",
+      "version": "3.12"
+    }
+  },
+  "deployment": {
+    "name": "gcp",
+    "gcp": {
+      "region": "europe-west1",
+      "configuration": {
+        "function-gen1": {},
+        "function-gen2": {
+          "vcpus": 1,
+          "gcp-concurrency": 80,
+          "worker-concurrency": 1,
+          "worker-threads": 8,
+          "min-instances": 0,
+          "max-instances": 20,
+          "cpu-boost": false,
+          "cpu-throttle": true
+        },
+        "container": {
+          "environment": "gen2",
+          "vcpus": 2,
+          "gcp-concurrency": 1,
+          "worker-concurrency": 1,
+          "worker-threads": 1,
+          "min-instances": 0,
+          "max-instances": 1,
+          "cpu-boost": false,
+          "cpu-throttle": true
+        }
+      }
+    }
+  }
+}
