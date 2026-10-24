@@ -1386,8 +1386,9 @@ def filter_out_benchmarks(
     if (deployment_name == "aws" and language == "cpp" and deployment_type == "package"):
         return "411.image-recognition" not in benchmark
 
-    # Filter out image recognition on ARM architecture on AWS
-    if (deployment_name == "aws" and architecture == "arm64"):
+    # Filter out image recognition on ARM architecture on AWS and local:
+    # its requirements pin x86 PyTorch wheels
+    if (deployment_name in ["aws", "local"] and architecture == "arm64"):
         return "411.image-recognition" not in benchmark
 
     # Filter out image recognition on newer Python versions on GCP
