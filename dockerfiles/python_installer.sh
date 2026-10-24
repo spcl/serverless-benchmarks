@@ -29,6 +29,8 @@ if [[ "$(uname -m)" != "${TARGET_MACHINE}" ]]; then
   for tag in ${LEGACY_TAGS}; do
     PLATFORM_ARG="${PLATFORM_ARG} --platform ${tag}_${TARGET_MACHINE}"
   done
+  # Plain Linux wheels, e.g., the PyTorch CPU wheels pinned by 411.image-recognition.
+  PLATFORM_ARG="${PLATFORM_ARG} --platform linux_${TARGET_MACHINE}"
 fi
 
 if [[ "${TARGET_ARCHITECTURE}" == "arm64" ]] && [[ -f "requirements.txt.arm.${PYTHON_VERSION}" ]]; then
