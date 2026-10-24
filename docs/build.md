@@ -26,7 +26,7 @@ sequenceDiagram
 
 **Prepare Environment** - benchmark code with data is copied to the build location.
 
-**Add Benchmark Data** - optional step of adding additional, external dependencies. An example is downloading `ffmpeg` release into `220.video-processing` benchmark.
+**Add Benchmark Data** - optional step of adding additional, external dependencies. An example is extracting a pinned static `ffmpeg` binary into `220.video-processing` benchmark.
 
 **Add Platform-Specific Wrappers** - we add lightweight shims to implement the cloud-specific API and keep benchmark applications generic and portable.
 
