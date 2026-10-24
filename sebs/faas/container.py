@@ -304,8 +304,9 @@ class DockerContainer(LoggingBase):
         }
 
         try:
+            # Unlike the Docker CLI, docker-py keeps intermediate containers by default.
             image, _ = self.docker_client.images.build(
-                tag=image_uri, path=build_dir, buildargs=buildargs
+                tag=image_uri, path=build_dir, buildargs=buildargs, rm=True, forcerm=True
             )
         except docker.errors.BuildError as e:
             self.logging.error("Docker build failed!")

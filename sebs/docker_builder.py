@@ -320,11 +320,14 @@ class DockerImageBuilder(LoggingBase):
             return self._execute_platform_build(image_name, dockerfile, buildargs, platform_arg)
 
         try:
+            # Unlike the Docker CLI, docker-py keeps intermediate containers by default.
             self.docker_client.images.build(
                 path=str(self.project_dir),
                 dockerfile=dockerfile,
                 buildargs=buildargs,
                 tag=image_name,
+                rm=True,
+                forcerm=True,
             )
             self.logging.info(f"Successfully built: {image_name}")
             return True
