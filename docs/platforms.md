@@ -44,11 +44,17 @@ On Ubuntu-based distributions, this requires installing an OS package and execut
 ### Multi-platform Docker Images
 
 Build images, which encapsulate package building, are available as both x64 and arm64 for Python and Node.js on AWS Lambda.
+The local deployment's build and run images for Python and Node.js are multi-platform too: local functions run on the host, so x86 and ARM machines (e.g., Apple Silicon, Graviton) pull the image of their own architecture.
+Set the experiment's `architecture` to the host's (`x64` or `arm64`) for local deployments; SeBS warns about a mismatch, since dependencies are installed for the configured architecture.
+
 To rebuild multi-platform images, an additional flag is needed to enable the internal `docker buildx` command:
 
 ```bash
 sebs docker build --image-type build --language python --deployment aws --language-version 3.11 --multi-platform
+sebs docker build --deployment local --language python --language-version 3.11 --multi-platform
 ```
+
+A multi-platform build pushes the images for both architectures, and the combined manifest, to the repository. `sebs docker push --multi-platform` skips these images; without the flag, it pushes the locally built single-platform image.
 
 When rebuilding build images (not necessary for regular users, only for developers), make sure that your Docker installation supports multi-platform images, e.g., [you use `containerd` image store](https://docs.docker.com/engine/storage/containerd/) - old Docker installations might not change the storage type after an upgrade to Docker 29.0, where `containerd` is the default.
 

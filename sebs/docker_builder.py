@@ -64,6 +64,8 @@ class DockerImageBuilder(LoggingBase):
         self.config = config
         self.project_dir = project_dir
         self.dockerfiles_dir = os.path.join(project_dir, "dockerfiles")
+        # Images whose build or push failed in the current operation
+        self._failed: List[str] = []
 
         if docker_client is None:
             try:
@@ -82,10 +84,10 @@ class DockerImageBuilder(LoggingBase):
     ) -> bool:
         """Check if multi-platform build should be used for this image.
 
-        Multi-platform builds (x64 + arm64) are only enabled for:
-        - AWS platform
-        - Build images only
-        - Python or Node.js languages
+        Multi-platform builds (x64 + arm64) are enabled for:
+        - AWS build images of Python, Node.js, and Java;
+        - local build and run images of Python and Node.js: local functions run
+          on the host, so x86 and ARM machines pull the image of their architecture.
 
         Args:
             system: Deployment platform (e.g., 'aws', 'gcp')
@@ -95,9 +97,11 @@ class DockerImageBuilder(LoggingBase):
         Returns:
             True if multi-platform build should be used, False otherwise
         """
-        return (
-            system == "aws" and image_type == "build" and language in ["python", "nodejs", "java"]
-        )
+        if system == "aws":
+            return image_type == "build" and language in ["python", "nodejs", "java"]
+        if system == "local":
+            return image_type in ["build", "run"] and language in ["python", "nodejs"]
+        return False
 
     def _execute_multiplatform_build(
         self,
@@ -254,8 +258,9 @@ class DockerImageBuilder(LoggingBase):
         """
         Execute the actual build operation for a single image.
 
-        For AWS Python/Node.js build images, uses multi-platform build (x64 + arm64).
-        For all other images, uses standard single-platform build.
+        With multi_platform, AWS build images and local build and run images are built
+        for x64 and arm64 (see _should_use_multiplatform). All other images use a
+        standard single-platform build.
 
         Args:
             system: Deployment platform
@@ -311,13 +316,18 @@ class DockerImageBuilder(LoggingBase):
         self.logging.debug(f"Building {image_name} from {dockerfile}")
         self.logging.debug(f"Build args: {buildargs}")
 
+        if platform_arg:
+            return self._execute_platform_build(image_name, dockerfile, buildargs, platform_arg)
+
         try:
+            # Unlike the Docker CLI, docker-py keeps intermediate containers by default.
             self.docker_client.images.build(
                 path=str(self.project_dir),
                 dockerfile=dockerfile,
                 buildargs=buildargs,
                 tag=image_name,
-                platform=platform_arg,
+                rm=True,
+                forcerm=True,
             )
             self.logging.info(f"Successfully built: {image_name}")
             return True
@@ -330,32 +340,81 @@ class DockerImageBuilder(LoggingBase):
                     self.logging.debug(line["stream"].strip())
             return False
 
+    def _execute_platform_build(
+        self, image_name: str, dockerfile: str, buildargs: dict, platform: str
+    ) -> bool:
+        """Build a single-platform image for the given platform with BuildKit.
+
+        The build API of the Docker daemon, used by docker-py, runs the legacy builder.
+        With the containerd image store (default since Docker 29), it fails on images
+        for a platform other than the host's: "image ... does not provide the specified
+        platform".
+
+        Args:
+            image_name: Docker image tag
+            dockerfile: Path to Dockerfile
+            buildargs: Build args
+            platform: Docker platform, e.g., linux/amd64
+
+        Returns:
+            True if build succeeded, False otherwise
+        """
+        cmd = [
+            "docker",
+            "build",
+            "--platform",
+            platform,
+            "--provenance",
+            "false",
+            "--load",
+            "-f",
+            dockerfile,
+            "-t",
+            image_name,
+        ]
+        for key, value in buildargs.items():
+            cmd.extend(["--build-arg", f"{key}={value}"])
+        cmd.append(str(self.project_dir))
+
+        try:
+            output = execute(cmd, cwd=str(self.project_dir))
+        except RuntimeError as exc:
+            self.logging.error(f"Build failed for {image_name}")
+            self.logging.error(exc)
+            return False
+        self.logging.debug(f"Build log:\n{output}")
+        self.logging.info(f"Successfully built: {image_name}")
+        return True
+
     def _execute_push(
         self,
         system: str,
         image_type: str,
         language: Optional[str] = None,
         version: Optional[str] = None,
+        multi_platform: bool = False,
         **kwargs,  # Ignore extra args like version_name, platform, parallel
     ) -> bool:
         """
         Execute the actual push operation for a single image.
 
-        Multi-platform images (AWS Python/Node.js build images) are skipped
-        as they are already pushed during the build process.
+        With multi_platform, multi-platform images (see _should_use_multiplatform)
+        are skipped, as the multi-platform build already pushed them. Otherwise,
+        the locally built image is pushed.
 
         Args:
             system: Deployment platform
             image_type: Type of image
             language: Programming language, optional
             version: Language version, optional
+            multi_platform: If the images were built for both x64 and arm64
             **kwargs: Additional arguments (ignored for push)
 
         Returns:
             True if push succeeded, False otherwise
         """
         # Skip multi-platform images - they're already pushed during build
-        if self._should_use_multiplatform(system, image_type, language):
+        if multi_platform and self._should_use_multiplatform(system, image_type, language):
             image_name = self.config.docker_image_name(system, image_type, language, version)
             self.logging.info(
                 f"Skipping push for multi-platform image (pushed during build): {image_name}"
@@ -378,7 +437,7 @@ class DockerImageBuilder(LoggingBase):
         try:
             # Parse image name into repository and tag
             # Format: repository:tag
-            repository, tag = image_name.split(":", 1)
+            repository, tag = image_name.rsplit(":", 1)
 
             DockerImageBuilder.push_image_with_progress(
                 self.docker_client, repository, tag, self.logging, disable_rich_output=False
@@ -430,7 +489,7 @@ class DockerImageBuilder(LoggingBase):
 
         # Execute the appropriate operation
         if operation == "build":
-            return self._execute_build(
+            success = self._execute_build(
                 system,
                 image_type,
                 language,
@@ -441,9 +500,15 @@ class DockerImageBuilder(LoggingBase):
                 parallel,
             )
         elif operation == "push":
-            return self._execute_push(system, image_type, language, version)
+            success = self._execute_push(system, image_type, language, version, multi_platform)
         else:
             raise ValueError(f"Unknown operation: {operation}")
+
+        if not success:
+            self._failed.append(
+                self.config.docker_image_name(system, image_type, language, version)
+            )
+        return success
 
     def _process_language(
         self,
@@ -678,6 +743,7 @@ class DockerImageBuilder(LoggingBase):
             parallel: Number of parallel workers, default 1
         """
         systems_config = self.config._system_config
+        self._failed = []
 
         if deployment:
             if deployment in systems_config:
@@ -696,6 +762,7 @@ class DockerImageBuilder(LoggingBase):
                 )
             else:
                 self.logging.error(f"Unknown deployment: {deployment}")
+                self._failed.append(deployment)
         else:
             for system, system_dict in systems_config.items():
                 self._process_system(
@@ -723,7 +790,7 @@ class DockerImageBuilder(LoggingBase):
         platform: Optional[str] = None,
         multi_platform: bool = False,
         parallel: int = 1,
-    ) -> None:
+    ) -> List[str]:
         """
         Build Docker images for SeBS infrastructure.
 
@@ -743,6 +810,9 @@ class DockerImageBuilder(LoggingBase):
             platform: Docker platform override, optional
             multi_platform: If we should build both x64 and arm64
             parallel: Number of parallel workers, default 1
+
+        Returns:
+            Names of the images that failed to build (empty if all succeeded)
         """
         self._process(
             operation="build",
@@ -756,6 +826,7 @@ class DockerImageBuilder(LoggingBase):
             multi_platform=multi_platform,
             parallel=parallel,
         )
+        return list(self._failed)
 
     def push(
         self,
@@ -765,7 +836,8 @@ class DockerImageBuilder(LoggingBase):
         language_version: Optional[str] = None,
         architecture: str = "x64",
         dependency_type: Optional[str] = None,
-    ) -> None:
+        multi_platform: bool = False,
+    ) -> List[str]:
         """
         Push Docker images to registry.
 
@@ -782,6 +854,11 @@ class DockerImageBuilder(LoggingBase):
             language_version: Specific version, pushes all if None
             architecture: Target architecture, default "x64"
             dependency_type: Specific dependency for cpp, optional
+            multi_platform: If the images were built for both x64 and arm64;
+                skips the images that the multi-platform build already pushed
+
+        Returns:
+            Names of the images that failed to push (empty if all succeeded)
         """
         self._process(
             operation="push",
@@ -791,7 +868,9 @@ class DockerImageBuilder(LoggingBase):
             language_version=language_version,
             architecture=architecture,
             dependency_type=dependency_type,
+            multi_platform=multi_platform,
         )
+        return list(self._failed)
 
     @staticmethod
     def show_progress(txt: str, progress: Progress, layer_tasks: Dict[str, TaskID]):

@@ -1095,9 +1095,9 @@ def docker_build(
     try:
         builder = DockerImageBuilder(config, get_project_root(), verbose=verbose)
     except docker.errors.DockerException:
-        return
+        sys.exit(1)
 
-    builder.build(
+    failed = builder.build(
         deployment=deployment,
         image_type=image_type,
         language=language,
@@ -1108,6 +1108,21 @@ def docker_build(
         multi_platform=multi_platform,
         parallel=parallel,
     )
+    _exit_on_failed_images("build", failed)
+
+
+def _exit_on_failed_images(operation: str, failed: List[str]) -> None:
+    """Exit with status 1 and list the images whose build or push failed.
+
+    Args:
+        operation: 'build' or 'push'
+        failed: Names of the failed images
+    """
+    if failed:
+        click.echo(f"Failed to {operation} {len(failed)} image(s):", err=True)
+        for name in failed:
+            click.echo(f"  {name}", err=True)
+        sys.exit(1)
 
 
 @docker_cmd.command("push")
@@ -1142,6 +1157,12 @@ def docker_build(
     type=str,
     help="Specific dependency for cpp (opencv, boost, etc.)",
 )
+@click.option(
+    "--multi-platform/--no-multi-platform",
+    default=False,
+    type=bool,
+    help="When true, skip multi-platform images: their build already pushed them",
+)
 @click.option("--verbose/--no-verbose", default=False, help="Enable verbose output")
 def docker_push_images(
     deployment,
@@ -1150,12 +1171,14 @@ def docker_push_images(
     language_version,
     architecture,
     dependency_type,
+    multi_platform,
     verbose,
 ):
     """Push Docker infrastructure images to registry.
 
     This command pushes infrastructure images (build, run, manage, dependencies)
     to DockerHub. Images must be built locally first using 'docker build'.
+    Pass the same --multi-platform flag as to 'docker build'.
     """
     from sebs.config import SeBSConfig
     from sebs.docker_builder import DockerImageBuilder
@@ -1165,16 +1188,18 @@ def docker_push_images(
     try:
         builder = DockerImageBuilder(config, get_project_root(), verbose=verbose)
     except docker.errors.DockerException:
-        return
+        sys.exit(1)
 
-    builder.push(
+    failed = builder.push(
         deployment=deployment,
         image_type=image_type,
         language=language,
         language_version=language_version,
         architecture=architecture,
         dependency_type=dependency_type,
+        multi_platform=multi_platform,
     )
+    _exit_on_failed_images("push", failed)
 
 
 def main():

@@ -1,0 +1,127 @@
+name: Local Regression
+
+on:
+  workflow_call:
+    inputs:
+      code_ref:
+        description: Approved commit to test; empty uses the triggering commit
+        type: string
+        required: false
+        default: ""
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - "feature/**"
+
+jobs:
+  regression:
+    strategy:
+      matrix:
+        language: [python, nodejs]
+        architecture: [x64, arm64]
+        include:
+          - language: python
+            version: "3.11"
+          - language: nodejs
+            version: "20"
+      fail-fast: false
+
+    name: ${{ matrix.language }} ${{ matrix.version }} ${{ matrix.architecture }}
+    # Local functions run on the Docker daemon's architecture, so each
+    # architecture needs a native runner.
+    runs-on: ${{ matrix.architecture == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    timeout-minutes: 60
+
+    env:
+      RESOURCE_PREFIX: ci
+      LANGUAGE: ${{ matrix.language }}
+      LANGUAGE_VERSION: ${{ matrix.version }}
+      ARCHITECTURE: ${{ matrix.architecture }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.code_ref || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          enable-cache: ${{ inputs.code_ref == '' }}
+
+      - name: Create virtual environment and install SeBS
+        run: |
+          uv venv
+          uv pip install .
+
+      - name: Start RustFS and ScyllaDB
+        run: |
+          set -o pipefail
+          uv run sebs storage start all configs/storage.json --output-json storage.json
+
+      - name: Create local regression config
+        run: |
+          jq \
+            --arg language "${LANGUAGE}" \
+            --arg version "${LANGUAGE_VERSION}" \
+            --arg architecture "${ARCHITECTURE}" \
+            '
+            .experiments.deployment = "local"
+            | .deployment.name = "local"
+            | .experiments.architecture = $architecture
+            | .experiments.system_variant = "package"
+            | .experiments.runtime.language = $language
+            | .experiments.runtime.version = $version
+            ' configs/example.json > local-regression.json
+
+      - name: Run local regression
+        id: regression
+        continue-on-error: true
+        timeout-minutes: 45
+        run: |
+          set -o pipefail
+          uv run sebs benchmark regression test \
+            --config local-regression.json \
+            --storage-configuration storage.json \
+            --deployment local \
+            --language ${LANGUAGE} \
+            --language-version ${LANGUAGE_VERSION} \
+            --architecture ${ARCHITECTURE} \
+            --selected-architecture \
+            --resource-prefix ${RESOURCE_PREFIX} \
+            --filter-output
+
+      - name: Collect function container logs
+        if: steps.regression.outcome == 'failure'
+        run: |
+          mkdir -p diagnostics
+          docker ps -a > diagnostics/containers.txt 2>&1 || true
+          for container in $(docker ps -a --format '{{.Names}}'); do
+            docker logs "${container}" > "diagnostics/${container}.log" 2>&1 || true
+          done
+
+      - name: Upload regression artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: local-regression-artifacts-${{ matrix.language }}-${{ matrix.version }}-${{ matrix.architecture }}
+          path: |
+            diagnostics/
+            regression-cache/
+            storage.json
+            local-regression.json
+            regression_*.json
+            regression_*.log
+          if-no-files-found: ignore
+
+      - name: Fail job when regression failed
+        if: steps.regression.outcome == 'failure'
+        run: exit 1
+
+      - name: Cleanup
+        if: always()
+        run: |
+          uv run sebs storage stop all storage.json || true

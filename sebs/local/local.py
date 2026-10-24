@@ -31,7 +31,7 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.experiments.config import SystemVariant
 from sebs.storage.resources import SelfHostedSystemResources
-from sebs.utils import LoggingHandlers, is_linux
+from sebs.utils import LoggingHandlers, docker_architecture, host_architecture, is_linux
 from sebs.local.config import LocalConfig
 from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
@@ -53,6 +53,8 @@ class Local(System):
     """
 
     DEFAULT_PORT = 9000
+    # Seconds to wait for the function server to start
+    STARTUP_TIMEOUT = 30
 
     @staticmethod
     def name() -> str:
@@ -202,13 +204,30 @@ class Local(System):
             directory: Directory containing the function code
             language: Programming language (e.g., "python", "nodejs")
             language_version: Language version (e.g., "3.11", "20")
-            architecture: Target architecture (unused for local)
+            architecture: Target architecture; must match the host's, since local
+                containers run natively (a mismatch is reported as a warning)
             benchmark: Benchmark name
             is_cached: Whether the package is from cache
 
         Returns:
             Tuple[str, int]: (package_path, size_bytes)
         """
+
+        # Function containers run on the Docker daemon's architecture, which can differ
+        # from this process', e.g., for x86 Python under Rosetta on Apple Silicon.
+        docker_arch = docker_architecture(self._docker_client)
+        python_arch = host_architecture()
+        running_on = f"Running on platform {docker_arch}"
+        if python_arch != docker_arch:
+            running_on += f", emulated as {python_arch}"
+        if architecture != docker_arch:
+            self.logging.warning(
+                f"{running_on}. Packaging for {architecture}, but local functions run on "
+                f"{docker_arch}: set the experiment's architecture to {docker_arch}, "
+                "or dependencies with native code may not load."
+            )
+        elif python_arch != docker_arch:
+            self.logging.info(f"{running_on}.")
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
@@ -395,8 +414,8 @@ class Local(System):
             func.set_container(container, port)
             func._measurement_pid = pid
 
-        # Wait until server starts
-        max_attempts = 10
+        # Wait until server starts; emulated containers (e.g., x64 on arm64) start slower.
+        max_attempts = int(Local.STARTUP_TIMEOUT / 0.25)
         attempts = 0
         while attempts < max_attempts:
             try:

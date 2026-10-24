@@ -12,6 +12,16 @@
 
 ### Bug Fixes
 
+* `sebs docker build --platform` for another architecture (e.g., x64 images on an ARM machine) failed with Docker's containerd image store, the default since Docker 29: "image ... does not provide the specified platform". Docker's build API runs the legacy builder, so SeBS now builds such images with BuildKit (`docker build --platform`).
+
+* Local functions failed to start when their server needed more than 2.5 seconds, e.g., Node.js containers emulated with QEMU; SeBS now waits up to 30 seconds.
+
+* `sebs docker build` and `sebs docker push` exit with status 1 and list the failed images when an image fails; they always exited with 0.
+
+* Node.js packages built for another architecture (e.g., arm64 functions on an x86 machine) contained native binaries of the build machine: npm selects platform-specific packages, such as sharp's `@img/sharp-linux-arm64`, by `--cpu`, `--os`, and `--libc`, not by `--arch`. The installer now passes all of them. Requires rebuilding the build images.
+
+* Python packages for x64 functions built on ARM machines (e.g., Apple Silicon) contained ARM binaries: multi-platform build images run natively there, so the installer now downloads x86 wheels for x64 targets. Cross-architecture builds accept all manylinux wheels compatible with the build image's glibc instead of only `manylinux_2_17`, which rejected old pinned packages (e.g., Pillow 8.0.0) and new releases (e.g., numpy for Python 3.14). Python dependencies are always installed from wheels.
+
 * Change to input of 120.uploader benchmark to conform with new Wikipedia policies (#308)
 
 * Pull Minio images from the SeBS archive `spcleth/serverless-benchmarks:minio-reproducibility-archive-<release>`, as MinIO no longer publishes images on Docker Hub or quay.io.
@@ -21,6 +31,8 @@
 * OpenWhisk: store the Docker image of newly created actions in the function cache, and download provider metrics of invocations through the library trigger, which did not record the activation ID.
 
 ### Improvements
+
+* Local deployment on ARM machines (Apple Silicon, Graviton): the local build and run images for Python and Node.js are multi-platform (x64 and arm64), and SeBS warns when the configured architecture differs from the host's.
 
 * PAPI hardware counters in local Python images use the distribution's PAPI through a small C binding with overflow sampling (`sebs_papi`). It replaces the pypapi submodule, whose bundled PAPI predates many current CPUs, and is compiled in the run images, which previously shipped pypapi without its native module. Requires the updated local run images.
 

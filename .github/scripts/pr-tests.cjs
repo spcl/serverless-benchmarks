@@ -1,11 +1,11 @@
 // This controller is loaded only from the trusted workflow commit, never a PR.
-const SUITES = new Set(['cloud', 'openwhisk']);
+const SUITES = new Set(['cloud', 'openwhisk', 'local']);
 const WRITE_PERMISSIONS = new Set(['admin', 'maintain', 'write']);
 
 function parseCommand(body) {
-  const match = /^\/test (cloud|openwhisk) ([0-9a-f]{40})$/.exec(body.trim());
+  const match = /^\/test (cloud|openwhisk|local) ([0-9a-f]{40})$/.exec(body.trim());
   if (!match) {
-    throw new Error('Usage: /test <cloud|openwhisk> <full lowercase PR head SHA>');
+    throw new Error('Usage: /test <cloud|openwhisk|local> <full lowercase PR head SHA>');
   }
   return { suite: match[1], sha: match[2] };
 }
@@ -87,7 +87,11 @@ async function report({ github, context, env = process.env }) {
   if (!SUITES.has(env.TEST_SUITE) || !/^[0-9a-f]{40}$/.test(env.TEST_SHA)) {
     throw new Error('Invalid regression status target');
   }
-  const result = env.TEST_SUITE === 'cloud' ? env.CLOUD_RESULT : env.OPENWHISK_RESULT;
+  const result = {
+    cloud: env.CLOUD_RESULT,
+    openwhisk: env.OPENWHISK_RESULT,
+    local: env.LOCAL_RESULT,
+  }[env.TEST_SUITE];
   const state = result === 'success' ? 'success' : result === 'failure' ? 'failure' : 'error';
   await status(github, context, {
     sha: env.TEST_SHA, suite: env.TEST_SUITE, state,

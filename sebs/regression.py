@@ -11,6 +11,7 @@ The module supports:
 - Azure Functions
 - Google Cloud Functions
 - OpenWhisk
+- Local Docker deployments
 - Multiple runtime languages (Python, Node.js)
 - Multiple architectures (x64, arm64)
 - Different deployment types (package, container)
@@ -86,6 +87,11 @@ deployments_azure = ["package"]
 # OpenWhisk-specific configurations
 architectures_openwhisk = ["x64"]
 deployments_openwhisk = ["container"]
+
+# Local-specific configurations; functions run on the Docker daemon's architecture,
+# so CI selects one architecture per runner with --selected-architecture.
+architectures_local = ["x64", "arm64"]
+deployments_local = ["package"]
 
 # User-defined config passed during initialization, set in regression_suite()
 cloud_config: Optional[dict] = None
@@ -1191,6 +1197,86 @@ class OpenWhiskTestSequenceJava(
         return deployment_client
 
 
+class LocalTestSequence:
+    """Shared deployment setup for benchmarks running in local Docker containers."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Get a local deployment client for the specified configuration.
+
+        Args:
+            benchmark_name: Name of the benchmark to deploy
+            architecture: Architecture to deploy on; must match the Docker daemon's
+            deployment_type: Deployment type (package)
+
+        Returns:
+            An initialized local deployment client
+
+        Raises:
+            AssertionError: If cloud_config is not set
+        """
+        deployment_name = "local"
+        assert cloud_config, "Cloud configuration is required"
+
+        # Create a copy of the config and set architecture and deployment type
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        config_copy["experiments"]["system_variant"] = deployment_type
+
+        # Create log file name based on test parameters
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(  # type: ignore[attr-defined]
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),  # type: ignore
+        )
+
+        # Synchronize resource initialization with a lock
+        with type(self).lock:  # type: ignore[attr-defined]
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+        return deployment_client
+
+
+class LocalTestSequencePython(
+    LocalTestSequence,
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_python,
+    architectures=architectures_local,
+    deployments=deployments_local,
+    deployment_name="local",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Python benchmarks in local Docker containers.
+
+    Attributes:
+        benchmarks: List of Python benchmarks to test
+        architectures: List of local architectures to test (x64, arm64)
+        deployments: List of deployment types to test (package)
+        deployment_name: Platform name ("local")
+        triggers: List of trigger types to test (HTTP)
+    """
+
+
+class LocalTestSequenceNodejs(
+    LocalTestSequence,
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_nodejs,
+    architectures=architectures_local,
+    deployments=deployments_local,
+    deployment_name="local",
+    triggers=[Trigger.TriggerType.HTTP],
+):
+    """Test suite for Node.js benchmarks in local Docker containers.
+
+    Attributes:
+        benchmarks: List of Node.js benchmarks to test
+        architectures: List of local architectures to test (x64, arm64)
+        deployments: List of deployment types to test (package)
+        deployment_name: Platform name ("local")
+        triggers: List of trigger types to test (HTTP)
+    """
+
+
 # Stream result handler for concurrent test execution
 # Based on https://stackoverflow.com/questions/22484805/
 # a-simple-working-example-for-testtools-concurrentstreamtestsuite
@@ -1300,8 +1386,9 @@ def filter_out_benchmarks(
     if (deployment_name == "aws" and language == "cpp" and deployment_type == "package"):
         return "411.image-recognition" not in benchmark
 
-    # Filter out image recognition on ARM architecture on AWS
-    if (deployment_name == "aws" and architecture == "arm64"):
+    # Filter out image recognition on ARM architecture on AWS and local:
+    # its requirements pin x86 PyTorch wheels
+    if (deployment_name in ["aws", "local"] and architecture == "arm64"):
         return "411.image-recognition" not in benchmark
 
     # Filter out image recognition on newer Python versions on GCP
@@ -1419,6 +1506,13 @@ def regression_suite(
             suite.addTest(
                 unittest.defaultTestLoader.loadTestsFromTestCase(OpenWhiskTestSequenceJava)
             )
+
+    # Add local tests if requested
+    if "local" in providers:
+        if language == "python":
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(LocalTestSequencePython))
+        elif language == "nodejs":
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(LocalTestSequenceNodejs))
 
     # Prepare the list of tests to run
     tests: List[unittest.TestCase] = []

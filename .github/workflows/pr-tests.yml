@@ -17,7 +17,7 @@ on:
       suite:
         description: Test suite
         type: choice
-        options: [cloud, openwhisk]
+        options: [cloud, openwhisk, local]
         required: true
 
 permissions:
@@ -93,8 +93,17 @@ jobs:
     with:
       code_ref: ${{ needs.resolve.outputs.sha }}
 
+  local:
+    needs: resolve
+    if: needs.resolve.outputs.suite == 'local'
+    permissions:
+      contents: read
+    uses: $/.github/workflows/regression-local.yml
+    with:
+      code_ref: ${{ needs.resolve.outputs.sha }}
+
   report:
-    needs: [resolve, cloud, openwhisk]
+    needs: [resolve, cloud, openwhisk, local]
     if: always() && needs.resolve.result == 'success'
     runs-on: ubuntu-latest
     permissions:
@@ -113,6 +122,7 @@ jobs:
           TEST_SUITE: ${{ needs.resolve.outputs.suite }}
           CLOUD_RESULT: ${{ needs.cloud.result }}
           OPENWHISK_RESULT: ${{ needs.openwhisk.result }}
+          LOCAL_RESULT: ${{ needs.local.result }}
         with:
           script: |
             await require('./.github/scripts/pr-tests.cjs').report({ github, context });
