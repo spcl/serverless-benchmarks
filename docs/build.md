@@ -142,9 +142,10 @@ one import for a built-in equivalent).
 
 #### Overlay variant (full rewrite)
 
-If the variant directory contains source files (`.py` / `.js`, `requirements.txt`,
-`package.json`, …) but **no** `patch.diff`, all those files are copied on top of the default
-files, replacing them completely.
+If the variant directory contains source files (`.py` / `.js`, `package.json`, …) but **no**
+`patch.diff`, all those files are copied on top of the default files, replacing them completely.
+Python variants cannot override dependencies: they are always installed from the benchmark's
+`pyproject.toml` and `uv.lock` in the `python` directory.
 
 ```
 benchmarks/100.webapps/110.dynamic-html/
