@@ -617,6 +617,17 @@ class AWS(System):
             func_name = f"{func_name}-docker"
         return AWS.format_function_name(func_name)
 
+    def normalize_function_name(self, func_name: str) -> str:
+        """Apply the AWS name conversion done in create_function to user-provided names.
+
+        Args:
+            func_name: Function name, possibly provided by the user
+
+        Returns:
+            str: Function name as deployed and cached
+        """
+        return AWS.format_function_name(func_name)
+
     @staticmethod
     def format_function_name(func_name: str) -> str:
         """Format function name for AWS Lambda compatibility.
