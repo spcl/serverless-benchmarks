@@ -1,0 +1,45 @@
+diff --git a/vllm/utils/cpu_resource_utils.py b/vllm/utils/cpu_resource_utils.py
+--- a/vllm/utils/cpu_resource_utils.py
++++ b/vllm/utils/cpu_resource_utils.py
+@@ -285,14 +285,34 @@
+         # For MacOS, no user-level CPU affinity and SMT, return all CPUs
+         return _synthesize_cpu_list()
+ 
+-    if platform.machine() == "s390x":
+-        lscpu_output = subprocess.check_output(
+-            "lscpu -J -e=CPU,CORE,NODE,SOCKET,BOOK", shell=True, text=True
++    try:
++        if platform.machine() == "s390x":
++            lscpu_output = subprocess.check_output(
++                "lscpu -J -e=CPU,CORE,NODE,SOCKET,BOOK", shell=True, text=True
++            )
++        else:
++            lscpu_output = subprocess.check_output(
++                "lscpu --json --extended=CPU,CORE,NODE --online", shell=True, text=True
++            )
++    except subprocess.CalledProcessError as error:
++        if sys.platform != "linux" or platform.machine() not in ("aarch64", "arm64", "x86_64"):
++            raise
++        cpu_ids = sorted(os.sched_getaffinity(0))
++        if not cpu_ids:
++            raise RuntimeError("CPU affinity is empty; cannot synthesize topology") from error
++        memory_nodes = get_memory_affinity()
++        if len(memory_nodes) != 1:
++            raise RuntimeError(
++                "CPU topology fallback requires a single allowed memory node; "
++                f"found {memory_nodes}"
++            ) from error
++        memory_node = memory_nodes[0]
++        logger.warning(
++            "lscpu failed (%s); using CPU affinity %s with one core per CPU "
++            "and memory node %s.",
++            error, cpu_ids, memory_node,
+         )
+-    else:
+-        lscpu_output = subprocess.check_output(
+-            "lscpu --json --extended=CPU,CORE,NODE --online", shell=True, text=True
+-        )
++        return [LogicalCPUInfo(i, i, memory_node) for i in cpu_ids]
+ 
+     # For platforms without NUMA, map bare `-` node to 0 so non-NUMA
+     # systems keep the existing behavior from #39781.

@@ -141,6 +141,7 @@ sebs = ["py.typed"]
     "**/*.html",
     "**/*.png",
     "**/*.md",
+    "**/*.patch",
     "**/Dockerfile*",
     "**/requirements.txt.*",
     "**/package.json.*",
