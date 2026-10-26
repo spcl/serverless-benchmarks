@@ -253,7 +253,7 @@ class Azure(System):
         }
         CONFIG_FILES = {
             Language.PYTHON: ["requirements.txt", ".python_packages"],
-            Language.NODEJS: ["package.json", "node_modules"],
+            Language.NODEJS: ["package.json", "package-lock.json", "node_modules"],
             Language.JAVA: ["lib", "src", "pom.xml", "target", ".mvn", "mvnw", "mvnw.cmd"],
         }
         package_config = CONFIG_FILES[language]
