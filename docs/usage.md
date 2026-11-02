@@ -40,6 +40,12 @@ The results will be stored in `experiment.json`.
 To configure your benchmark, change settings in the config file or use command-line options.
 The full list is available by running `sebs benchmark invoke --help`.
 
+#### Reproducibility Manifest
+
+Every `benchmark invoke` and `experiment invoke` also writes `manifest.json` to the output directory,
+recording the SeBS revision, benchmark sources, builds, inputs, and deployed functions.
+See [manifest.md](manifest.md) for all fields and the environment records collected inside functions.
+
 ### Process
 
 To download cloud metrics and process the invocations, run:

@@ -1,7 +1,7 @@
 """Cloud Run container helpers for Google Cloud Platform deployments."""
 
 import docker
-from typing import cast, Tuple
+from typing import cast, Optional, Tuple
 
 from sebs.gcp.config import GCPConfig, GCPCredentials
 from sebs.config import SeBSConfig
@@ -149,7 +149,7 @@ class GCRContainer(DockerContainer):
         architecture: str,
         benchmark: str,
         is_cached: bool,
-        builder_image: str,
+        builder_image: Optional[str],
     ) -> Tuple[bool, str, float]:
         """Build the benchmark image and resolve the final image URI.
 
@@ -160,7 +160,7 @@ class GCRContainer(DockerContainer):
             architecture: Target CPU architecture.
             benchmark: Benchmark name.
             is_cached: Whether the build can reuse a cached image.
-            builder_image: Builder image to use for the build stage.
+            builder_image: Builder image to use for the build stage, if any.
 
         Returns:
             Tuple of rebuild flag, image URI, and image size in MB.

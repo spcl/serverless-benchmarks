@@ -1,13 +1,11 @@
 const http = require('http'),
       strftime = require('strftime'),
       express = require('express'),
-      f = require('/function/function/function');
+      f = require('/function/function/function'),
+      environment = require('/function/function/environment');
 //import { v4 as uuidv4 } from 'uuid';
 const { v4: uuidv4 } = require('uuid');
 
-
-// Each container runs one server process, so its first request is a cold start
-let coldStart = true;
 
 var app = express();
 app.use(express.json());
@@ -20,20 +18,20 @@ app.post('/alive', function (req, res) {
 
 app.post('/', function (req, res) {
 
-  const isCold = coldStart;
-  coldStart = false;
   let begin = Date.now();
   let ret = f.handler(req.body);
   ret.then((func_res) => {
 
     let end = Date.now();
+    const env = environment.collect();
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({
       begin: strftime('%s.%L', new Date(begin)),
       end: strftime('%s.%L', new Date(end)),
       request_id: uuidv4(),
-      is_cold: isCold,
-      result: func_res
+      is_cold: 'static' in env,
+      result: func_res,
+      environment: env
     }));
   },
   (reason) => {

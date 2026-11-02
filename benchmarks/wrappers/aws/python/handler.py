@@ -5,9 +5,12 @@ import datetime, io, json, os, sys, uuid
 # Add current directory to allow location of packages
 sys.path.append(os.path.join(os.path.dirname(__file__), '.python_packages/lib/site-packages'))
 
+container_id = None
+
 # TODO: usual trigger
 # implement support for S3 and others
 def handler(event, context):
+    global container_id
 
     income_timestamp = datetime.datetime.now().timestamp()
 
@@ -36,21 +39,14 @@ def handler(event, context):
     else:
         results_time = 0
 
-    # cold test
-    is_cold = False
-    fname = os.path.join('/tmp', 'cold_run')
-    if not os.path.exists(fname):
-        is_cold = True
-        container_id = str(uuid.uuid4())[0:8]
-        with open(fname, 'a') as f:
-            f.write(container_id)
-    else:
-        with open(fname, 'r') as f:
-            container_id = f.read()
-
     cold_start_var = ""
     if "cold_start" in os.environ:
         cold_start_var = os.environ["cold_start"]
+
+    from function import environment
+    env = environment.collect()
+    if 'static' in env:
+        container_id = str(uuid.uuid4())[0:8]
 
     return {
         'statusCode': 200,
@@ -58,11 +54,11 @@ def handler(event, context):
             'begin': begin.strftime('%s.%f'),
             'end': end.strftime('%s.%f'),
             'results_time': results_time,
-            'is_cold': is_cold,
+            'is_cold': 'static' in env,
             'result': log_data,
             'request_id': context.aws_request_id,
             'cold_start_var': cold_start_var,
             'container_id': container_id,
+            'environment': env,
         })
     }
-

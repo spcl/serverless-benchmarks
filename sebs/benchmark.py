@@ -8,8 +8,8 @@ various serverless platforms, including caching mechanisms to avoid redundant bu
 """
 from __future__ import annotations
 
+import datetime
 import glob
-import hashlib
 import json
 import subprocess
 import os
@@ -28,7 +28,15 @@ from sebs.faas.config import Resources
 from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
 from sebs.faas.storage import PersistentStorage
-from sebs.utils import find_benchmark, get_resource_path, ensure_benchmarks_data, LoggingBase
+from sebs.manifest import Build, BuilderImage
+from sebs.utils import (
+    find_benchmark,
+    get_project_root,
+    get_resource_path,
+    ensure_benchmarks_data,
+    LoggingBase,
+    sha256_files,
+)
 from sebs.sebs_types import BenchmarkModule, Language
 from typing import TYPE_CHECKING
 
@@ -536,16 +544,14 @@ class Benchmark(LoggingBase):
         """
         Get the hash of the benchmark code.
 
-        Computes an MD5 hash of the benchmark directory to determine if
-        the code has changed since the last build.
+        Computes a SHA-256 hash over the paths (relative to the project root) and
+        contents of benchmark's source files. It identifies the source in the
+        reproducibility manifest and determines if code has changed since the last build.
 
         Returns:
-            str: MD5 hash as a hexadecimal string
+            str: SHA-256 hash as a hexadecimal string
         """
-        path = os.path.join(self.benchmark_path, self.language_name)
-        self._hash_value = Benchmark.hash_directory(
-            path, self._deployment_name, self.language, self._language_variant
-        )
+        self._hash_value = sha256_files(self.source_files(), str(get_project_root()))
         return self._hash_value
 
     @hash.setter  # noqa: A003
@@ -556,7 +562,7 @@ class Benchmark(LoggingBase):
         Used only for testing purposes.
 
         Args:
-            val: MD5 hash as a hexadecimal string
+            val: SHA-256 hash as a hexadecimal string
         """
         self._hash_value = val
 
@@ -643,6 +649,7 @@ class Benchmark(LoggingBase):
             ),
         )
         self._container_uri: Optional[str] = None
+        self._prepared_inputs: Dict[str, dict] = {}
 
         # verify existence of function in cache
         self.query_cache()
@@ -661,76 +668,84 @@ class Benchmark(LoggingBase):
         self._uses_storage: bool = False
         self._uses_nosql: bool = False
 
-    @staticmethod
-    def hash_directory(
-        directory: str, deployment: str, language: Language, variant: str = "default"
-    ):
+    def source_files(self) -> List[str]:
         """
-        Compute MD5 hash of an entire directory.
+        List the files that define the benchmark's code package.
 
-        Calculates a hash of the benchmark source code by combining hashes of all
-        relevant files. This includes language-specific files, deployment wrappers,
-        and shared files like shell scripts and JSON configuration.
-
-        Args:
-            directory: Path to the directory to hash
-            deployment: Name of the deployment platform
-            language: Programming language name
+        This includes language-specific files, the variant overlay (or patch),
+        deployment wrappers, and the wrappers shared by all deployments.
+        The order is deterministic for a given directory content.
 
         Returns:
-            str: MD5 hash as a hexadecimal string
+            List[str]: Paths of all source files
         """
-        hash_sum = hashlib.md5()
+        directory = os.path.join(self.benchmark_path, self.language_name)
+        language = self.language
+        variant = self._language_variant
         FILES = {
             Language.PYTHON: ["*.py", "requirements.txt*"],
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: ["*.java", "pom.xml"],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
         }
+        NON_LANG_FILES = ["*.sh", "*.json"]
+        selected_files = FILES[language] + NON_LANG_FILES
+
+        def matching(source_dir: str) -> List[str]:
+            """Files in `source_dir` that match the selected patterns, each listed once."""
+            # Patterns overlap, e.g., package.json and *.json; list each file once.
+            return sorted(
+                {
+                    f
+                    for pattern in selected_files
+                    for f in glob.glob(os.path.join(source_dir, pattern))
+                }
+            )
+
+        files = matching(directory)
+        # Include variant overlay files (or patch) so that a change
+        # to the variant directory invalidates the cached package.
+        if variant != "default":
+            variant_dir = os.path.join(directory, variant)
+            if os.path.isdir(variant_dir):
+                patch_file = os.path.join(variant_dir, "patch.diff")
+                if os.path.exists(patch_file):
+                    files.append(patch_file)
+                else:
+                    files.extend(matching(variant_dir))
+        files.extend(self._wrapper_files(self._deployment_name))
+        files.extend(self._wrapper_files("common"))
+        return files
+
+    def _wrapper_files(self, wrappers_dir: str) -> List[str]:
+        """
+        List the wrapper files of a wrapper directory, e.g., a deployment or `common`.
+
+        Args:
+            wrappers_dir: Name of the directory in `benchmarks/wrappers`
+
+        Returns:
+            List[str]: Sorted paths of the wrapper files for the benchmark's language
+        """
         WRAPPERS = {
             Language.PYTHON: ["*.py"],
             Language.NODEJS: ["*.js"],
             Language.JAVA: ["src"],
             Language.CPP: ["*.cpp", "*.hpp"],
         }
-        NON_LANG_FILES = ["*.sh", "*.json"]
-        selected_files = FILES[language] + NON_LANG_FILES
-        for file_type in selected_files:
-            for f in glob.glob(os.path.join(directory, file_type)):
-                path = os.path.join(directory, f)
-                with open(path, "rb") as opened_file:
-                    hash_sum.update(opened_file.read())
-        # Include variant overlay files (or patch) in the hash so that a
-        # change to the variant directory invalidates the cached package.
-        if variant != "default":
-            variant_dir = os.path.join(directory, variant)
-            if os.path.isdir(variant_dir):
-                patch_file = os.path.join(variant_dir, "patch.diff")
-                if os.path.exists(patch_file):
-                    with open(patch_file, "rb") as pf:
-                        hash_sum.update(pf.read())
-                else:
-                    for file_type in selected_files:
-                        for f in glob.glob(os.path.join(variant_dir, file_type)):
-                            with open(f, "rb") as opened_file:
-                                hash_sum.update(opened_file.read())
-        # wrappers
-        wrapper_patterns = WRAPPERS[language]
-        for pattern in wrapper_patterns:
+        files: List[str] = []
+        for pattern in WRAPPERS[self.language]:
             wrappers = get_resource_path(
-                "benchmarks", "wrappers", deployment, language.value, pattern
+                "benchmarks", "wrappers", wrappers_dir, self.language_name, pattern
             )
-            for f in glob.glob(str(wrappers)):
+            for f in sorted(glob.glob(str(wrappers))):
                 if os.path.isdir(f):
-                    for root, _, files in os.walk(f):
-                        for file in files:
-                            path = os.path.join(root, file)
-                            with open(path, "rb") as opened_file:
-                                hash_sum.update(opened_file.read())
+                    for root, dirs, dir_files in os.walk(f):
+                        dirs.sort()
+                        files.extend(os.path.join(root, file) for file in sorted(dir_files))
                 else:
-                    with open(f, "rb") as opened_file:
-                        hash_sum.update(opened_file.read())
-        return hash_sum.hexdigest()
+                    files.append(f)
+        return files
 
     def serialize(self) -> dict:
         """
@@ -740,6 +755,20 @@ class Benchmark(LoggingBase):
             dict: Dictionary containing size and hash of the benchmark code
         """
         return {"size": self.code_size, "hash": self.hash}
+
+    @property
+    def build_info(self) -> Optional[Build]:
+        """How the current code package was built, as recorded at build time.
+
+        Returns:
+            Build dictionary, or None if the cached package predates build recording.
+        """
+        return self._code_package.get("build") if self._code_package else None
+
+    @property
+    def prepared_inputs(self) -> Dict[str, dict]:
+        """Payloads generated by `prepare_input` during this session, keyed by input size."""
+        return self._prepared_inputs
 
     def query_cache(self) -> None:
         """
@@ -895,7 +924,9 @@ class Benchmark(LoggingBase):
         integrate the benchmark code with the target FaaS platform's
         execution environment.
 
-        Files are sourced from `benchmarks/wrappers/{deployment_name}/{language_name}/`.
+        Files are sourced from `benchmarks/wrappers/{deployment_name}/{language_name}/`,
+        plus the wrappers in `benchmarks/wrappers/common/{language_name}/` shared by all
+        deployments.
 
         Args:
             output_dir: Directory where deployment files should be added
@@ -909,6 +940,7 @@ class Benchmark(LoggingBase):
                 self._deployment_name, self.language_name
             )
         ]
+        handlers.extend(self._wrapper_files("common"))
 
         for file in handlers:
             destination = os.path.join(output_dir, os.path.basename(file))
@@ -1180,7 +1212,49 @@ class Benchmark(LoggingBase):
 
         return previous_version_image_name, current_version_image_name
 
-    def install_dependencies(self, output_dir: str) -> None:
+    def resolve_builder_image(self) -> Optional[BuilderImage]:
+        """Find the builder image, pulling it if needed.
+
+        Tries the current SeBS version image first and falls back to the
+        previous major version image.
+
+        Returns:
+            Reference, ID, and registry digests of the available builder image,
+            or None if the platform has no builder image for the language.
+
+        Raises:
+            RuntimeError: when neither image exists locally or can be pulled.
+        """
+        # do we have docker image for this run and language?
+        if "build" not in self._system_config.docker_image_types(
+            self._deployment_name, self.language_name
+        ):
+            return None
+        repo_name = self._system_config.docker_repository()
+        previous_version_image_name, current_version_image_name = self.builder_image_name()
+        for name in (current_version_image_name, previous_version_image_name):
+            reference = f"{repo_name}:{name}"
+            try:
+                image = self._docker_client.images.get(reference)
+            except docker.errors.ImageNotFound:
+                try:
+                    self.logging.info(f"Docker pull of image {reference}")
+                    image = self._docker_client.images.pull(repo_name, name)
+                except docker.errors.APIError as e:
+                    self.logging.warning(f"Docker pull of image {reference} failed: {e}")
+                    continue
+            builder: BuilderImage = {
+                "name": reference,
+                "id": image.attrs["Id"],
+                "repo_digests": image.attrs.get("RepoDigests", []),
+            }
+            return builder
+        raise RuntimeError(
+            f"Neither {current_version_image_name} nor {previous_version_image_name} "
+            "builder image is available!"
+        )
+
+    def install_dependencies(self, output_dir: str, builder_image: Optional[str]) -> None:
         """Install benchmark dependencies using Docker.
 
         Uses Docker containers to install language-specific dependencies
@@ -1197,15 +1271,12 @@ class Benchmark(LoggingBase):
 
         Args:
             output_dir: Directory containing the code package to build
+            builder_image: Builder image, or None if the platform has no builder image
 
         Raises:
-            RuntimeError: If Docker image pull fails
             docker.errors.ContainerError: If dependency installation fails
         """
-        # do we have docker image for this run and language?
-        if "build" not in self._system_config.docker_image_types(
-            self._deployment_name, self.language_name
-        ):
+        if builder_image is None:
             self.logging.info(
                 (
                     "There is no Docker build image for {deployment} run in {language}, "
@@ -1213,48 +1284,6 @@ class Benchmark(LoggingBase):
                 ).format(deployment=self._deployment_name, language=self.language_name)
             )
         else:
-            repo_name = self._system_config.docker_repository()
-            previous_version_image_name, current_version_image_name = self.builder_image_name()
-
-            def ensure_image(name: str) -> None:
-                """Internal implementation of checking for Docker image existence.
-
-                Args:
-                    name: image name
-
-                Raises:
-                    RuntimeError: when image does not exist locally or cannot be pulled.
-                """
-                try:
-                    self._docker_client.images.get(repo_name + ":" + name)
-                except docker.errors.ImageNotFound:
-                    try:
-                        self.logging.info(
-                            "Docker pull of image {repo}:{image}".format(repo=repo_name, image=name)
-                        )
-                        self._docker_client.images.pull(repo_name, name)
-                    except docker.errors.APIError:
-                        raise RuntimeError(
-                            "Docker pull of image {}:{} failed!".format(repo_name, name)
-                        )
-
-            # Try current version image first, fallback to previous version if not available
-            image_name = current_version_image_name
-            try:
-                ensure_image(current_version_image_name)
-            except RuntimeError as e:
-                self.logging.warning(
-                    "Failed to ensure image {}, falling back to {}: {}".format(
-                        current_version_image_name, previous_version_image_name, e
-                    )
-                )
-                try:
-                    ensure_image(previous_version_image_name)
-                    # update `image_name` to the fallback image name
-                    image_name = previous_version_image_name
-                except RuntimeError:
-                    raise
-
             # Create set of mounted volumes
             volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
             package_script = os.path.abspath(
@@ -1279,7 +1308,7 @@ class Benchmark(LoggingBase):
                 try:
                     self.logging.info(
                         "Docker build of benchmark dependencies in container "
-                        "of image {repo}:{image}".format(repo=repo_name, image=image_name)
+                        f"of image {builder_image}"
                     )
                     self.logging.info(
                         "Docker mount of benchmark code from path {path}".format(
@@ -1287,7 +1316,7 @@ class Benchmark(LoggingBase):
                         )
                     )
                     container = self._docker_client.containers.run(
-                        "{}:{}".format(repo_name, image_name),
+                        builder_image,
                         volumes=volumes,
                         environment={
                             "CONTAINER_UID": str(os.getuid()),
@@ -1434,57 +1463,16 @@ class Benchmark(LoggingBase):
         """
 
         self._container_uri = None
+        # Only C++ function images build in a builder stage; others install dependencies
+        # on top of the runtime image.
+        builder = (
+            self.resolve_builder_image()
+            if not self.system_variant.is_container or self.language == Language.CPP
+            else None
+        )
+        builder_image = builder["name"] if builder else None
         if self.system_variant.is_container:
             assert container_client is not None
-
-            repo_name = self._system_config.docker_repository()
-            previous_version_image_name, current_version_image_name = self.builder_image_name()
-
-            # Try current version build image first, fallback to previous version
-            image_name = current_version_image_name
-            current_available = False
-            try:
-                self._docker_client.images.get(f"{repo_name}:{current_version_image_name}")
-                current_available = True
-            except Exception:
-                # Not available locally, try to pull it
-                try:
-                    self.logging.info(
-                        f"Docker pull of build image {repo_name}:{current_version_image_name}"
-                    )
-                    self._docker_client.images.pull(repo_name, current_version_image_name)
-                    current_available = True
-                except Exception:
-                    pass
-
-            if not current_available:
-                # Current version not available, try previous version
-                try:
-                    self._docker_client.images.get(f"{repo_name}:{previous_version_image_name}")
-                    image_name = previous_version_image_name
-                    self.logging.info(
-                        f"Using previous version build image {previous_version_image_name} "
-                        "(current version not available)"
-                    )
-                except Exception:
-                    # Previous version not local, try to pull it
-                    try:
-                        self.logging.info(
-                            f"Docker pull of build image {repo_name}:{previous_version_image_name}"
-                        )
-                        self._docker_client.images.pull(repo_name, previous_version_image_name)
-                        image_name = previous_version_image_name
-                        self.logging.info(
-                            f"Using previous version build image {previous_version_image_name} "
-                            "(current version not available)"
-                        )
-                    except Exception:
-                        # Neither version available - use current and let build fail
-                        self.logging.warning(
-                            f"Neither current ({current_version_image_name}) nor previous "
-                            f"({previous_version_image_name}) version build image available, "
-                            "build may fail"
-                        )
 
             """
                 Generate custom Dockerfile for C++ benchmarks
@@ -1526,7 +1514,7 @@ class Benchmark(LoggingBase):
                 self.architecture,
                 self.benchmark,
                 self.is_cached_valid,
-                f"{repo_name}:{image_name}",
+                builder_image,
             )
             self.logging.info(
                 f"Created function container {self._container_uri},"
@@ -1549,7 +1537,7 @@ class Benchmark(LoggingBase):
                 )
 
         else:
-            self.install_dependencies(self._output_dir)
+            self.install_dependencies(self._output_dir, builder_image)
 
             self._code_location, self._code_size = package_build_step(
                 os.path.abspath(self._output_dir),
@@ -1575,7 +1563,11 @@ class Benchmark(LoggingBase):
             Update can handle both update of an existing cache structure
             or creating an entirely new one.
         """
-        self._cache_client.update_code_package(self._deployment_name, self)
+        build_info: Build = {
+            "built": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "builder_image": builder,
+        }
+        self._cache_client.update_code_package(self._deployment_name, self, build_info)
         self.query_cache()
 
         return (
@@ -1676,6 +1668,7 @@ class Benchmark(LoggingBase):
             nosql_storage.update_cache(self._benchmark)
 
         self._input_processed = True
+        self._prepared_inputs[size] = input_config
 
         return input_config
 

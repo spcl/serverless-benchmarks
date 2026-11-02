@@ -30,19 +30,17 @@ def main(args):
 
         results_time = (end - begin) / datetime.timedelta(microseconds=1)
 
-        is_cold = False
-        fname = "cold_run"
-        if not os.path.exists(fname):
-            is_cold = True
-            open(fname, "a").close()
+        from function import environment
+        env = environment.collect()
 
         return {
             "begin": begin.strftime("%s.%f"),
             "end": end.strftime("%s.%f"),
             "request_id": os.getenv('__OW_ACTIVATION_ID'),
             "results_time": results_time,
-            "is_cold": is_cold,
+            "is_cold": "static" in env,
             "result": log_data,
+            "environment": env,
         }
     except Exception as e:
         end = datetime.datetime.now()
