@@ -20,9 +20,12 @@ if 'STORAGE_CONNECTION_STRING' in os.environ:
     from . import storage
     client = storage.storage.get_instance(os.environ['STORAGE_CONNECTION_STRING'])
 
+container_id = None
+
 # TODO: usual trigger
 # implement support for blob and others
 def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
+    global container_id
     income_timestamp = datetime.datetime.now().timestamp()
     req_json = req.get_json()
 
@@ -52,25 +55,8 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
     from . import environment
     env = environment.collect()
 
-    # cold test
-    is_cold = False
-    fname = os.path.join('/tmp','cold_run')
-    if not os.path.exists(fname):
-        is_cold = True
+    if 'static' in env:
         container_id = str(uuid.uuid4())[0:8]
-        with open(fname, 'a') as f:
-            f.write(container_id)
-    else:
-        with open(fname, 'r') as f:
-            container_id = f.read()
-
-    is_cold_worker = False
-    global cold_marker
-    try:
-        _ = cold_marker
-    except NameError:
-        cold_marker = True
-        is_cold_worker = True
 
     return func.HttpResponse(
         json.dumps({
@@ -78,8 +64,8 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
             'end': end.strftime('%s.%f'),
             'results_time': results_time,
             'result': log_data,
-            'is_cold': is_cold,
-            'is_cold_worker': is_cold_worker,
+            'is_cold': 'static' in env,
+            'is_cold_worker': 'static' in env,
             'container_id': container_id,
             'environ_container_id': os.environ['CONTAINER_NAME'],
             'request_id': context.invocation_id,
@@ -87,4 +73,3 @@ def main(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
         }),
         mimetype="application/json"
     )
-

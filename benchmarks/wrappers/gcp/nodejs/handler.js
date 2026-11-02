@@ -1,6 +1,5 @@
 // Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
-const path = require('path'), fs = require('fs');
 const environment = require('./function/environment');
 
 if('NOSQL_STORAGE_DATABASE' in process.env) {
@@ -21,20 +20,13 @@ exports.handler = async function(req, res) {
       var micro = elapsed[1] / 1e3 + elapsed[0] * 1e6;
       var env = environment.collect();
 
-      var is_cold = false;
-      var fname = path.join('/tmp','cold_run');
-      if(!fs.existsSync(fname)) {
-        is_cold = true;
-        fs.closeSync(fs.openSync(fname, 'w'));
-      }
-
       res.status(200).json({
           begin: begin,
           end: end,
           compute_time: micro,
           results_time: 0,
           result: result,
-          is_cold: is_cold,
+          is_cold: 'static' in env,
           request_id: requestId,
           environment: env
         });
