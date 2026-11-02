@@ -55,7 +55,7 @@ Or do you want to use SeBS in your work and you need new features?
 ## Installation
 
 Requirements:
-- Docker (at least 19)
+- Docker (at least 23)
 - Python 3.10+ with `pip` + `venv` or `uv`
 - `libcurl` and its headers must be available on your system to install `pycurl`
 - Standard Linux tools and `zip` installed
