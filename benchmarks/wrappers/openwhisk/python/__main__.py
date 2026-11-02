@@ -33,18 +33,12 @@ def main(args):
         from function import environment
         env = environment.collect()
 
-        is_cold = False
-        fname = "cold_run"
-        if not os.path.exists(fname):
-            is_cold = True
-            open(fname, "a").close()
-
         return {
             "begin": begin.strftime("%s.%f"),
             "end": end.strftime("%s.%f"),
             "request_id": os.getenv('__OW_ACTIVATION_ID'),
             "results_time": results_time,
-            "is_cold": is_cold,
+            "is_cold": "static" in env,
             "result": log_data,
             "environment": env,
         }

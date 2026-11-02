@@ -122,7 +122,8 @@ function collectStatic() {
 
 // Environment record for the invocation response.
 // Returns the full static record on the first call in this process, otherwise
-// only the boot id. Call it once the benchmark timing has stopped.
+// only the boot id, so a record with `static` marks a cold start.
+// Call it once the benchmark timing has stopped.
 exports.collect = function() {
   let bootId = null;
   try {

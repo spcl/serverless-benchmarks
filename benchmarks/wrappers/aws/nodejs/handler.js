@@ -1,6 +1,6 @@
 // Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 
-const path = require('path'), fs = require('fs');
+const environment = require('./function/environment');
 
 function process_output(data, http_trigger) {
   if(http_trigger)
@@ -22,12 +22,7 @@ exports.handler = async function(event, context) {
       var end = Date.now()/1000;
       var micro = elapsed[1] / 1e3 + elapsed[0] * 1e6;
 
-      var is_cold = false;
-      var fname = path.join('/tmp','cold_run');
-      if(!fs.existsSync(fname)) {
-        is_cold = true;
-        fs.closeSync(fs.openSync(fname, 'w'));
-      }
+      var env = environment.collect();
       return {
         statusCode: 200,
         body: process_output({
@@ -36,9 +31,9 @@ exports.handler = async function(event, context) {
           compute_time: micro,
           results_time: 0,
           result: result,
-          is_cold: is_cold,
+          is_cold: 'static' in env,
           request_id: context.awsRequestId,
-          environment: require('./function/environment').collect()
+          environment: env
         }, http_trigger)
       };
     },

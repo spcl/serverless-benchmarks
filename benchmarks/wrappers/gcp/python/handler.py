@@ -11,7 +11,10 @@ if 'NOSQL_STORAGE_DATABASE' in os.environ:
         os.environ['NOSQL_STORAGE_DATABASE']
     )
 
+container_id = None
+
 def handler(req):
+    global container_id
     income_timestamp = datetime.datetime.now().timestamp()
     req_id = req.headers.get('X-Cloud-Trace-Context') or req.headers.get('Function-Execution-Id')
 
@@ -39,30 +42,20 @@ def handler(req):
     else:
         results_time = 0
 
-    # cold test
-    is_cold = False
-    fname = os.path.join('/tmp', 'cold_run')
-    if not os.path.exists(fname):
-        is_cold = True
-        container_id = str(uuid.uuid4())[0:8]
-        with open(fname, 'a') as f:
-            f.write(container_id)
-    else:
-        with open(fname, 'r') as f:
-            container_id = f.read()
-
     cold_start_var = ""
     if "cold_start" in os.environ:
         cold_start_var = os.environ["cold_start"]
 
     from function import environment
     env = environment.collect()
+    if 'static' in env:
+        container_id = str(uuid.uuid4())[0:8]
 
     return json.dumps({
             'begin': begin.strftime('%s.%f'),
             'end': end.strftime('%s.%f'),
             'results_time': results_time,
-            'is_cold': is_cold,
+            'is_cold': 'static' in env,
             'result': log_data,
             'request_id': req_id,
             'cold_start_var': cold_start_var,
