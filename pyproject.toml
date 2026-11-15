@@ -143,7 +143,6 @@ sebs = ["py.typed"]
     "**/*.md",
     "**/Dockerfile*",
     "**/requirements.txt.*",
-    "**/package.json.*",
     "**/CMakeLists.txt",
 ]
 "sebs.dockerfiles" = [

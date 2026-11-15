@@ -11,7 +11,7 @@ options across different cloud providers and local deployments.
 """
 
 import json
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sebs.utils import get_resource_path
 
@@ -69,6 +69,21 @@ class SeBSConfig:
         """
         return self._system_config["general"]["docker_repository"]
 
+    def deployments(self, language_name: str) -> List[str]:
+        """Get the deployments that support a language.
+
+        Args:
+            language_name (str): Programming language name (e.g., 'python', 'nodejs').
+
+        Returns:
+            List[str]: Sorted names of the deployments supporting the language.
+        """
+        return sorted(
+            name
+            for name, system in self._system_config.items()
+            if language_name in system.get("languages", {})
+        )
+
     def deployment_packages(self, deployment_name: str, language_name: str) -> Dict[str, str]:
         """Get deployment packages for a specific deployment and language.
         These are packages added by SeBS to the benchmark's list of dependencies.
@@ -86,7 +101,7 @@ class SeBSConfig:
 
     def deployment_module_packages(
         self, deployment_name: str, language_name: str
-    ) -> Dict[str, List[str]]:
+    ) -> Dict[str, Any]:
         """Get deployment module packages for a specific deployment and language, e.g.,
         packages specific to object or NoSQL storage.
 
@@ -95,8 +110,9 @@ class SeBSConfig:
             language_name (str): Programming language name (e.g., 'python', 'nodejs').
 
         Returns:
-            Dict[str, List[str]]: Dictionary mapping benchmark modules to the package
-                specifications installed for them, e.g., "boto3==1.28.3".
+            Dict[str, Any]: Dictionary mapping benchmark modules to the packages installed
+                for them: a list of specifications in Python, e.g., "boto3==1.28.3",
+                and a dictionary of package names and versions in Node.js.
         """
         return self._system_config[deployment_name]["languages"][language_name]["deployment"][
             "module_packages"

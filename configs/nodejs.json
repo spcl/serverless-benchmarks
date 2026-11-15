@@ -8,7 +8,7 @@
     "system_variant": "package",
     "runtime": {
       "language": "nodejs",
-      "version": "20"
+      "version": "22"
     },
     "type": "invocation-overhead",
     "perf-cost": {
