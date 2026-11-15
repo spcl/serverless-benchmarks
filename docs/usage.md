@@ -21,7 +21,7 @@ If you want to simply build a function deployment, such as a full code package o
 then use the command below.
 
 ```bash
-sebs benchmark build 110.dynamic-html --config configs/example.json --deployment aws
+sebs benchmark package 110.dynamic-html --config configs/example.json --deployment aws
 ```
 
 It will create a code package (local) or build and push a container, when `--container-deployment` flag is used (AWS only).
@@ -39,6 +39,12 @@ sebs benchmark invoke 110.dynamic-html test --config configs/example.json --depl
 The results will be stored in `experiment.json`.
 To configure your benchmark, change settings in the config file or use command-line options.
 The full list is available by running `sebs benchmark invoke --help`.
+
+#### Reproducibility Manifest
+
+Every `benchmark invoke` and `experiment invoke` also writes `manifest.json` to the output directory,
+recording the SeBS revision, benchmark sources, builds, inputs, and deployed functions.
+See [manifest.md](manifest.md) for all fields and the environment records collected inside functions.
 
 ### Process
 

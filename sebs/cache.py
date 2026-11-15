@@ -19,7 +19,7 @@ Example:
     Basic cache usage:
         cache = Cache("/path/to/cache", docker_client)
         config = cache.get_benchmark_config("aws", "110.dynamic-html")
-        cache.add_code_package("aws", benchmark_instance)
+        cache.add_code_package("aws", benchmark_instance, build)
 """
 
 import collections.abc
@@ -36,6 +36,7 @@ from sebs.utils import LoggingBase, serialize
 
 if TYPE_CHECKING:
     from sebs.benchmark import Benchmark
+    from sebs.manifest import Build
     from sebs.faas.function import Function
 
 
@@ -767,6 +768,7 @@ class Cache(LoggingBase):
         self,
         deployment_name: str,
         code_package: "Benchmark",
+        build: "Build",
     ) -> None:
         """Add a new code package to the cache.
 
@@ -778,6 +780,7 @@ class Cache(LoggingBase):
         Args:
             deployment_name (str): Name of the deployment platform.
             code_package (Benchmark): The benchmark code package to cache.
+            build: How the package was built, stored for the reproducibility manifest.
 
         Raises:
             RuntimeError: If cached application already exists for the deployment.
@@ -793,7 +796,7 @@ class Cache(LoggingBase):
             if not os.path.exists(cached_dir):
                 os.makedirs(cached_dir, exist_ok=True)
 
-                language_config = code_package.serialize()
+                language_config = {**code_package.serialize(), "build": build}
                 if code_package.code_location is not None:
                     self.logging.info(
                         f"Caching code package created at {code_package.code_location}"
@@ -879,6 +882,7 @@ class Cache(LoggingBase):
         self,
         deployment_name: str,
         code_package: "Benchmark",
+        build: "Build",
     ) -> None:
         """Update an existing code package in the cache.
 
@@ -889,6 +893,7 @@ class Cache(LoggingBase):
         Args:
             deployment_name (str): Name of the deployment platform.
             code_package (Benchmark): The benchmark code package to update.
+            build: How the package was built, stored for the reproducibility manifest.
         """
         with self._lock:
             benchmark_dir = os.path.join(self.cache_dir, code_package.benchmark)
@@ -900,7 +905,7 @@ class Cache(LoggingBase):
             config_location = os.path.join(benchmark_dir, "config.json")
 
             if not os.path.exists(config_location):
-                self.add_code_package(deployment_name, code_package)
+                self.add_code_package(deployment_name, code_package, build)
                 return
 
             with open(config_location, "r") as fp:
@@ -948,8 +953,8 @@ class Cache(LoggingBase):
 
                 cached_config = keys_get(config, [deployment_name, *base_keys, *extra_keys])
                 cached_config["date"]["modified"] = date
-                cached_config["hash"] = code_package.hash
-                cached_config["size"] = code_package.code_size
+                cached_config.update(code_package.serialize())
+                cached_config["build"] = build
 
                 if code_package.system_variant.is_container:
                     image = self.docker_client.images.get(code_package.container_uri)
@@ -958,7 +963,7 @@ class Cache(LoggingBase):
 
                 self._write_json_atomic(os.path.join(benchmark_dir, "config.json"), config)
             else:
-                self.add_code_package(deployment_name, code_package)
+                self.add_code_package(deployment_name, code_package, build)
 
     def add_function(
         self,

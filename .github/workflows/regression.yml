@@ -69,7 +69,7 @@ jobs:
             architecture: "x64"
           - platform: gcp
             language: nodejs
-            version: "20"
+            version: "22"
             architecture: "x64"
           - platform: gcp
             language: java
@@ -81,7 +81,7 @@ jobs:
             architecture: "x64"
           - platform: azure
             language: nodejs
-            version: "20"
+            version: "22"
             architecture: "x64"
           - platform: azure
             language: java
