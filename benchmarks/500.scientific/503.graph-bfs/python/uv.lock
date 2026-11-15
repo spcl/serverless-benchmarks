@@ -1,0 +1,50 @@
+version = 1
+revision = 3
+requires-python = ">=3.10"
+resolution-markers = [
+    "sys_platform == 'linux'",
+]
+supported-markers = [
+    "sys_platform == 'linux'",
+]
+
+[[package]]
+name = "igraph"
+version = "0.11.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "texttable" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/2a/9d/c877ba3037056bc456c9630e781c4c7a682ef7f2449ed1b206f6b0ba9a6f/igraph-0.11.4.tar.gz", hash = "sha256:2437ae0157af6824e2e65a23f7a1fa4fbf0f3664333c72aeca4fc01b83e18483", size = 4497368, upload-time = "2024-02-13T22:26:31.71Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5c/83/e3e7b576597e3b5e7d6b523bed80f42e57c18e41b454577da6c14bc56d54/igraph-0.11.4-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1e1089df6ef152259028bc989e2045e0f570a0367ac5725a0a076318165ed5b0", size = 3157549, upload-time = "2024-02-13T22:25:32.697Z" },
+    { url = "https://files.pythonhosted.org/packages/53/00/b1280c5c6b063c9983a802ced1495f2a94bdf2edab2deb17006559509e6f/igraph-0.11.4-cp39-abi3-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:456f7ef35271fe10cd95dc7437e7d2121b1fc1c3dc70d6a4290645f4eaf41c73", size = 3309856, upload-time = "2024-02-13T22:25:34.878Z" },
+    { url = "https://files.pythonhosted.org/packages/93/32/95d66d6fb3bc1b48d755686f0b3bf824ffa7eb4fad6227d414f65faeed7f/igraph-0.11.4-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9e262f59da1c84f174b3b0ca960a3bf4988387441cf4ef70a4899731c5100cc4", size = 3303100, upload-time = "2024-02-13T22:25:36.904Z" },
+    { url = "https://files.pythonhosted.org/packages/68/4f/0d70002faa619e234a10ecb13224c2646e88f79730cc94ba88a77ba1e85e/igraph-0.11.4-cp39-abi3-musllinux_1_1_aarch64.whl", hash = "sha256:8052b0ed6e4394876daf66b52d590539bfb859108d7acb7da7b6e5b9bf5766f8", size = 3604137, upload-time = "2024-02-13T22:25:39.207Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/c3/8fcb3f71ca3110fb8f281173625cd5d47d6daa5a8704abd77aa54e901ffc/igraph-0.11.4-cp39-abi3-musllinux_1_1_i686.whl", hash = "sha256:3641d2ae9e76e2628367774f4a64095f6cbbea0c94f6bbad7fea2df9c5bf5e82", size = 3753904, upload-time = "2024-02-13T22:25:41.503Z" },
+    { url = "https://files.pythonhosted.org/packages/35/c4/6fbd8d7229f2c0e8e34def2ef288b498ee46fa2ad0501a24aec5d1812d91/igraph-0.11.4-cp39-abi3-musllinux_1_1_x86_64.whl", hash = "sha256:ca02917924dcb24e4ed4fc31a64350060f4ae5c74358a5ff8a334be74f454b70", size = 3726404, upload-time = "2024-02-13T22:25:44.322Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/d1/90231f31373ce42ac97ee95314edfbe55f67495aa0cf388cb4757033a397/igraph-0.11.4-pp310-pypy310_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:138d0804a445aeeffc5e1eefd792d7d91cc30f3be3eea7c67fe928484579b90f", size = 2773890, upload-time = "2024-02-13T22:25:52.969Z" },
+    { url = "https://files.pythonhosted.org/packages/64/ac/712e3886d7c03a4d7733957d0ea632cc8521d6b3ae7146c9368b3bae5d87/igraph-0.11.4-pp310-pypy310_pp73-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:50d49808f4a72b28cb18471b9ea577837504b47fa1799357b5ee26763f791d14", size = 3008530, upload-time = "2024-02-13T22:25:55.326Z" },
+    { url = "https://files.pythonhosted.org/packages/e7/23/7055b1c9682fe39ee4dc4a861fa3da530011ae06ad1b2ccb3ce1fb709486/igraph-0.11.4-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7b323b5645eac4e8b1a16ab902c646605ec9052a88eb70f79284cf30e96d873e", size = 2928672, upload-time = "2024-02-13T22:25:57.61Z" },
+]
+
+[[package]]
+name = "sebs-503-graph-bfs"
+version = "0"
+source = { virtual = "." }
+dependencies = [
+    { name = "igraph" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "igraph", specifier = "==0.11.4" }]
+provides-extras = ["aws", "azure", "gcp", "local", "openwhisk"]
+
+[[package]]
+name = "texttable"
+version = "1.7.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1c/dc/0aff23d6036a4d3bf4f1d8c8204c5c79c4437e25e0ae94ffe4bbb55ee3c2/texttable-1.7.0.tar.gz", hash = "sha256:2d2068fb55115807d3ac77a4ca68fa48803e84ebb0ee2340f858107a36522638", size = 12831, upload-time = "2023-10-03T09:48:12.272Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/24/99/4772b8e00a136f3e01236de33b0efda31ee7077203ba5967fcc76da94d65/texttable-1.7.0-py2.py3-none-any.whl", hash = "sha256:72227d592c82b3d7f672731ae73e4d1f88cd8e2ef5b075a7a7f01a23a3743917", size = 10768, upload-time = "2023-10-03T09:48:10.434Z" },
+]

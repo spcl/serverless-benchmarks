@@ -19,7 +19,9 @@ from abc import abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import docker
+from uv import find_uv_bin
 
+from sebs import dependencies
 from sebs.cpp_dependencies import CppDependencies
 
 from sebs.config import SeBSConfig
@@ -682,7 +684,7 @@ class Benchmark(LoggingBase):
         """
         hash_sum = hashlib.md5()
         FILES = {
-            Language.PYTHON: ["*.py", "requirements.txt*"],
+            Language.PYTHON: ["*.py", "pyproject.toml", "uv.lock"],
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: ["*.java", "pom.xml"],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
@@ -784,7 +786,7 @@ class Benchmark(LoggingBase):
             output_dir: Destination directory for copied files
         """
         FILES = {
-            Language.PYTHON: ["*.py", "requirements.txt*"],
+            Language.PYTHON: ["*.py"],
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: [],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
@@ -797,11 +799,6 @@ class Benchmark(LoggingBase):
         for file_type in FILES[self.language]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
-
-        # support node.js benchmarks with language specific packages
-        nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
-        if os.path.exists(nodejs_package_json):
-            shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
 
         if self._language_variant != "default":
             variant_dir = os.path.join(path, self._language_variant)
@@ -841,12 +838,6 @@ class Benchmark(LoggingBase):
                 for file_type in FILES[self.language]:
                     for f in glob.glob(os.path.join(variant_dir, file_type)):
                         shutil.copy2(f, output_dir)
-                # version-specific package.json override for Node.js
-                nodejs_variant_pkg = os.path.join(
-                    variant_dir, f"package.json.{self.language_version}"
-                )
-                if os.path.exists(nodejs_variant_pkg):
-                    shutil.copy2(nodejs_variant_pkg, os.path.join(output_dir, "package.json"))
                 self.logging.info(
                     "Applied file overlay for variant {}".format(self._language_variant)
                 )
@@ -919,63 +910,72 @@ class Benchmark(LoggingBase):
                     shutil.copy2(file, destination)
 
     def add_deployment_package_python(self, output_dir: str) -> None:
-        """Add Python deployment packages to requirements file.
+        """Export the benchmark's uv lockfile into a hash-pinned requirements.txt.
 
-        Appends platform-specific Python packages and benchmark module
-        dependencies to the requirements.txt file for the deployment.
-
-        Handles versioned requirements files (e.g., requirements.txt.3.8).
+        Every Python benchmark ships a `pyproject.toml` and `uv.lock` in its
+        source directory. Each deployment is an extra with the packages of the
+        SeBS wrappers for the benchmark's modules (generated from
+        `module_packages` in systems.json), so `uv export --extra <deployment>`
+        yields the complete, reproducible install input.
 
         Args:
-            output_dir: Directory containing the requirements file to modify
+            output_dir: Directory containing the code package being built
+
+        Raises:
+            RuntimeError: If the lockfile is stale
         """
-
-        destination_file = f"requirements.txt.{self._language_version}"
-        if not os.path.exists(os.path.join(output_dir, destination_file)):
-            destination_file = "requirements.txt"
-
-        packages = list(
-            self._system_config.deployment_packages(self._deployment_name, self.language_name)
+        command = [
+            find_uv_bin(),
+            "export",
+            "--directory",
+            os.path.join(self._benchmark_path, self.language_name),
+            "--locked",
+            "--quiet",
+            "--format",
+            "requirements.txt",
+            "--no-emit-project",
+            "--no-header",
+            # benchmarks may pin packages from extra indexes, e.g., CPU-only torch
+            "--emit-index-url",
+            "--extra",
+            self._deployment_name,
+        ]
+        self.logging.info(
+            "Exporting locked dependencies for {deployment}: {cmd}".format(
+                deployment=self._deployment_name, cmd=" ".join(command)
+            )
         )
-        module_packages = self._system_config.deployment_module_packages(
-            self._deployment_name, self.language_name
-        )
-        for bench_module in self._benchmark_config.modules:
-            packages.extend(module_packages.get(bench_module.value, []))
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                "uv export failed for {benchmark} ({deployment}):\n{err}".format(
+                    benchmark=self.benchmark,
+                    deployment=self._deployment_name,
+                    err=result.stderr,
+                )
+            )
 
-        # Always create the requirements file: the installer expects it, and
-        # benchmarks without dependencies do not provide one.
-        with open(os.path.join(output_dir, destination_file), "a") as out:
-            # append one requirement per line; the leading newline
-            # guards against a file without a trailing newline
-            if packages:
-                out.write("\n" + "\n".join(packages) + "\n")
+        # Always create the requirements file: the installers expect it, even
+        # when the benchmark has no dependencies for this deployment.
+        with open(os.path.join(output_dir, "requirements.txt"), "w") as f:
+            f.write(result.stdout)
 
     def add_deployment_package_nodejs(self, output_dir: str) -> None:
-        """Add Node.js deployment packages to package.json.
+        """Add the deployment packages and the benchmark's lockfile for this deployment.
 
-        Modifies the package.json file to include platform-specific
-        Node.js dependencies required for deployment.
-        Handles versioned package.json files (e.g., package.json.12).
+        See `sebs.dependencies.add_nodejs_lockfile`.
 
         Args:
-            output_dir: Directory containing the package.json file to modify
+            output_dir: Directory containing the package.json file to extend
         """
-        # modify package.json
-        packages = self._system_config.deployment_packages(
-            self._deployment_name, self.language_name
+        dependencies.add_nodejs_lockfile(
+            output_dir,
+            os.path.join(self._benchmark_path, self.language_name),
+            self._language_variant,
+            self._system_config,
+            self._deployment_name,
+            [module.value for module in self._benchmark_config.modules],
         )
-        if len(packages):
-            package_config = os.path.join(output_dir, f"package.json.{self._language_version}")
-            if not os.path.exists(package_config):
-                package_config = os.path.join(output_dir, "package.json")
-
-            with open(package_config, "r") as package_file:
-                package_json = json.load(package_file)
-            for key, val in packages.items():
-                package_json["dependencies"][key] = val
-            with open(package_config, "w") as package_file:
-                json.dump(package_json, package_file, indent=2)
 
     def format_maven_dependency(self, group_artifact: str, version: str) -> str:
         """Helper method to format Java system dependencies.
