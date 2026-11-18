@@ -11,7 +11,7 @@ options across different cloud providers and local deployments.
 """
 
 import json
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sebs.utils import get_resource_path
 
@@ -102,6 +102,29 @@ class SeBSConfig:
             "module_packages"
         ]
 
+    def deployment_module_package_versions(
+        self, deployment_name: str, language_name: str
+    ) -> Dict[str, Dict[str, Any]]:
+        """Get deployment module packages for languages declaring versions separately.
+
+        Java and .NET name their dependencies as "package": version pairs, like
+        :func:`deployment_packages`, whereas Python and Node.js use a single specification
+        string per package. This accessor returns the former shape. A package needing
+        transitive dependencies dropped names them alongside its version, as an object
+        with "version" and "exclusions".
+
+        Args:
+            deployment_name (str): Name of the deployment platform (e.g., 'aws', 'azure').
+            language_name (str): Programming language name (e.g., 'java', 'dotnet').
+
+        Returns:
+            Dict[str, Dict[str, Any]]: Dictionary mapping benchmark modules to the packages
+                added for them, each mapping a package name to its version or specification.
+        """
+        return self._system_config[deployment_name]["languages"][language_name]["deployment"].get(
+            "module_packages", {}
+        )
+
     def deployment_files(self, deployment_name: str, language_name: str) -> List[str]:
         """Get deployment files list for a specific deployment and language.
 
@@ -115,6 +138,27 @@ class SeBSConfig:
         return self._system_config[deployment_name]["languages"][language_name]["deployment"][
             "files"
         ]
+
+    def deployment_module_files(
+        self, deployment_name: str, language_name: str
+    ) -> Dict[str, List[str]]:
+        """Get wrapper files added only for benchmarks using a given module.
+
+        Wrappers listed in :func:`deployment_files` are added to every benchmark, while these
+        are added only when the benchmark declares the module. Languages whose module wrappers
+        carry no extra dependencies do not need the distinction and omit the key.
+
+        Args:
+            deployment_name (str): Name of the deployment platform (e.g., 'aws', 'azure').
+            language_name (str): Programming language name (e.g., 'java', 'dotnet').
+
+        Returns:
+            Dict[str, List[str]]: Dictionary mapping benchmark modules to the wrapper files
+                added for them, relative to the language's wrapper directory.
+        """
+        return self._system_config[deployment_name]["languages"][language_name]["deployment"].get(
+            "module_files", {}
+        )
 
     def docker_image_types(self, deployment_name: str, language_name: str) -> List[str]:
         """Get available Docker image types for a deployment and language.

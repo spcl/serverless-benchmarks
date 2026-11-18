@@ -688,10 +688,12 @@ class Benchmark(LoggingBase):
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
             Language.DOTNET: ["*.cs", "*.csproj"],
         }
+        # "modules" holds the wrappers added only for benchmarks using a module; they are
+        # hashed for every benchmark, which can invalidate a package that did not need them.
         WRAPPERS = {
             Language.PYTHON: ["*.py"],
             Language.NODEJS: ["*.js"],
-            Language.JAVA: ["src"],
+            Language.JAVA: ["src", "modules"],
             Language.CPP: ["*.cpp", "*.hpp"],
             Language.DOTNET: ["*.cs"],
         }
@@ -913,6 +915,17 @@ class Benchmark(LoggingBase):
             )
         ]
 
+        # Wrappers for modules the benchmark uses, e.g. object storage. They are kept out of
+        # the unconditional list because their dependencies increase the package size.
+        module_files = self._system_config.deployment_module_files(
+            self._deployment_name, self.language_name
+        )
+        for bench_module in self._benchmark_config.modules:
+            handlers.extend(
+                os.path.join(handlers_dir, file)
+                for file in module_files.get(bench_module.value, [])
+            )
+
         for file in handlers:
             destination = os.path.join(output_dir, os.path.basename(file))
             if os.path.isdir(file):
@@ -980,7 +993,45 @@ class Benchmark(LoggingBase):
             with open(package_config, "w") as package_file:
                 json.dump(package_json, package_file, indent=2)
 
-    def format_maven_dependency(self, group_artifact: str, version: str) -> str:
+    def _module_packages(self) -> Dict[str, Any]:
+        """Collect the packages required by the modules this benchmark uses.
+
+        Used by the Java and .NET package builders, whose dependencies are named as
+        "package": version pairs. Benchmarks without modules get no extra packages, keeping
+        their deployment package as small as it was.
+
+        Returns:
+            Dict[str, Any]: Package names mapped to their specification.
+        """
+        module_packages = self._system_config.deployment_module_package_versions(
+            self._deployment_name, self.language_name
+        )
+        packages: Dict[str, Any] = {}
+        for bench_module in self._benchmark_config.modules:
+            packages.update(module_packages.get(bench_module.value, {}))
+        return packages
+
+    @staticmethod
+    def parse_package_spec(spec: Any) -> Tuple[str, List[str]]:
+        """Split a dependency specification from systems.json into version and exclusions.
+
+        A dependency is named either by its version alone, or by an object carrying the
+        version and the transitive dependencies to drop.
+
+        Args:
+            spec: version string, or a dict with "version" and optional "exclusions"
+
+        Returns:
+            Tuple[str, List[str]]: the version, and the excluded dependencies as
+                "group:artifact" names
+        """
+        if isinstance(spec, dict):
+            return spec["version"], spec.get("exclusions", [])
+        return spec, []
+
+    def format_maven_dependency(
+        self, group_artifact: str, version: str, exclusions: Optional[List[str]] = None
+    ) -> str:
         """Helper method to format Java system dependencies.
         Dependencies in system.json are in "group:artifact": version format;
         this function converts them to proper Maven <dependency> blocks.
@@ -988,16 +1039,30 @@ class Benchmark(LoggingBase):
         Args:
             group_artifact: name of library to add to benchmark
             version: library version
+            exclusions: transitive dependencies to drop, as "group:artifact" names
 
         Returns:
             XML-formatted block inserted into pom.xml
         """
         group_id, artifact_id = group_artifact.split(":")
+        exclusion_block = ""
+        if exclusions:
+            excluded = "".join(
+                f"""
+                <exclusion>
+                    <groupId>{excluded_artifact.split(":")[0]}</groupId>
+                    <artifactId>{excluded_artifact.split(":")[1]}</artifactId>
+                </exclusion>"""
+                for excluded_artifact in exclusions
+            )
+            exclusion_block = f"""
+            <exclusions>{excluded}
+            </exclusions>"""
         return f"""
         <dependency>
             <groupId>{group_id}</groupId>
             <artifactId>{artifact_id}</artifactId>
-            <version>{version}</version>
+            <version>{version}</version>{exclusion_block}
         </dependency>"""
 
     def add_deployment_package_java(self, output_dir: str):
@@ -1014,17 +1079,20 @@ class Benchmark(LoggingBase):
         with open(pom_path, "r") as f:
             pom_content = f.read()
 
-        packages = self._system_config.deployment_packages(
-            self._deployment_name, self.language_name
+        packages: Dict[str, Any] = dict(
+            self._system_config.deployment_packages(self._deployment_name, self.language_name)
         )
+        packages.update(self._module_packages())
 
         dependency_blocks = ""
         if len(packages):
             for key, val in packages.items():
                 dependency_name = key.strip('"').strip("'")
-                dependency_version = val.strip('"').strip("'")
+                version, exclusions = Benchmark.parse_package_spec(val)
+                dependency_version = version.strip('"').strip("'")
                 dependency_blocks += (
-                    self.format_maven_dependency(dependency_name, dependency_version) + "\n"
+                    self.format_maven_dependency(dependency_name, dependency_version, exclusions)
+                    + "\n"
                 )
 
         if "<!-- PLATFORM_DEPENDENCIES -->" not in pom_content:
@@ -1067,12 +1135,15 @@ class Benchmark(LoggingBase):
         with open(csproj_path, "r") as f:
             csproj_content = f.read()
 
-        packages = self._system_config.deployment_packages(
-            self._deployment_name, self.language_name
+        packages: Dict[str, Any] = dict(
+            self._system_config.deployment_packages(self._deployment_name, self.language_name)
         )
+        packages.update(self._module_packages())
 
         package_items = ""
-        for name, version in packages.items():
+        for name, spec in packages.items():
+            # NuGet resolves a single implementation per package, so .NET declares no exclusions.
+            version, _ = Benchmark.parse_package_spec(spec)
             package_items += self.format_nuget_dependency(name, version) + "\n"
 
         if "<!-- PLATFORM_DEPENDENCIES -->" not in csproj_content:

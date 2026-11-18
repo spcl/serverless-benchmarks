@@ -2,6 +2,8 @@
 
 ### Features
 
+* Object storage for Java and .NET on AWS: `Storage.java` (AWS SDK v2) and `Storage.cs` (AWSSDK.S3) implement the interface of the Python wrapper's `storage` class. Both are added only to benchmarks declaring the `storage` module, through the new `module_files` and `module_packages` entries in `configs/systems.json`, so benchmarks without storage keep their package size and cold start.
+
 * Cold start enforcement for the local deployment: SeBS replaces the function container, and the local function servers report the first invocation of a container as cold. Requires the updated local run images.
 
 * [RustFS](https://github.com/rustfs/rustfs) is the new default S3-compatible object storage for local and OpenWhisk deployments. Minio is deprecated and kept for reproducibility (`configs/storage-minio.json`). The self-hosted object storage implementation is now shared between backends.

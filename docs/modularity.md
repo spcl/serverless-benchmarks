@@ -240,6 +240,27 @@ and `storage` which hides the cloud API of persistent storage.
 
 For example, examine the existing implementations in [`benchmarks/wrappers/`](/benchmarks/wrappers/).
 
+Wrappers named in `deployment.files` are added to every benchmark. A wrapper whose SDK
+is large enough to affect the package size and the cold start belongs in `deployment.module_files`
+instead, keyed by the benchmark module that needs it; it is added only to benchmarks declaring
+that module in their `config.json`. Its dependencies belong in `deployment.module_packages`,
+keyed the same way. Languages naming dependencies as `"package": version` pairs, such as Java
+and .NET, may replace the version with an object to drop transitive dependencies:
+
+```json
+"module_packages": {
+  "storage": {
+    "software.amazon.awssdk:s3": {
+      "version": "2.46.7",
+      "exclusions": ["software.amazon.awssdk:netty-nio-client"]
+    }
+  }
+},
+"module_files": {
+  "storage": ["modules/storage/src"]
+}
+```
+
 ### Adapt Platform Mode
 
 The final step is adjusting the SeBS code whenever we make a language-specific decision.
