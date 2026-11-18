@@ -1,0 +1,11 @@
+{
+  "name": "sleep",
+  "description": "Sleep for the given number of seconds and return the measured duration.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "sleep": {"type": "number", "description": "Seconds to sleep."}
+    },
+    "required": ["sleep"]
+  }
+}

@@ -714,6 +714,11 @@ class Benchmark(LoggingBase):
                         for f in glob.glob(os.path.join(variant_dir, file_type)):
                             with open(f, "rb") as opened_file:
                                 hash_sum.update(opened_file.read())
+        # MCP tool definition lives next to the language directories
+        mcp_definition = os.path.join(os.path.dirname(directory), "mcp.json")
+        if os.path.exists(mcp_definition):
+            with open(mcp_definition, "rb") as opened_file:
+                hash_sum.update(opened_file.read())
         # wrappers
         wrapper_patterns = WRAPPERS[language]
         for pattern in wrapper_patterns:
@@ -730,6 +735,12 @@ class Benchmark(LoggingBase):
                 else:
                     with open(f, "rb") as opened_file:
                         hash_sum.update(opened_file.read())
+        # MCP shim, shipped with the platform wrappers (see configs/systems.json)
+        for pattern in wrapper_patterns:
+            shim = get_resource_path("benchmarks", "wrappers", "mcp", language.value, pattern)
+            for f in glob.glob(str(shim)):
+                with open(f, "rb") as opened_file:
+                    hash_sum.update(opened_file.read())
         return hash_sum.hexdigest()
 
     def serialize(self) -> dict:
@@ -797,6 +808,11 @@ class Benchmark(LoggingBase):
         for file_type in FILES[self.language]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
+
+        # MCP tool definition, used when the function is invoked over MCP
+        mcp_definition = os.path.join(self.benchmark_path, "mcp.json")
+        if os.path.exists(mcp_definition):
+            shutil.copy2(mcp_definition, output_dir)
 
         # support node.js benchmarks with language specific packages
         nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")

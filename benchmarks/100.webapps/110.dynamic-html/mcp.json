@@ -1,0 +1,12 @@
+{
+  "name": "render_html",
+  "description": "Render a personalized HTML page with a list of random numbers.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "username": {"type": "string", "description": "Name shown in the greeting."},
+      "random_len": {"type": "integer", "description": "Number of random list items to render."}
+    },
+    "required": ["username", "random_len"]
+  }
+}

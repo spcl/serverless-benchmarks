@@ -38,7 +38,8 @@
         "deployment": {
           "files": [
             "storage.py",
-            "nosql.py"
+            "nosql.py",
+            "../../mcp/python/mcp_shim.py"
           ],
           "packages": [],
           "module_packages": {
@@ -111,7 +112,8 @@
             "handler.py",
             "storage.py",
             "nosql.py",
-            "setup.py"
+            "setup.py",
+            "../../mcp/python/mcp_shim.py"
           ],
           "packages": [],
           "module_packages": {}
