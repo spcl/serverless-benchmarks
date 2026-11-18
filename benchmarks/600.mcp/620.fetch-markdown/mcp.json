@@ -1,0 +1,17 @@
+{
+  "name": "fetch",
+  "description": "Fetch a web page and return its main content as markdown.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "upstream": {"type": "string", "description": "Benchmark parameter: base URL of the page server."},
+      "latency_ms": {"type": "number", "description": "Benchmark parameter: server response delay in milliseconds."},
+      "size": {"type": "integer", "description": "Benchmark parameter: page size in bytes."},
+      "seed": {"type": "integer", "description": "Benchmark parameter: selects the generated page."},
+      "max_length": {"type": "integer", "description": "Maximum number of characters to return.", "default": 5000},
+      "start_index": {"type": "integer", "description": "Return content starting at this character, for paging through long pages.", "default": 0},
+      "reuse_connection": {"type": "boolean", "description": "Benchmark parameter: keep the connection alive across calls.", "default": true}
+    },
+    "required": ["upstream"]
+  }
+}

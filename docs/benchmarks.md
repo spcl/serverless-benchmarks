@@ -14,6 +14,8 @@
 | Scientific      | 502.graph-mst    | Python    | x64, arm64 | Minimum spanning tree (MST)  implementation with igraph. |
 | Scientific      | 503.graph-bfs    | Python, C++ | x64, arm64 | Breadth-first search (BFS) implementation with igraph. |
 | Scientific      | 504.dna-visualisation    | Python   | x64, arm64 | Creates a visualization data for DNA sequence. |
+| MCP tools      | 610.api-proxy    | Python   | x64, arm64 | MCP tool wrapping a REST API: waits on an upstream service, then reshapes its JSON. |
+| MCP tools      | 620.fetch-markdown    | Python   | x64, arm64 | MCP fetch tool: downloads a web page and converts it to markdown. |
 
 For more details on benchmark selection and their characterization, please refer to [our papers](../README.md#publications). Detailed information about each benchmark can be found in its respective README.md file.
 
@@ -80,6 +82,27 @@ Breadth-first search (BFS) implementation with igraph. [Details →](../benchmar
 ### 504.dna-visualisation - DNA Visualization
 
 Creates a visualization data for DNA sequence. [Details →](../benchmarks/500.scientific/504.dna-visualisation/README.md)
+
+## MCP tools
+
+Benchmarks with an `mcp.json` file next to their language directories can also be called as a tool over the
+[Model Context Protocol](https://modelcontextprotocol.io) (Streamable HTTP, stateless, JSON responses).
+The same deployed function serves both: a request whose body is a JSON-RPC message (`initialize`,
+`tools/list`, `tools/call`, `ping`) is answered by the MCP shim in `benchmarks/wrappers/mcp/python`, any other
+request follows the usual path. On AWS, use the function URL; on the local platform, the `/mcp` route.
+SeBS measurements are returned in the tool result's `_meta.sebs`. Currently supported for Python on AWS
+and the local platform; `010.sleep` and `110.dynamic-html` include a tool definition.
+
+The two benchmarks below model the most common kinds of MCP tools. Both call an upstream HTTP service
+given by `SEBS_MOCK_UPSTREAM`, whose delay and response size are set per call.
+
+### 610.api-proxy - API Proxy
+
+MCP tool wrapping a REST API: waits on an upstream service, then reshapes its JSON. [Details →](../benchmarks/600.mcp/610.api-proxy/README.md)
+
+### 620.fetch-markdown - Fetch Markdown
+
+MCP fetch tool: downloads a web page and converts it to markdown. [Details →](../benchmarks/600.mcp/620.fetch-markdown/README.md)
 
 ## Serverless Workflows
 

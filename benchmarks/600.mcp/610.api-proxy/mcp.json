@@ -1,0 +1,17 @@
+{
+  "name": "search_products",
+  "description": "Search the product catalog and return the best-rated matching products.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "upstream": {"type": "string", "description": "Benchmark parameter: base URL of the upstream API."},
+      "latency_ms": {"type": "number", "description": "Benchmark parameter: upstream response delay in milliseconds."},
+      "size": {"type": "integer", "description": "Benchmark parameter: upstream response size in bytes."},
+      "seed": {"type": "integer", "description": "Benchmark parameter: selects the generated catalog."},
+      "limit": {"type": "integer", "description": "Maximum number of products to return.", "default": 10},
+      "in_stock_only": {"type": "boolean", "description": "Only return products that are in stock.", "default": true},
+      "reuse_connection": {"type": "boolean", "description": "Benchmark parameter: keep the upstream connection alive across calls.", "default": true}
+    },
+    "required": ["upstream"]
+  }
+}
