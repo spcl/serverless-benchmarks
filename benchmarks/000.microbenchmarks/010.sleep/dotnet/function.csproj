@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- DOTNET_VERSION is set by the build image. -->
+    <TargetFramework>net$(DOTNET_VERSION).0</TargetFramework>
+    <!-- Part of the platform handler strings. -->
+    <AssemblyName>function</AssemblyName>
+    <Nullable>enable</Nullable>
+    <!-- Required by the runtime; not generated for libraries by default. -->
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- PLATFORM_DEPENDENCIES -->
+  </ItemGroup>
+
+</Project>

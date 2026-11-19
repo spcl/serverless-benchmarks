@@ -85,7 +85,7 @@ def validate_output(
     Args:
         input_config: The input configuration dict used to invoke the benchmark
         output: The output dict returned by the benchmark function handler
-        language: Programming language used (e.g., 'python', 'nodejs', 'cpp', 'java')
+        language: Programming language used (e.g., 'python', 'nodejs', 'cpp', 'java', 'dotnet')
         architecture: CPU architecture (e.g., 'x64', 'arm64')
         storage: Optional PersistentStorage client for downloading/verifying files
 
@@ -133,7 +133,7 @@ For each benchmark, the `input.py` file provides a generation of inputs and uplo
 
 ## New Languages
 
-At the moment, SeBS implements benchmarks in Python and Node.js. However, it is very easy to add new languages,
+At the moment, SeBS implements benchmarks in Python, Node.js, Java, C++, and .NET. However, it is very easy to add new languages,
 and it requires only minor modifications.
 
 ### Language Name

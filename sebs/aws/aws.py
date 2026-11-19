@@ -13,6 +13,7 @@ import os
 import shutil
 import time
 import uuid
+import zipfile
 from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 
 import boto3
@@ -274,6 +275,25 @@ class AWS(System):
             mbytes = bytes_size / 1024.0 / 1024.0
             self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
+        elif language == Language.DOTNET:
+            # Assemblies go at the archive root.
+            publish_dir = os.path.join(directory, "publish")
+            if not os.path.isdir(publish_dir):
+                raise RuntimeError(
+                    f".NET output {publish_dir} missing. Ensure the .NET build produced it."
+                )
+            benchmark_archive = os.path.join(directory, "{}.zip".format(benchmark))
+            with zipfile.ZipFile(benchmark_archive, "w", zipfile.ZIP_DEFLATED) as archive:
+                for root, _, files in os.walk(publish_dir):
+                    for file in files:
+                        path = os.path.join(root, file)
+                        archive.write(path, os.path.relpath(path, publish_dir))
+            self.logging.info("Created {} archive".format(benchmark_archive))
+
+            bytes_size = os.path.getsize(benchmark_archive)
+            mbytes = bytes_size / 1024.0 / 1024.0
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
         else:
             raise NotImplementedError()
 
@@ -312,6 +332,8 @@ class AWS(System):
         elif language == Language.CPP:
             return "provided.al2023"
         elif language == Language.JAVA:
+            return f"{language}{language_version}"
+        elif language == Language.DOTNET:
             return f"{language}{language_version}"
         elif language in [Language.PYTHON]:
             return f"{language}{language_version}"
@@ -414,6 +436,10 @@ class AWS(System):
                 create_function_params["Runtime"] = self.cloud_runtime(language, language_runtime)
                 if language == Language.JAVA:
                     create_function_params["Handler"] = "org.serverlessbench.Handler::handleRequest"
+                elif language == Language.DOTNET:
+                    # Assembly::Namespace.Type::Method
+                    handler = "function::ServerlessBench.Handler::HandleRequest"
+                    create_function_params["Handler"] = handler
                 else:
                     create_function_params["Handler"] = "handler.handler"
 
