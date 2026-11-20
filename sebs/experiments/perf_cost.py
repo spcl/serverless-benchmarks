@@ -435,7 +435,7 @@ class PerfCost(Experiment):
         import csv
 
         pricing = self._load_pricing(deployment_client)
-        region = deployment_client.config.region
+        default_region = deployment_client.config.region
 
         with open(os.path.join(directory, "perf-cost", "result.csv"), "w") as csvfile:
             writer = csv.writer(csvfile, delimiter=",")
@@ -528,22 +528,27 @@ class PerfCost(Experiment):
                                     {**json.loads(serialize(experiments)), "statistics": statistics}
                                 )
                             )
+                # use the region stored in the result file, since the deployment config
+                # is loaded from the cache and can point to a different region
+                region = config["config"].get("deployment", {}).get("region", default_region)
                 architecture = cast(
                     ExperimentConfig, experiments.config["experiments"]
                 ).architecture
+                prices = pricing
                 if pricing is not None and pricing.price(region, architecture) is None:
                     self.logging.warning(
                         f"No Lambda prices for {region} ({architecture}), "
                         "the cost column will be empty"
                     )
+                    prices = None
                 total_cost = 0.0
                 invocations = 0
                 no_cost = 0
                 for func in experiments.functions():
                     for request_id, invoc in experiments.invocations(func).items():
                         cost = (
-                            pricing.invocation_cost(invoc.billing, region, architecture)
-                            if pricing is not None
+                            prices.invocation_cost(invoc.billing, region, architecture)
+                            if prices is not None
                             else None
                         )
                         invocations += 1
@@ -565,7 +570,7 @@ class PerfCost(Experiment):
                                 cost,
                             ]
                         )
-                if pricing is not None:
+                if prices is not None:
                     self.logging.info(
                         f"{exp_type}, {memory} MB: estimated cost ${total_cost:.6f} "
                         f"for {invocations - no_cost} invocations, "
@@ -587,6 +592,7 @@ class PerfCost(Experiment):
         if deployment_client.name() != "aws":
             return None
 
+        # imported here so that other platforms don't load the AWS package
         from sebs.aws.pricing import LambdaPricing
 
         pricing = LambdaPricing.load()
