@@ -112,10 +112,12 @@ Afterward, you will find a new file for each experiment configuration called `<e
 ```json
   "billing": {
     "_billed_time": 968,
-    "_gb_seconds": 123904,
+    "_gb_seconds": 0.121,
     "_memory": 128
   }
 ```
+
+On AWS, `result.csv` also gets the billed time and an estimated cost in USD of each invocation, and SeBS logs the total estimated cost of each experiment configuration. The cost covers compute (billed time multiplied by the configured memory) and the request fee, using the on-demand prices for the region and architecture in `configs/aws_lambda_pricing.json`. It ignores the free tier, volume discounts and the API Gateway fee, so it is the cost of the measured invocations rather than your actual bill. Invocations without billing data have an empty cost. Other platforms do not report billing data for each invocation yet, so their cost column is empty.
 
 > **Warning**
 > Depending on the cloud provider, not all invocations might have corresponding results in cloud logs. Thus, increasing the number of repetitions by roughly 10% is recommended to ensure the desired number of repetitions.

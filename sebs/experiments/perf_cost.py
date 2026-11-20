@@ -19,7 +19,7 @@ import os
 import time
 from enum import Enum
 from multiprocessing.pool import ThreadPool
-from typing import List, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, cast
 
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.function import Trigger
@@ -32,6 +32,7 @@ from sebs.statistics import basic_stats, ci_tstudents, ci_le_boudec
 # import cycle
 if TYPE_CHECKING:
     from sebs import SeBS
+    from sebs.aws.pricing import LambdaPricing
 
 
 class PerfCost(Experiment):
@@ -418,7 +419,9 @@ class PerfCost(Experiment):
         This method processes the experiment results, downloads additional
         metrics if needed, and generates a CSV report with the results.
         The report includes memory usage, execution times, and other metrics
-        for each experiment type and invocation.
+        for each experiment type and invocation. On AWS, it also includes the
+        billed time and an estimated cost of each invocation, and the total
+        estimated cost of each experiment is logged.
 
         Args:
             sebs_client: The SeBS client to use
@@ -430,6 +433,9 @@ class PerfCost(Experiment):
 
         import glob
         import csv
+
+        pricing = self._load_pricing(deployment_client)
+        default_region = deployment_client.config.region
 
         with open(os.path.join(directory, "perf-cost", "result.csv"), "w") as csvfile:
             writer = csv.writer(csvfile, delimiter=",")
@@ -443,6 +449,8 @@ class PerfCost(Experiment):
                     "client_time",
                     "provider_time",
                     "mem_used",
+                    "billed_time",
+                    "cost",
                 ]
             )
             for f in glob.glob(os.path.join(directory, "perf-cost", "*.json")):
@@ -520,8 +528,34 @@ class PerfCost(Experiment):
                                     {**json.loads(serialize(experiments)), "statistics": statistics}
                                 )
                             )
+                # use the region stored in the result file, since the deployment config
+                # is loaded from the cache and can point to a different region
+                region = config["config"].get("deployment", {}).get("region", default_region)
+                architecture = cast(
+                    ExperimentConfig, experiments.config["experiments"]
+                ).architecture
+                prices = pricing
+                if pricing is not None and pricing.price(region, architecture) is None:
+                    self.logging.warning(
+                        f"No Lambda prices for {region} ({architecture}), "
+                        "the cost column will be empty"
+                    )
+                    prices = None
+                total_cost = 0.0
+                invocations = 0
+                no_cost = 0
                 for func in experiments.functions():
                     for request_id, invoc in experiments.invocations(func).items():
+                        cost = (
+                            prices.invocation_cost(invoc.billing, region, architecture)
+                            if prices is not None
+                            else None
+                        )
+                        invocations += 1
+                        if cost is None:
+                            no_cost += 1
+                        else:
+                            total_cost += cost
                         writer.writerow(
                             [
                                 memory,
@@ -532,5 +566,35 @@ class PerfCost(Experiment):
                                 invoc.times.client,
                                 invoc.provider_times.execution,
                                 invoc.stats.memory_used,
+                                invoc.billing.billed_time,
+                                cost,
                             ]
                         )
+                if prices is not None:
+                    self.logging.info(
+                        f"{exp_type}, {memory} MB: estimated cost ${total_cost:.6f} "
+                        f"for {invocations - no_cost} invocations, "
+                        f"{no_cost} without billing data"
+                    )
+
+    def _load_pricing(self, deployment_client: FaaSSystem) -> Optional["LambdaPricing"]:
+        """Load the price table used to estimate invocation costs.
+
+        Only AWS reports billing data for every invocation, so other platforms
+        get no price table and an empty cost column.
+
+        Args:
+            deployment_client: The deployment client used for processing
+
+        Returns:
+            Optional[LambdaPricing]: The AWS Lambda price table, or None
+        """
+        if deployment_client.name() != "aws":
+            return None
+
+        # imported here so that other platforms don't load the AWS package
+        from sebs.aws.pricing import LambdaPricing
+
+        pricing = LambdaPricing.load()
+        self.logging.info(f"Estimating AWS Lambda costs with prices as of {pricing.as_of}")
+        return pricing
