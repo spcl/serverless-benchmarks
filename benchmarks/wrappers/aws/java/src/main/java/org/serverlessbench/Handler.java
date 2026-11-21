@@ -27,8 +27,8 @@ public class Handler implements RequestHandler<Map<String, Object>, Map<String, 
         String beginStr = formatTimestamp(beginTs);
         String endStr = formatTimestamp(endTs);
 
-        // Get or create container ID
-        String containerId = ColdStartTracker.getContainerId();
+        // Cold start and container ID come from one check, made once per invocation
+        ColdStartTracker.State coldStart = ColdStartTracker.check();
 
         // Get cold_start environment variable if present
         String coldStartVar = System.getenv("cold_start");
@@ -40,11 +40,11 @@ public class Handler implements RequestHandler<Map<String, Object>, Map<String, 
         body.put("begin", beginStr);
         body.put("end", endStr);
         body.put("results_time", 0);
-        body.put("is_cold", ColdStartTracker.isCold());
+        body.put("is_cold", coldStart.isCold);
         body.put("result", result);
         body.put("request_id", context != null ? context.getAwsRequestId() : "");
         body.put("cold_start_var", coldStartVar);
-        body.put("container_id", containerId);
+        body.put("container_id", coldStart.containerId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("statusCode", 200);
