@@ -27,7 +27,8 @@ public class Handler {
         Map<String, Object> result = function.handler(gson.fromJson(args, mapType));
         Instant end = Instant.now();
 
-        String containerId = ColdStartTracker.getContainerId();
+        // Cold start and container ID come from one check, made once per invocation
+        ColdStartTracker.State coldStart = ColdStartTracker.check();
 
         // Convert to Unix timestamp in seconds.microseconds
         String formattedBegin = formatTimestamp(begin);
@@ -43,8 +44,8 @@ public class Handler {
         jsonResult.addProperty("end", formattedEnd);
         jsonResult.addProperty("request_id", requestId);
         jsonResult.addProperty("results_time", 0);
-        jsonResult.addProperty("is_cold", ColdStartTracker.isCold());
-        jsonResult.addProperty("container_id", containerId);
+        jsonResult.addProperty("is_cold", coldStart.isCold);
+        jsonResult.addProperty("container_id", coldStart.containerId);
         jsonResult.add("result", gson.toJsonTree(result).getAsJsonObject());
 
         return jsonResult;

@@ -7,41 +7,59 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Detects cold starts with a marker file in /tmp, which lives as long as the container.
+ *
+ * <p>The first invocation in a container creates the marker and is the only one reported as
+ * cold. The marker holds the container's ID, which later invocations read back.
+ */
 final class ColdStartTracker {
 
     private static final Path MARKER = Paths.get("/tmp/cold_run");
-    private static String containerId = null;
+
+    /** Cold-start state of one invocation. */
+    static final class State {
+        final boolean isCold;
+        final String containerId;
+
+        private State(boolean isCold, String containerId) {
+            this.isCold = isCold;
+            this.containerId = containerId;
+        }
+    }
 
     private ColdStartTracker() {}
 
-    static boolean isCold() {
+    /**
+     * Checks for the marker, creating it when it is missing.
+     *
+     * <p>Call once per invocation and read both values from the result: any later check in the
+     * same container finds the marker and reports a warm start. Synchronized because some
+     * platforms run concurrent invocations in one JVM, and only one of them is the cold start.
+     *
+     * @return whether this invocation is the container's first, and the container's ID
+     */
+    static synchronized State check() {
         if (Files.exists(MARKER)) {
-            return false;
+            String containerId;
+            try {
+                containerId = new String(Files.readAllBytes(MARKER), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                containerId = newContainerId();
+            }
+            return new State(false, containerId);
         }
+        String containerId = newContainerId();
         try {
-            containerId = UUID.randomUUID().toString().substring(0, 8);
             Files.write(MARKER, containerId.getBytes(StandardCharsets.UTF_8));
         } catch (IOException ignored) {
-            // best-effort marker write
+            // Best effort: without the marker, later invocations also report a cold start.
         }
-        return true;
+        return new State(true, containerId);
     }
 
-    static String getContainerId() {
-        if (containerId == null) {
-            try {
-                if (Files.exists(MARKER)) {
-                    containerId = new String(Files.readAllBytes(MARKER), StandardCharsets.UTF_8);
-                } else {
-                    containerId = UUID.randomUUID().toString().substring(0, 8);
-                    Files.write(MARKER, containerId.getBytes(StandardCharsets.UTF_8));
-                }
-            } catch (IOException e) {
-                containerId = UUID.randomUUID().toString().substring(0, 8);
-            }
-        }
-        return containerId;
+    private static String newContainerId() {
+        return UUID.randomUUID().toString().substring(0, 8);
     }
 }

@@ -41,8 +41,8 @@ public class Handler implements HttpFunction {
         String beginStr = formatTimestamp(beginTs);
         String endStr = formatTimestamp(endTs);
 
-        // Get cold start info
-        String containerId = ColdStartTracker.getContainerId();
+        // Cold start and container ID come from one check, made once per invocation
+        ColdStartTracker.State coldStart = ColdStartTracker.check();
         String coldStartVar = System.getenv("cold_start");
         if (coldStartVar == null) {
             coldStartVar = "";
@@ -53,8 +53,8 @@ public class Handler implements HttpFunction {
         body.put("end", endStr);
         body.put("results_time", 0);
         body.put("result", result);
-        body.put("is_cold", ColdStartTracker.isCold());
-        body.put("container_id", containerId);
+        body.put("is_cold", coldStart.isCold);
+        body.put("container_id", coldStart.containerId);
         body.put("cold_start_var", coldStartVar);
         body.put("request_id", requestId);
 
