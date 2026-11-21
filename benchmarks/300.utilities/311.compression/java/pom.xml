@@ -12,6 +12,10 @@
     <java.version>${env.JAVA_VERSION}</java.version>
   </properties>
 
+  <dependencies>
+    <!-- PLATFORM_DEPENDENCIES -->
+  </dependencies>
+
   <build>
     <finalName>function</finalName>
     <plugins>
