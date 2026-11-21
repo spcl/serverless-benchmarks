@@ -64,6 +64,9 @@ benchmarks_nodejs = [
 
 benchmarks_java = ["010.sleep", "110.dynamic-html"]
 
+# Java storage exists only on AWS, and these benchmarks are not yet validated elsewhere.
+benchmarks_java_aws = benchmarks_java + ["311.compression", "501.graph-pagerank"]
+
 benchmarks_cpp = [
     "010.sleep",
     "210.thumbnailer",
@@ -72,7 +75,7 @@ benchmarks_cpp = [
     "503.graph-bfs",
 ]
 
-benchmarks_dotnet = ["010.sleep"]
+benchmarks_dotnet = ["010.sleep", "110.dynamic-html", "311.compression", "501.graph-pagerank"]
 
 # AWS-specific configurations
 architectures_aws = ["x64", "arm64"]
@@ -529,7 +532,7 @@ class AWSTestSequenceCpp(
 class AWSTestSequenceJava(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
-    benchmarks=benchmarks_java,
+    benchmarks=benchmarks_java_aws,
     architectures=architectures_aws,
     deployments=deployments_aws,
     deployment_name="aws",
