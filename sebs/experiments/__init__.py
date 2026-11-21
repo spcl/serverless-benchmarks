@@ -8,6 +8,7 @@ measuring various aspects of serverless function performance:
 - NetworkPingPong: Measures network latency and throughput
 - EvictionModel: Measures container eviction patterns
 - InvocationOverhead: Measures function invocation overhead
+- WarmUp: Measures execution time over the first calls to a new container
 
 Each experiment is designed to evaluate specific aspects of serverless
 platforms, enabling detailed comparison between different providers,
@@ -20,3 +21,4 @@ from .perf_cost import PerfCost  # noqa
 from .network_ping_pong import NetworkPingPong  # noqa
 from .eviction_model import EvictionModel  # noqa
 from .invocation_overhead import InvocationOverhead  # noqa
+from .warm_up import WarmUp  # noqa

@@ -27,6 +27,14 @@
         256
       ]
     },
+    "warm-up": {
+      "benchmark": "110.dynamic-html",
+      "input-size": "test",
+      "repetitions": 5,
+      "invocations": 50,
+      "pause": 0,
+      "memory-sizes": [128, 256]
+    },
     "network-ping-pong": {
       "invocations": 50,
       "repetitions": 1000,
