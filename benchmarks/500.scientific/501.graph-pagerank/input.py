@@ -29,6 +29,15 @@ expected_pagerank = {
     },
 }
 
+# Java and .NET implement the same hand-written generator and PageRank, so they share their
+# values; the PageRank matches igraph's on the same graph to within 1e-13.
+expected_pagerank["java"] = {
+    10: 0.1,
+    10000: 0.0007066674963152452,
+    100000: 0.0002113910712578018,
+}
+expected_pagerank["dotnet"] = expected_pagerank["java"]
+
 def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
     return { 'size': size_generators[size], 'seed': 42}
 

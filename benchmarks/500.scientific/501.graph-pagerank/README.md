@@ -1,7 +1,7 @@
 # 501.graph-pagerank - Graph PageRank
 
 **Type:** Scientific
-**Languages:** Python, Node.js, C++
+**Languages:** Python, Node.js, C++, Java, .NET
 **Architecture:** x64, arm64
 
 ## Description
@@ -12,3 +12,4 @@ For random generation of the Barabasi input graph, we use different solutions de
 * Python uses the default `random` library, which internally uses the Mersenne Twister algorithm.
 * C++ uses the default PRNG of `igraph`, which is Mersenne Twister or PCG32 depending on the version of `igraph`.
 * Node.js uses the `pure-rand` library since the default `Math.random()` cannot be seeded. We use the `xoroshiro128plus` generator because it is recommended by library's documentation.
+* Java and .NET share one hand-written implementation, without libraries: a SplitMix64 generator, the Barabási–Albert generator of the Node.js version, and PageRank by power iteration. Both perform the same operations in the same order, so they build the same graph and return the same result; their PageRank agrees with igraph's on the same graph to within 1e-13.
