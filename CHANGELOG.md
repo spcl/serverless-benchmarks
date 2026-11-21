@@ -2,6 +2,8 @@
 
 ### Features
 
+* New `warm-up` experiment: forces a cold start, invokes the function sequentially a fixed number of times, and keeps every result with its position in the sequence, showing how execution time changes over the first calls to a new container, e.g., while a JIT compiler optimizes the code. `sebs experiment process warm-up` writes one CSV row per call, with provider metrics and the benchmark's own measurements.
+
 * Cold start enforcement for the local deployment: SeBS replaces the function container, and the local function servers report the first invocation of a container as cold. Requires the updated local run images.
 
 * [RustFS](https://github.com/rustfs/rustfs) is the new default S3-compatible object storage for local and OpenWhisk deployments. Minio is deprecated and kept for reproducibility (`configs/storage-minio.json`). The self-hosted object storage implementation is now shared between backends.
