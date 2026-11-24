@@ -22,9 +22,8 @@ def process_request():
     is_cold, cold_start = cold_start, False
     begin = datetime.datetime.now()
     from function import function
-    end = datetime.datetime.now()
-    # FIXME: measurements?
     ret = function.handler(request.json)
+    end = datetime.datetime.now()
 
     return {
         'begin': begin.strftime('%s.%f'),
