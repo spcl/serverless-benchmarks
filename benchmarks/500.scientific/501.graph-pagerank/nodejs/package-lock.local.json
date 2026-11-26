@@ -1,0 +1,109 @@
+{
+  "name": "function",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "dependencies": {
+        "ngraph.generators": "^20.1.0",
+        "ngraph.graph": "^20.1.2",
+        "ngraph.pagerank": "^2.1.1",
+        "pure-rand": "^8.4.0"
+      }
+    },
+    "node_modules/dotparser": {
+      "version": "1.1.1",
+      "resolved": "https://registry.npmjs.org/dotparser/-/dotparser-1.1.1.tgz",
+      "integrity": "sha512-8ojhUts0HbLnXJgjTiJOddwVVBUk6hg4SJ5kGiuhzgK/f+y79TiWvICwx1oCWlVbBC8YI3nEaIQg9fjGYbGBXw==",
+      "license": "MIT"
+    },
+    "node_modules/miserables": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/miserables/-/miserables-2.0.0.tgz",
+      "integrity": "sha512-J+4obMHbesciklE0SoVy4EJFsgeBW2RsRzrhBWGFhpBDcxCSJ3igSzDVz8SUaPx5PQaduImkt5UWus2Yx0a5/A==",
+      "license": "MIT",
+      "dependencies": {
+        "ngraph.graph": "^19.1.0"
+      }
+    },
+    "node_modules/miserables/node_modules/ngraph.graph": {
+      "version": "19.1.0",
+      "resolved": "https://registry.npmjs.org/ngraph.graph/-/ngraph.graph-19.1.0.tgz",
+      "integrity": "sha512-9cws84qfPkrYa7BaBtT+KgZfLXrd6pNL9Gl5Do+MBO/0Hm6rOM7qK78MZaO1uEoIK6p2pgUs6lu29zn/6tP59w==",
+      "license": "BSD-3-Clause",
+      "dependencies": {
+        "ngraph.events": "^1.2.1"
+      }
+    },
+    "node_modules/ngraph.events": {
+      "version": "1.4.0",
+      "resolved": "https://registry.npmjs.org/ngraph.events/-/ngraph.events-1.4.0.tgz",
+      "integrity": "sha512-NeDGI4DSyjBNBRtA86222JoYietsmCXbs8CEB0dZ51Xeh4lhVl1y3wpWLumczvnha8sFQIW4E0vvVWwgmX2mGw==",
+      "license": "BSD-3-Clause"
+    },
+    "node_modules/ngraph.fromdot": {
+      "version": "7.1.0",
+      "resolved": "https://registry.npmjs.org/ngraph.fromdot/-/ngraph.fromdot-7.1.0.tgz",
+      "integrity": "sha512-LGwhlKNbW+4Wwyf1vJewbY2iSbvEsgWKUOXjqihdsCZ+F4q4gh9mdklz66SLfL92pKPj6fL+IYdXgluoKD34Nw==",
+      "license": "MIT",
+      "dependencies": {
+        "dotparser": "^1.0.0",
+        "ngraph.graph": "^20.0.0"
+      }
+    },
+    "node_modules/ngraph.generators": {
+      "version": "20.1.0",
+      "resolved": "https://registry.npmjs.org/ngraph.generators/-/ngraph.generators-20.1.0.tgz",
+      "integrity": "sha512-z/+R7HkNTFVgf5+o6KANgoKyr4FI9uiY+vSLYIzcLaTpz1scsCQuVbp+WsTf1MnJfeizlRjREhbgD4oeBZPqNA==",
+      "license": "BSD-3-Clause",
+      "dependencies": {
+        "miserables": "^2.0.0",
+        "ngraph.graph": "^20.0.0",
+        "ngraph.random": "^1.0.0"
+      }
+    },
+    "node_modules/ngraph.graph": {
+      "version": "20.1.2",
+      "resolved": "https://registry.npmjs.org/ngraph.graph/-/ngraph.graph-20.1.2.tgz",
+      "integrity": "sha512-W/G3GBR3Y5UxMLHTUCPP9v+pbtpzwuAEIqP5oZV+9IwgxAIEZwh+Foc60iPc1idlnK7Zxu0p3puxAyNmDvBd0Q==",
+      "license": "BSD-3-Clause",
+      "dependencies": {
+        "ngraph.events": "^1.4.0"
+      }
+    },
+    "node_modules/ngraph.pagerank": {
+      "version": "2.1.1",
+      "resolved": "https://registry.npmjs.org/ngraph.pagerank/-/ngraph.pagerank-2.1.1.tgz",
+      "integrity": "sha512-6efFazZWqqogpnXmu+SatE9cdMY0qgb+TK/4sAL3UxZd2l26UEdgeXjK5K0JzqDKd7DO6BsOPtKY2CF0otFSfw==",
+      "license": "MIT",
+      "dependencies": {
+        "ngraph.fromdot": "^7.0.0"
+      },
+      "bin": {
+        "pagrank": "bin/pagerank.js"
+      }
+    },
+    "node_modules/ngraph.random": {
+      "version": "1.2.0",
+      "resolved": "https://registry.npmjs.org/ngraph.random/-/ngraph.random-1.2.0.tgz",
+      "integrity": "sha512-4EUeAGbB2HWX9njd6bP6tciN6ByJfoaAvmVL9QTaZSeXrW46eNGA9GajiXiPBbvFqxUWFkEbyo6x5qsACUuVfA==",
+      "license": "BSD-3-Clause"
+    },
+    "node_modules/pure-rand": {
+      "version": "8.4.2",
+      "resolved": "https://registry.npmjs.org/pure-rand/-/pure-rand-8.4.2.tgz",
+      "integrity": "sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng==",
+      "funding": [
+        {
+          "type": "individual",
+          "url": "https://github.com/sponsors/dubzzz"
+        },
+        {
+          "type": "opencollective",
+          "url": "https://opencollective.com/fast-check"
+        }
+      ],
+      "license": "MIT"
+    }
+  }
+}
