@@ -1,0 +1,368 @@
+{
+  "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSLambda/current/region_index.json",
+  "as_of": "2026-11-18",
+  "currency": "USD",
+  "note": "On-demand tier-1 prices, without free tier, volume discounts or ephemeral storage.",
+  "regions": {
+    "af-south-1": {
+      "x64": {
+        "gb_second": 2.21e-05,
+        "request": 2.7e-07
+      },
+      "arm64": {
+        "gb_second": 1.768e-05,
+        "request": 2.7e-07
+      }
+    },
+    "ap-east-1": {
+      "x64": {
+        "gb_second": 2.292e-05,
+        "request": 2.8e-07
+      },
+      "arm64": {
+        "gb_second": 1.83e-05,
+        "request": 2.8e-07
+      }
+    },
+    "ap-east-2": {
+      "x64": {
+        "gb_second": 1.5e-05,
+        "request": 1.8e-07
+      },
+      "arm64": {
+        "gb_second": 1.2e-05,
+        "request": 1.8e-07
+      }
+    },
+    "ap-northeast-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "ap-northeast-2": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "ap-northeast-3": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "ap-south-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "ap-south-2": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "ap-southeast-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "ap-southeast-2": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "ap-southeast-3": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "ap-southeast-4": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "ap-southeast-5": {
+      "x64": {
+        "gb_second": 1.5e-05,
+        "request": 1.8e-07
+      },
+      "arm64": {
+        "gb_second": 1.2e-05,
+        "request": 1.8e-07
+      }
+    },
+    "ap-southeast-6": {
+      "x64": {
+        "gb_second": 1.75e-05,
+        "request": 2.1e-07
+      },
+      "arm64": {
+        "gb_second": 1.40001e-05,
+        "request": 2.1e-07
+      }
+    },
+    "ap-southeast-7": {
+      "x64": {
+        "gb_second": 1.5e-05,
+        "request": 1.8e-07
+      },
+      "arm64": {
+        "gb_second": 1.2e-05,
+        "request": 1.8e-07
+      }
+    },
+    "ca-central-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "ca-west-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "eu-central-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "eu-central-2": {
+      "x64": {
+        "gb_second": 1.83334e-05,
+        "request": 2.2e-07
+      },
+      "arm64": {
+        "gb_second": 1.46667e-05,
+        "request": 2.2e-07
+      }
+    },
+    "eu-north-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "eu-south-1": {
+      "x64": {
+        "gb_second": 1.95172e-05,
+        "request": 2.3e-07
+      },
+      "arm64": {
+        "gb_second": 1.56138e-05,
+        "request": 2.3e-07
+      }
+    },
+    "eu-south-2": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "eu-west-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "eu-west-2": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "eu-west-3": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "il-central-1": {
+      "x64": {
+        "gb_second": 1.75e-05,
+        "request": 2.1e-07
+      },
+      "arm64": {
+        "gb_second": 1.40001e-05,
+        "request": 2.1e-07
+      }
+    },
+    "me-central-1": {
+      "x64": {
+        "gb_second": 2.06667e-05,
+        "request": 2.5e-07
+      },
+      "arm64": {
+        "gb_second": 1.65334e-05,
+        "request": 2.5e-07
+      }
+    },
+    "me-south-1": {
+      "x64": {
+        "gb_second": 2.06667e-05,
+        "request": 2.5e-07
+      },
+      "arm64": {
+        "gb_second": 1.65334e-05,
+        "request": 2.5e-07
+      }
+    },
+    "mx-central-1": {
+      "x64": {
+        "gb_second": 1.75e-05,
+        "request": 2.1e-07
+      },
+      "arm64": {
+        "gb_second": 1.4e-05,
+        "request": 2.1e-07
+      }
+    },
+    "sa-east-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "us-east-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "us-east-2": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "us-gov-east-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "us-gov-west-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "us-west-1": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    },
+    "us-west-2": {
+      "x64": {
+        "gb_second": 1.66667e-05,
+        "request": 2e-07
+      },
+      "arm64": {
+        "gb_second": 1.33334e-05,
+        "request": 2e-07
+      }
+    }
+  }
+}

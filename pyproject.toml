@@ -127,7 +127,7 @@ packages = [
 [tool.setuptools.package-data]
 # Include all necessary non-Python files
 sebs = ["py.typed"]
-"sebs.configs" = ["systems.json"]
+"sebs.configs" = ["systems.json", "aws_lambda_pricing.json"]
 "sebs.benchmarks" = [
     "**/*.py",
     "**/*.js",
