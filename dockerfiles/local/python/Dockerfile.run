@@ -6,7 +6,7 @@ RUN deps=''\
   # for route and sudo
   && apt-get install --no-install-recommends -y curl gosu net-tools sudo ${deps}\
   && apt-get purge -y --auto-remove ${deps}\
-  && pip3 install minio==7.2.7 bottle
+  && pip3 install bottle
 
 # PAPI hardware counters (sebs_papi.py): build the wrapper against the distribution's PAPI,
 # then remove the compiler and headers, keeping the PAPI and libpfm4 runtime libraries.

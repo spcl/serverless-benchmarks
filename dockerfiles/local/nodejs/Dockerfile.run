@@ -16,10 +16,10 @@ ENV SCRIPT_FILE=/mnt/function/package.sh
 ENV PATH="${NVM_DIR}/current/bin:$PATH"
 
 RUN mkdir -p /sebs
-# uuid 12+ is ESM-only, which Node.js 18 cannot load with require()
-RUN cd /sebs/ && npm install -g uuid@9.0.1 strftime@0.10.3 express@5.3.0 minio@7.0.16 glob@7.2.3
-# Global modules are installed in the directory of the Node.js version
-ENV NODE_PATH=${NVM_DIR}/current/lib/node_modules
+# Dependencies of the SeBS server and runners, locked by tools/lock_nodejs_benchmarks.py.
+# Functions install their own dependencies.
+COPY dockerfiles/local/nodejs/package.json dockerfiles/local/nodejs/package-lock.json /sebs/
+RUN cd /sebs && npm ci --omit=dev && npm cache clean --force
 
 COPY dockerfiles/local/*.py /sebs/
 COPY dockerfiles/local/run.sh /sebs/
@@ -27,7 +27,6 @@ COPY dockerfiles/local/nodejs/*.js /sebs/
 COPY dockerfiles/local/nodejs/run_server.sh /sebs/
 COPY dockerfiles/local/nodejs/timeit.sh /sebs/
 COPY dockerfiles/local/nodejs/runners.json /sebs/
-COPY dockerfiles/local/nodejs/package.json /sebs/
 
 COPY dockerfiles/local/entrypoint.sh /sebs/entrypoint.sh
 RUN chmod +x /sebs/entrypoint.sh

@@ -231,7 +231,7 @@ class Local(System):
 
         CONFIG_FILES = {
             "python": ["handler.py", "requirements.txt", ".python_packages"],
-            "nodejs": ["handler.js", "package.json", "node_modules"],
+            "nodejs": ["handler.js", "package.json", "package-lock.json", "node_modules"],
         }
         package_config = CONFIG_FILES[language]
         function_dir = os.path.join(directory, "function")
