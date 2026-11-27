@@ -2,6 +2,8 @@
 
 ### Features
 
+* `501.graph-pagerank` for Java, with the graph generator and PageRank written by hand, without libraries.
+
 * .NET 10 on AWS Lambda, as code packages and containers on x64 and arm64, starting with `010.sleep`.
 
 * Cold start enforcement for the local deployment: SeBS replaces the function container, and the local function servers report the first invocation of a container as cold. Requires the updated local run images.

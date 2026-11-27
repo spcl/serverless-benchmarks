@@ -64,6 +64,9 @@ benchmarks_nodejs = [
 
 benchmarks_java = ["010.sleep", "110.dynamic-html"]
 
+# Tested only on AWS
+benchmarks_java_aws = benchmarks_java + ["501.graph-pagerank"]
+
 benchmarks_cpp = [
     "010.sleep",
     "210.thumbnailer",
@@ -529,7 +532,7 @@ class AWSTestSequenceCpp(
 class AWSTestSequenceJava(
     unittest.TestCase,
     metaclass=TestSequenceMeta,
-    benchmarks=benchmarks_java,
+    benchmarks=benchmarks_java_aws,
     architectures=architectures_aws,
     deployments=deployments_aws,
     deployment_name="aws",
