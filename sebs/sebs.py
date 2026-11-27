@@ -311,6 +311,7 @@ class SeBS(LoggingBase):
             NetworkPingPong,
             InvocationOverhead,
             EvictionModel,
+            WarmUp,
         )
 
         # Map of supported experiment types to their implementations
@@ -319,6 +320,7 @@ class SeBS(LoggingBase):
             "network-ping-pong": NetworkPingPong,
             "invocation-overhead": InvocationOverhead,
             "eviction-model": EvictionModel,
+            "warm-up": WarmUp,
         }
 
         # Validate experiment type

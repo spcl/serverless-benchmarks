@@ -21,8 +21,9 @@ Then, each benchmark has its own JSON object containing parameters specific to t
 }
 ```
 
-We implemented four types of experiments:
+We implemented five types of experiments:
 * [Perf-Cost](#perf-cost) evaluates the performance of specified functions and estimates the cost of running them in the cloud. It supports four types of invoking functions and creates timing results involving various parts of the serverless stack.
+* [Warm-up](#warm-up) shows how execution time changes over the first calls to a new container, e.g., while a JIT compiler optimizes the code.
 * [Network Ping-pong](#network-ping-pong) evaluates the network performance and latency profile of the connection between the benchmarking machine and serverless function.
 * [Invocation Overhead](#invocation-overhead) estimates the invocation latency by running a clock-drift protocol and comparing timestamps between the benchmarking machine and serverless function.
 * [Eviction](#eviction-model) runs functions with various configurations, invokes them after a specified time, and checks if the function is still running in a warm container. The experiment verifies how different parameters affect container eviction.
@@ -119,6 +120,52 @@ Afterward, you will find a new file for each experiment configuration called `<e
 
 > **Warning**
 > Depending on the cloud provider, not all invocations might have corresponding results in cloud logs. Thus, increasing the number of repetitions by roughly 10% is recommended to ensure the desired number of repetitions.
+
+## Warm-up
+
+### Description
+
+`perf-cost` discards its first calls, so it does not show how a runtime warms up, e.g., while a JIT compiler optimizes the code.
+Each repetition of this experiment forces a cold start, invokes the function sequentially a fixed number of times, and keeps every result with its position in the sequence.
+SeBS warns when a sequence did not start with a cold start or reached more than one container.
+
+### Configuring Benchmark
+
+```json
+"experiments": {
+  "type": "warm-up",
+  "warm-up": {
+    "benchmark": "501.graph-pagerank",
+    "input-size": "small",
+    "repetitions": 5,
+    "invocations": 50,
+    "pause": 0,
+    "memory-sizes": [512, 1024]
+  }
+}
+```
+
+SeBS runs `repetitions` sequences of `invocations` calls for each size in `memory-sizes`, or at the function's configured memory if the list is empty.
+The optional `pause` sets the seconds between calls (default 0), e.g., to see whether the runtime keeps optimizing while idle.
+
+### Running Benchmark
+
+```
+sebs experiment invoke warm-up --config config.json --output-dir experiments-result
+```
+
+The results are in `experiments-result/warm-up`, one file per memory size named `warm-up_results_<mem-size>.json`.
+Under `sequences`, each file lists the request IDs of each sequence's calls in order (`null` for a failed call).
+
+### Postprocessing Results
+
+```
+sebs experiment process warm-up --config config.json --output-dir experiments-result
+```
+
+This downloads provider metrics into `warm-up_results_<mem-size>-processed.json` and writes `result.csv` with one row per call.
+Its columns are `memory`, `repetition`, `call` (0 for the cold start), `request_id`, `container_id`, `is_cold`, `exec_time`, `client_time`, `provider_time`, `init_time`, `mem_used`, and the benchmark's measurements as `measurement.<key>`.
+Times are in microseconds and `mem_used` in MB; a failed call has empty values.
 
 ## Network Ping-pong
 

@@ -238,10 +238,11 @@ class Config:
             PerfCost,
             InvocationOverhead,
             EvictionModel,
+            WarmUp,
         )
 
         # Load experiment-specific settings if present
-        for exp in [NetworkPingPong, PerfCost, InvocationOverhead, EvictionModel]:
+        for exp in [NetworkPingPong, PerfCost, InvocationOverhead, EvictionModel, WarmUp]:
             if exp.name() in config:
                 cfg._experiment_configs[exp.name()] = config[exp.name()]
 
