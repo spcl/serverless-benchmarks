@@ -2,6 +2,8 @@
 
 ### Features
 
+* `110.dynamic-html` for .NET, rendering the Java version's Mustache template with Stubble.
+
 * `501.graph-pagerank` for Java, with the graph generator and PageRank written by hand, without libraries.
 
 * .NET 10 on AWS Lambda, as code packages and containers on x64 and arm64, starting with `010.sleep`.

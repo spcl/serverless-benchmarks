@@ -75,7 +75,7 @@ benchmarks_cpp = [
     "503.graph-bfs",
 ]
 
-benchmarks_dotnet = ["010.sleep"]
+benchmarks_dotnet = ["010.sleep", "110.dynamic-html"]
 
 # AWS-specific configurations
 architectures_aws = ["x64", "arm64"]
