@@ -1125,9 +1125,10 @@ class Benchmark(LoggingBase):
         with open(csproj_path, "r") as f:
             csproj_content = f.read()
 
-        packages = self._system_config.deployment_packages(
-            self._deployment_name, self.language_name
+        packages: Dict[str, Any] = dict(
+            self._system_config.deployment_packages(self._deployment_name, self.language_name)
         )
+        packages.update(self._module_packages())
 
         package_items = ""
         for name, version in packages.items():

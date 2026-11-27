@@ -2,6 +2,8 @@
 
 ### Features
 
+* Object storage for .NET on AWS: `Storage.cs` implements the interface of the Python wrapper's `storage` class and is added, with AWSSDK.S3, only to benchmarks using the `storage` module.
+
 * Object storage for Java on AWS: `Storage.java` implements the interface of the Python wrapper's `storage` class and is added, with the AWS SDK, only to benchmarks using the `storage` module.
 
 * .NET 10 on AWS Lambda, as code packages and containers on x64 and arm64, starting with `010.sleep`.
