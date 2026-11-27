@@ -240,6 +240,25 @@ and `storage` which hides the cloud API of persistent storage.
 
 For example, examine the existing implementations in [`benchmarks/wrappers/`](/benchmarks/wrappers/).
 
+Wrappers in `deployment.files` are added to every benchmark. A wrapper with a large SDK, such as
+Java's storage, goes in `deployment.module_files` instead and is added only to benchmarks declaring
+that module in their `config.json`, together with its `deployment.module_packages`. For Java, a
+package's version can be an object that also lists transitive dependencies to exclude:
+
+```json
+"module_packages": {
+  "storage": {
+    "software.amazon.awssdk:s3": {
+      "version": "2.46.7",
+      "exclusions": ["software.amazon.awssdk:netty-nio-client"]
+    }
+  }
+},
+"module_files": {
+  "storage": ["modules/storage/src"]
+}
+```
+
 ### Adapt Platform Mode
 
 The final step is adjusting the SeBS code whenever we make a language-specific decision.
