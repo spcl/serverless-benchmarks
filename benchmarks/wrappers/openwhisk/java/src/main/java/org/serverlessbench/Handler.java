@@ -21,13 +21,14 @@ public class Handler {
 
     public static JsonObject main(JsonObject args) {
 
+        // Before the benchmark, so that the first of concurrent invocations is the cold one
+        ColdStartTracker.State coldStart = ColdStartTracker.check();
+
         Function function = new Function();
 
         Instant begin = Instant.now();
         Map<String, Object> result = function.handler(gson.fromJson(args, mapType));
         Instant end = Instant.now();
-
-        String containerId = ColdStartTracker.getContainerId();
 
         // Convert to Unix timestamp in seconds.microseconds
         String formattedBegin = formatTimestamp(begin);
@@ -43,8 +44,8 @@ public class Handler {
         jsonResult.addProperty("end", formattedEnd);
         jsonResult.addProperty("request_id", requestId);
         jsonResult.addProperty("results_time", 0);
-        jsonResult.addProperty("is_cold", ColdStartTracker.isCold());
-        jsonResult.addProperty("container_id", containerId);
+        jsonResult.addProperty("is_cold", coldStart.isCold);
+        jsonResult.addProperty("container_id", coldStart.containerId);
         jsonResult.add("result", gson.toJsonTree(result).getAsJsonObject());
 
         return jsonResult;

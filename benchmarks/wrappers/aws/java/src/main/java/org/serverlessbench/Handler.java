@@ -17,6 +17,9 @@ public class Handler implements RequestHandler<Map<String, Object>, Map<String, 
     @Override
     public Map<String, Object> handleRequest(Map<String, Object> event, Context context) {
 
+        // Before the benchmark, so that the first of concurrent invocations is the cold one
+        ColdStartTracker.State coldStart = ColdStartTracker.check();
+
         Instant beginTs = Instant.now();
         Map<String, Object> normalized = normalize(event);
         Function function = new Function();
@@ -26,9 +29,6 @@ public class Handler implements RequestHandler<Map<String, Object>, Map<String, 
         // Format timestamps as "seconds.microseconds" like Python
         String beginStr = formatTimestamp(beginTs);
         String endStr = formatTimestamp(endTs);
-
-        // Get or create container ID
-        String containerId = ColdStartTracker.getContainerId();
 
         // Get cold_start environment variable if present
         String coldStartVar = System.getenv("cold_start");
@@ -40,11 +40,11 @@ public class Handler implements RequestHandler<Map<String, Object>, Map<String, 
         body.put("begin", beginStr);
         body.put("end", endStr);
         body.put("results_time", 0);
-        body.put("is_cold", ColdStartTracker.isCold());
+        body.put("is_cold", coldStart.isCold);
         body.put("result", result);
         body.put("request_id", context != null ? context.getAwsRequestId() : "");
         body.put("cold_start_var", coldStartVar);
-        body.put("container_id", containerId);
+        body.put("container_id", coldStart.containerId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("statusCode", 200);

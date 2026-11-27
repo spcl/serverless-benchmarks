@@ -29,6 +29,9 @@ public class Handler {
         final ExecutionContext context
     ) {
 
+        // Before the benchmark, so that the first of concurrent invocations is the cold one
+        ColdStartTracker.State coldStart = ColdStartTracker.check();
+
         Instant beginTs = Instant.now();
         Map<String, Object> normalized = normalizeRequest(request);
         Function function = new Function();
@@ -38,9 +41,6 @@ public class Handler {
         // Format timestamps as "seconds.microseconds" like Python
         String beginStr = formatTimestamp(beginTs);
         String endStr = formatTimestamp(endTs);
-
-        // Get or create container ID
-        String containerId = ColdStartTracker.getContainerId();
 
         // Get cold_start environment variable if present
         String coldStartVar = System.getenv("cold_start");
@@ -53,8 +53,8 @@ public class Handler {
         body.put("end", endStr);
         body.put("results_time", 0);
         body.put("result", result);
-        body.put("is_cold", ColdStartTracker.isCold());
-        body.put("container_id", containerId);
+        body.put("is_cold", coldStart.isCold);
+        body.put("container_id", coldStart.containerId);
         body.put("cold_start_var", coldStartVar);
         body.put("request_id", context != null ? context.getInvocationId() : "");
 
