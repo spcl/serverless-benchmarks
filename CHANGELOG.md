@@ -2,6 +2,10 @@
 
 ### Features
 
+* `311.compression` for Java on AWS, using `java.util.zip` and the Java storage wrapper.
+
+* Object storage for Java on AWS: `Storage.java` implements the interface of the Python wrapper's `storage` class and is added, with the AWS SDK, only to benchmarks using the `storage` module.
+
 * Cold start enforcement for the local deployment: SeBS replaces the function container, and the local function servers report the first invocation of a container as cold. Requires the updated local run images.
 
 * [RustFS](https://github.com/rustfs/rustfs) is the new default S3-compatible object storage for local and OpenWhisk deployments. Minio is deprecated and kept for reproducibility (`configs/storage-minio.json`). The self-hosted object storage implementation is now shared between backends.

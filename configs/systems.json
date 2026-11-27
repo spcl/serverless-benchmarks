@@ -170,7 +170,24 @@
             "com.amazonaws:aws-lambda-java-core": "1.2.3",
             "com.fasterxml.jackson.core:jackson-databind": "2.17.1"
           },
-          "module_packages": {}
+          "module_packages": {
+            "storage": {
+              "software.amazon.awssdk:s3": {
+                "version": "2.46.7",
+                "exclusions": [
+                  "software.amazon.awssdk:netty-nio-client",
+                  "software.amazon.awssdk:apache-client",
+                  "software.amazon.awssdk:apache5-client"
+                ]
+              },
+              "software.amazon.awssdk:url-connection-client": "2.46.7"
+            }
+          },
+          "module_files": {
+            "storage": [
+              "modules/storage/src"
+            ]
+          }
         }
       },
       "cpp": {
