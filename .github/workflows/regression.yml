@@ -63,6 +63,14 @@ jobs:
             language: java
             version: "21"
             architecture: "arm64"
+          - platform: aws
+            language: dotnet
+            version: "10"
+            architecture: "x64"
+          - platform: aws
+            language: dotnet
+            version: "10"
+            architecture: "arm64"
           - platform: gcp
             language: python
             version: "3.11"

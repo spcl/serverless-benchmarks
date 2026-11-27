@@ -72,6 +72,8 @@ benchmarks_cpp = [
     "503.graph-bfs",
 ]
 
+benchmarks_dotnet = ["010.sleep"]
+
 # AWS-specific configurations
 architectures_aws = ["x64", "arm64"]
 deployments_aws = ["package", "container"]
@@ -571,6 +573,58 @@ class AWSTestSequenceJava(
             logging_filename=os.path.join(self.client.output_dir, f),
         )
         with AWSTestSequenceJava.lock:
+            deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
+            if LOGGING_REDACTED:
+                LOGGING_REDACTOR.set_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+                LoggingBase.set_filtering_resource_id(
+                    deployment_client.config.resources.resources_id,
+                    deployment_client.config.credentials.account_id,
+                )
+        return deployment_client
+
+
+class AWSTestSequenceDotnet(
+    unittest.TestCase,
+    metaclass=TestSequenceMeta,
+    benchmarks=benchmarks_dotnet,
+    architectures=architectures_aws,
+    deployments=deployments_aws,
+    deployment_name="aws",
+    triggers=[Trigger.TriggerType.LIBRARY, Trigger.TriggerType.HTTP],
+):
+    """Test suite for .NET benchmarks on AWS Lambda."""
+
+    def get_deployment(self, benchmark_name, architecture, deployment_type):
+        """Get an AWS deployment client for the specified configuration.
+
+        Args:
+            benchmark_name: Name of the benchmark to deploy
+            architecture: Architecture to deploy on (x64, arm64)
+            deployment_type: Deployment type (package, container)
+
+        Returns:
+            An initialized AWS deployment client
+
+        Raises:
+            AssertionError: If cloud_config is not set
+        """
+        deployment_name = "aws"
+        assert cloud_config, "Cloud configuration is required"
+
+        # Create a copy of the config and set architecture and deployment type
+        config_copy = copy.deepcopy(cloud_config)
+        config_copy["experiments"]["architecture"] = architecture
+        configure_regression_deployment(config_copy, deployment_name, deployment_type)
+
+        f = f"regression_{deployment_name}_{benchmark_name}_{architecture}_{deployment_type}.log"
+        deployment_client = self.client.get_deployment(
+            config_copy,
+            logging_filename=os.path.join(self.client.output_dir, f),
+        )
+        with AWSTestSequenceDotnet.lock:
             deployment_client.initialize(resource_prefix=RESOURCE_PREFIX, quiet=LOGGING_REDACTED)
             if LOGGING_REDACTED:
                 LOGGING_REDACTOR.set_resource_id(
@@ -1465,6 +1519,8 @@ def regression_suite(
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceJava))
         elif language == "cpp":
             suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceCpp))
+        elif language == "dotnet":
+            suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(AWSTestSequenceDotnet))
     # Add GCP tests if requested
     if "gcp" in providers:
         assert (
