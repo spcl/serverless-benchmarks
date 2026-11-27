@@ -2,6 +2,8 @@
 
 ### Features
 
+* `311.compression` for .NET on AWS, using `System.IO.Compression` and the .NET storage wrapper.
+
 * Object storage for .NET on AWS: `Storage.cs` implements the interface of the Python wrapper's `storage` class and is added, with AWSSDK.S3, only to benchmarks using the `storage` module.
 
 * Object storage for Java on AWS: `Storage.java` implements the interface of the Python wrapper's `storage` class and is added, with the AWS SDK, only to benchmarks using the `storage` module.
