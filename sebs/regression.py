@@ -44,6 +44,7 @@ benchmarks_python = [
     "220.video-processing",  # Video processing
     "311.compression",  # Data compression
     "411.image-recognition",  # ML-based image recognition
+    "421.llm-inference",  # CPU LLM inference using VLLM
     "501.graph-pagerank",  # Graph PageRank algorithm
     "502.graph-mst",  # Graph minimum spanning tree
     "503.graph-bfs",  # Graph breadth-first search
@@ -1371,6 +1372,15 @@ def filter_out_benchmarks(
     # user can asks to use only a selected architecture
     if selected_architecture is not None and selected_architecture != architecture:
         return False
+
+    if "421.llm-inference" in benchmark:
+        return (
+            deployment_name == "aws"
+            and language == "python"
+            and language_version == "3.12"
+            and architecture in ("x64", "arm64")
+            and deployment_type == "container"
+        )
 
     # Arm architecture currently not supported for C++
     if (language == "cpp" and architecture == "arm64"):

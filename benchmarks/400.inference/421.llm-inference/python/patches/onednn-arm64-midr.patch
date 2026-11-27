@@ -1,0 +1,28 @@
+diff --git a/third_party/xbyak_aarch64/src/util_impl_linux.h b/third_party/xbyak_aarch64/src/util_impl_linux.h
+index a8448e1..68874b1 100644
+--- a/third_party/xbyak_aarch64/src/util_impl_linux.h
++++ b/third_party/xbyak_aarch64/src/util_impl_linux.h
+@@ -441,15 +441,19 @@ private:
+     FILE *file = fopen(path_midr_el1, "r");
+     if (file == nullptr) {
+       // sysfs is unaccessible for AWS Lambdas
+-      fprintf(stderr, "%s, %d: Can't open MIDR_EL1 sysfs entry\n", __FILE__, __LINE__);
+-      cacheInfo_.midr_el1 = 0xFF << 24;
++      fprintf(stderr,
++              "%s, %d: Cannot open MIDR_EL1; assuming AWS Lambda Graviton2 "
++              "(Neoverse N1, MIDR=0x410FD0C1)\n", __FILE__, __LINE__);
++      cacheInfo_.midr_el1 = 0x410FD0C1;
+       return;
+     }
+ 
+     if (fread(buf, sizeof(char), 64, file) == 0) {
+       // File can be empty if invoked inside docker container
+-      fprintf(stderr, "%s, %d: Can't read MIDR_EL1 sysfs entry\n", __FILE__, __LINE__);
+-      cacheInfo_.midr_el1 = 0xFF << 24;
++      fprintf(stderr,
++              "%s, %d: Cannot read MIDR_EL1; assuming AWS Lambda Graviton2 "
++              "(Neoverse N1, MIDR=0x410FD0C1)\n", __FILE__, __LINE__);
++      cacheInfo_.midr_el1 = 0x410FD0C1;
+       return;
+     }
+ 

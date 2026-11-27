@@ -1,0 +1,2 @@
+# vLLM build/runtime dependencies are in requirements.txt.{arm64,x64}.lock.
+vllm==0.31.0

@@ -1,0 +1,20 @@
+{
+  "experiments": {
+    "update_code": false,
+    "update_storage": false,
+    "download_results": false,
+    "architecture": "arm64",
+    "system_variant": "container",
+    "runtime": {
+      "language": "python",
+      "version": "3.12"
+    }
+  },
+  "deployment": {
+    "name": "aws",
+    "aws": {
+      "region": "eu-central-1",
+      "lambda-client-read-timeout": 660
+    }
+  }
+}

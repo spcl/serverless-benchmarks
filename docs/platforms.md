@@ -108,6 +108,16 @@ or in the JSON input configuration:
 }
 ```
 
+### Lambda Client Read Timeout
+
+`deployment.aws.lambda-client-read-timeout` sets the Lambda SDK socket read timeout
+in seconds (default: `60`). For synchronous invocations of long-running functions,
+set it above the function timeout. `configs/example.json` keeps the default;
+the LLM benchmark's `aws.json` uses `660` seconds.
+This setting is read from the current configuration, independently of cached AWS
+resources, and is recorded in experiment results. It applies to the shared Lambda
+SDK client, not to HTTP triggers, and does not change the function execution timeout.
+
 ### Lambda Function URLs vs API Gateway
 
 SeBS supports two methods for HTTP-based function invocation on AWS Lambda:
