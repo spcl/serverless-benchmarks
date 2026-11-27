@@ -1,0 +1,54 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG VERSION
+# Read by function.csproj. Overrides the base image's informational runtime version.
+ENV DOTNET_VERSION=${VERSION}
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# shadow-utils provides useradd and groupmod for the entrypoint.
+RUN dnf install -y shadow-utils tar gzip && dnf clean all
+
+# The base image has only the runtime. SDK releases and checksums:
+# https://builds.dotnet.microsoft.com/dotnet/release-metadata/<version>.0/releases.json
+RUN case "${VERSION}" in \
+      10) SDK_RELEASE=10.0.404; \
+          SDK_SHA512_X64=577d0eb17fec33d029104c5c63a1ab0accc3e28776274abef2218dbac5af18d2109b5406d26b31d76f5c245215e3ba0926a94c20246c672c41847c9e1eb1dc50; \
+          SDK_SHA512_ARM64=3533a3869da219cac45c567aadac3d8e96cdf1c6a04fe1c1d5fdeefea5d45af8424488f0144730d11b4a751f7ad546fb11e4c2b2725cd8401efee726711f8f11 ;; \
+      *) echo "No pinned .NET SDK for version ${VERSION}" >&2; exit 1 ;; \
+    esac && \
+    case "$(uname -m)" in \
+      x86_64) SDK_ARCH=x64; SDK_SHA512=${SDK_SHA512_X64} ;; \
+      aarch64) SDK_ARCH=arm64; SDK_SHA512=${SDK_SHA512_ARM64} ;; \
+      *) echo "Unsupported build architecture $(uname -m)" >&2; exit 1 ;; \
+    esac && \
+    curl -fsSL -o /tmp/sdk.tar.gz \
+      "https://builds.dotnet.microsoft.com/dotnet/Sdk/${SDK_RELEASE}/dotnet-sdk-${SDK_RELEASE}-linux-${SDK_ARCH}.tar.gz" && \
+    echo "${SDK_SHA512}  /tmp/sdk.tar.gz" | sha512sum -c - && \
+    mkdir -p /opt/dotnet && \
+    tar -C /opt/dotnet -xzf /tmp/sdk.tar.gz && \
+    rm /tmp/sdk.tar.gz
+ENV DOTNET_ROOT=/opt/dotnet
+ENV PATH=/opt/dotnet:$PATH
+# Silences a first-run warning; benchmarks use no workloads.
+ENV DOTNET_SKIP_WORKLOAD_INTEGRITY_CHECK=1
+
+ENV GOSU_VERSION=1.14
+# Architecture from uname: single-platform builds leave TARGETARCH empty.
+RUN case "$(uname -m)" in \
+      x86_64) GOSU_ARCH=amd64 ;; \
+      aarch64) GOSU_ARCH=arm64 ;; \
+    esac && \
+    curl -fsSL -o /usr/local/bin/gosu \
+      "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-${GOSU_ARCH}" && \
+    chmod +x /usr/local/bin/gosu
+RUN mkdir -p /sebs/
+COPY dockerfiles/dotnet_installer.sh /sebs/installer.sh
+COPY dockerfiles/entrypoint.sh /sebs/entrypoint.sh
+RUN chmod +x /sebs/entrypoint.sh /sebs/installer.sh
+
+# useradd and groupmod are installed in /usr/sbin, which is not in PATH
+ENV PATH=/usr/sbin:$PATH
+ENV SCRIPT_FILE=/mnt/function/package.sh
+CMD ["/bin/bash", "/sebs/installer.sh"]
+ENTRYPOINT ["/sebs/entrypoint.sh"]

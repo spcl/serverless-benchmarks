@@ -575,6 +575,13 @@ class Variant:
 
         DEFAULT = "default"
 
+    class Dotnet(Enum):
+        """.NET runtime variants.
+        Currently only the managed runtime.
+        """
+
+        DEFAULT = "default"
+
     @classmethod
     def for_language(cls, language: Language, val: str) -> Enum:
         """Deserialize a variant string for the given language."""
@@ -598,6 +605,7 @@ Variant._LANG_MAP = {
     Language.NODEJS: Variant.NodeJS,
     Language.JAVA: Variant.Java,
     Language.CPP: Variant.Cpp,
+    Language.DOTNET: Variant.Dotnet,
 }
 
 

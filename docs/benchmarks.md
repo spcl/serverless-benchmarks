@@ -2,7 +2,7 @@
 
 | Type 		   | Benchmark           | Languages          | Architecture       |  Description |
 | :---         | :---:               | :---:              | :---:                | :---:                |
-| Webapps      | 010.sleep    | Python, Node.js, C++, Java | x64, arm64 | Customizable sleep microbenchmark. |
+| Webapps      | 010.sleep    | Python, Node.js, C++, Java, .NET | x64, arm64 | Customizable sleep microbenchmark. |
 | Webapps      | 110.dynamic-html    | Python, Node.js, Java | x64, arm64 | Generate dynamic HTML from a template. |
 | Webapps      | 120.uploader    | Python, Node.js    | x64, arm64 | Uploader file from provided URL to cloud storage. |
 | Webapps      | 130.crud-api    | Python, Node.js    | x64, arm64 | Simple CRUD application using NoSQL to store application data. |
