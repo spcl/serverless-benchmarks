@@ -24,7 +24,7 @@ public class Handler implements HttpFunction {
     public void service(HttpRequest request, HttpResponse response)
             throws IOException {
 
-        // Checked before the benchmark runs, so that of concurrent invocations the first is cold
+        // Before the benchmark, so that the first of concurrent invocations is the cold one
         ColdStartTracker.State coldStart = ColdStartTracker.check();
 
         Instant beginTs = Instant.now();

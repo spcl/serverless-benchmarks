@@ -8,17 +8,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
 
-/**
- * Detects cold starts with a marker file in /tmp, which lives as long as the container.
- *
- * <p>The first invocation in a container creates the marker and is the only one reported as
- * cold. The marker holds the container's ID, which later invocations read back.
- */
+/** Detects cold starts with a marker file in /tmp, which lives as long as the container. */
 final class ColdStartTracker {
 
     private static final Path MARKER = Paths.get("/tmp/cold_run");
 
-    /** The container's ID once this JVM has checked; its later invocations are warm. */
+    // Cached so that the ID stays the same even if the marker cannot be read or written
     private static String containerId = null;
 
     /** Cold-start state of one invocation. */
@@ -35,14 +30,9 @@ final class ColdStartTracker {
     private ColdStartTracker() {}
 
     /**
-     * Checks for the marker, creating it when it is missing.
+     * Returns whether this is the container's first invocation, and the container's ID.
      *
-     * <p>Call once per invocation, before the benchmark runs, and read both values from the
-     * result: any later check in the same container reports a warm start. Synchronized because
-     * some platforms run concurrent invocations in one JVM, and only one of them is the cold
-     * start.
-     *
-     * @return whether this invocation is the container's first, and the container's ID
+     * <p>Synchronized because some platforms run concurrent invocations in one JVM.
      */
     static synchronized State check() {
         if (containerId != null) {
@@ -60,8 +50,7 @@ final class ColdStartTracker {
         try {
             Files.write(MARKER, containerId.getBytes(StandardCharsets.UTF_8));
         } catch (IOException ignored) {
-            // Best effort: without the marker, a JVM started later in this container is also
-            // reported as a cold start.
+            // Best effort: without the marker, a new JVM here also reports a cold start
         }
         return new State(true, containerId);
     }

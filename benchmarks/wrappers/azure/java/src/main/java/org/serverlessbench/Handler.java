@@ -29,7 +29,7 @@ public class Handler {
         final ExecutionContext context
     ) {
 
-        // Checked before the benchmark runs, so that of concurrent invocations the first is cold
+        // Before the benchmark, so that the first of concurrent invocations is the cold one
         ColdStartTracker.State coldStart = ColdStartTracker.check();
 
         Instant beginTs = Instant.now();

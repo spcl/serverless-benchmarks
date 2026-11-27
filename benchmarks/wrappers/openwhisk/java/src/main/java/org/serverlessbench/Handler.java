@@ -21,7 +21,7 @@ public class Handler {
 
     public static JsonObject main(JsonObject args) {
 
-        // Checked before the benchmark runs, so that of concurrent invocations the first is cold
+        // Before the benchmark, so that the first of concurrent invocations is the cold one
         ColdStartTracker.State coldStart = ColdStartTracker.check();
 
         Function function = new Function();

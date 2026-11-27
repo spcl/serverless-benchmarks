@@ -17,7 +17,7 @@ public class Handler implements RequestHandler<Map<String, Object>, Map<String, 
     @Override
     public Map<String, Object> handleRequest(Map<String, Object> event, Context context) {
 
-        // Checked before the benchmark runs, so that of concurrent invocations the first is cold
+        // Before the benchmark, so that the first of concurrent invocations is the cold one
         ColdStartTracker.State coldStart = ColdStartTracker.check();
 
         Instant beginTs = Instant.now();
