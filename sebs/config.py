@@ -11,7 +11,7 @@ options across different cloud providers and local deployments.
 """
 
 import json
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sebs.utils import get_resource_path
 
@@ -86,7 +86,7 @@ class SeBSConfig:
 
     def deployment_module_packages(
         self, deployment_name: str, language_name: str
-    ) -> Dict[str, List[str]]:
+    ) -> Dict[str, Any]:
         """Get deployment module packages for a specific deployment and language, e.g.,
         packages specific to object or NoSQL storage.
 
@@ -95,8 +95,9 @@ class SeBSConfig:
             language_name (str): Programming language name (e.g., 'python', 'nodejs').
 
         Returns:
-            Dict[str, List[str]]: Dictionary mapping benchmark modules to the package
-                specifications installed for them, e.g., "boto3==1.28.3".
+            Dict[str, Any]: Dictionary mapping benchmark modules to the packages installed
+                for them, e.g., ["boto3==1.28.3"] for Python, or {"group:artifact": version}
+                for Java.
         """
         return self._system_config[deployment_name]["languages"][language_name]["deployment"][
             "module_packages"
@@ -115,6 +116,23 @@ class SeBSConfig:
         return self._system_config[deployment_name]["languages"][language_name]["deployment"][
             "files"
         ]
+
+    def deployment_module_files(
+        self, deployment_name: str, language_name: str
+    ) -> Dict[str, List[str]]:
+        """Get wrapper files added only to benchmarks using a given module.
+
+        Args:
+            deployment_name (str): Name of the deployment platform (e.g., 'aws', 'azure').
+            language_name (str): Programming language name (e.g., 'java').
+
+        Returns:
+            Dict[str, List[str]]: Dictionary mapping benchmark modules to the wrapper files
+                added for them, relative to the language's wrapper directory.
+        """
+        return self._system_config[deployment_name]["languages"][language_name]["deployment"].get(
+            "module_files", {}
+        )
 
     def docker_image_types(self, deployment_name: str, language_name: str) -> List[str]:
         """Get available Docker image types for a deployment and language.
