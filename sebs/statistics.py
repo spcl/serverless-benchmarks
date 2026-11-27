@@ -6,18 +6,19 @@ intervals on benchmark experiment results. It includes both parametric
 (Student's t-distribution) and non-parametric (Le Boudec) methods for
 computing confidence intervals.
 """
+from __future__ import annotations
 
 import copy
 import math
 import logging
-from typing import Dict, List, Tuple
+from typing import TYPE_CHECKING, Dict, List, Tuple
 from collections import namedtuple
 
 import numpy as np
 import scipy.stats as st
 
-# Named tuple for basic statistics results
-from sebs.experiments.result import Result as ExperimentResult
+if TYPE_CHECKING:
+    from sebs.experiments.result import Result as ExperimentResult
 
 BasicStats = namedtuple("BasicStats", "mean median std cv")
 

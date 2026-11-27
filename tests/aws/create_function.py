@@ -1,11 +1,16 @@
 # Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
+from __future__ import annotations
+
 import os
 import tempfile
 import unittest
 import zipfile
-from typing import List
+from typing import TYPE_CHECKING
 
 import sebs
+
+if TYPE_CHECKING:
+    from sebs.benchmark import Benchmark
 
 
 class AWSCreateFunction(unittest.TestCase):
@@ -34,7 +39,7 @@ class AWSCreateFunction(unittest.TestCase):
         "nodejs": ["handler.js", "function/storage.js", "package.json", "node_modules/"]
     }
     benchmark = "110.dynamic-html"
-    function_name_suffixes = [] 
+    function_name_suffixes = []
 
     def setUp(self):
         self.tmp_dir = tempfile.TemporaryDirectory()

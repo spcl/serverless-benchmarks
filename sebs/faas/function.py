@@ -22,11 +22,13 @@ from abc import abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Callable, ClassVar, Dict, List, Optional, Type, TypeVar  # noqa
+from typing import TYPE_CHECKING, Callable, ClassVar, Dict, List, Optional, Type, TypeVar  # noqa
 
 from sebs.sebs_types import Language, Architecture
-from sebs.benchmark import Benchmark
 from sebs.utils import LoggingBase
+
+if TYPE_CHECKING:
+    from sebs.benchmark import Benchmark
 
 
 class ExecutionTimes:

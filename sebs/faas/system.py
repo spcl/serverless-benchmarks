@@ -8,19 +8,18 @@ Functions, OpenWhisk, etc.). It handles function lifecycle management, code pack
 deployment, triggering, and metrics collection while abstracting away platform-specific
 details.
 """
+from __future__ import annotations
 
 from abc import ABC
 from abc import abstractmethod
 from random import randrange
-from typing import Callable, Dict, List, Optional, Tuple, Type
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Type
 import uuid
 
 import docker
 
-from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.experiments.config import SystemVariant
 from sebs.faas.container import DockerContainer
 from sebs.faas.resources import SystemResources
 from sebs.faas.config import Resources
@@ -28,6 +27,10 @@ from sebs.faas.function import Function, Trigger, ExecutionResult
 from sebs.utils import LoggingBase
 from sebs.sebs_types import Language
 from .config import Config
+
+if TYPE_CHECKING:
+    from sebs.benchmark import Benchmark
+    from sebs.experiments.config import SystemVariant
 
 
 class System(ABC, LoggingBase):
