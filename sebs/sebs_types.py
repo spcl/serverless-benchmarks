@@ -67,13 +67,14 @@ class Language(str, Enum):
     """
     Enumeration of supported programming languages.
 
-    Currently supports Python, Node.js, and C++ for serverless functions.
+    Currently supports Python, Node.js, C++, Java, and .NET for serverless functions.
     """
 
     PYTHON = "python"
     NODEJS = "nodejs"
     CPP = "cpp"
     JAVA = "java"
+    DOTNET = "dotnet"
 
     @staticmethod
     def deserialize(val: str) -> Language:

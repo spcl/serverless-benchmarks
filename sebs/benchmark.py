@@ -686,12 +686,14 @@ class Benchmark(LoggingBase):
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: ["*.java", "pom.xml"],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
+            Language.DOTNET: ["*.cs", "*.csproj"],
         }
         WRAPPERS = {
             Language.PYTHON: ["*.py"],
             Language.NODEJS: ["*.js"],
             Language.JAVA: ["src"],
             Language.CPP: ["*.cpp", "*.hpp"],
+            Language.DOTNET: ["*.cs"],
         }
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
@@ -788,6 +790,7 @@ class Benchmark(LoggingBase):
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: [],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
+            Language.DOTNET: ["*.cs", "*.csproj"],
         }
         path = os.path.join(self.benchmark_path, self.language_name)
         if self.language == Language.JAVA:
@@ -1036,6 +1039,54 @@ class Benchmark(LoggingBase):
         with open(pom_path, "w") as f:
             f.write(pom_content)
 
+    def format_nuget_dependency(self, package: str, version: str) -> str:
+        """Helper method to format .NET system dependencies.
+        Dependencies in systems.json are in "package": version format;
+        this function converts them to MSBuild <PackageReference> items.
+
+        Args:
+            package: name of NuGet package to add to benchmark
+            version: package version
+
+        Returns:
+            XML-formatted item inserted into function.csproj
+        """
+        return f'    <PackageReference Include="{package}" Version="{version}" />'
+
+    def add_deployment_package_dotnet(self, output_dir: str) -> None:
+        """Extend benchmark's function.csproj with system-specific packages.
+        All .NET dependencies for each platform are defined in systems.json.
+
+        Args:
+            output_dir: benchmark directory containing function.csproj to modify
+
+        Raises:
+            ValueError: when benchmark's function.csproj is missing placeholder
+        """
+        csproj_path = os.path.join(output_dir, "function.csproj")
+        with open(csproj_path, "r") as f:
+            csproj_content = f.read()
+
+        packages = self._system_config.deployment_packages(
+            self._deployment_name, self.language_name
+        )
+
+        package_items = ""
+        for name, version in packages.items():
+            package_items += self.format_nuget_dependency(name, version) + "\n"
+
+        if "<!-- PLATFORM_DEPENDENCIES -->" not in csproj_content:
+            raise ValueError(
+                "function.csproj template is missing <!-- PLATFORM_DEPENDENCIES --> placeholder"
+            )
+
+        csproj_content = csproj_content.replace(
+            "<!-- PLATFORM_DEPENDENCIES -->", package_items.strip()
+        )
+
+        with open(csproj_path, "w") as f:
+            f.write(csproj_content)
+
     def add_deployment_package_cpp(self, output_dir: str) -> None:
         """Generates CMakeLists.txt file for C++ benchmark.
 
@@ -1127,6 +1178,8 @@ class Benchmark(LoggingBase):
             self.add_deployment_package_java(output_dir)
         elif self.language == Language.CPP:
             self.add_deployment_package_cpp(output_dir)
+        elif self.language == Language.DOTNET:
+            self.add_deployment_package_dotnet(output_dir)
         else:
             raise NotImplementedError
 
@@ -1273,6 +1326,7 @@ class Benchmark(LoggingBase):
                 Language.NODEJS: "package.json",
                 Language.CPP: "CMakeLists.txt",
                 Language.JAVA: "pom.xml",
+                Language.DOTNET: "function.csproj",
             }
             file = os.path.join(output_dir, PACKAGE_FILES[self.language])
             if os.path.exists(file):

@@ -11,6 +11,7 @@ size_generators = {
 # Note: Values may vary slightly due to floating-point precision and igraph version differences
 #
 # For Node.js, we use a different library and random number generator so the expected values differ slightly.
+# Java uses its own random number generator, so its values differ as well.
 expected_pagerank = {
     "python": {
         10: 0.1,
@@ -27,7 +28,14 @@ expected_pagerank = {
         10000: 0.0011396482039798725,
         100000: 0.0003105243690874958,
     },
+    "java": {
+        10: 0.1,
+        10000: 0.0007066674963152452,
+        100000: 0.0002113910712578018,
+    },
 }
+# .NET implements the same steps as Java, so it gets the same values
+expected_pagerank["dotnet"] = expected_pagerank["java"]
 
 def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
     return { 'size': size_generators[size], 'seed': 42}

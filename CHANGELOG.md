@@ -2,6 +2,14 @@
 
 ### Features
 
+* `501.graph-pagerank` for .NET, with the same graph generator and PageRank as the Java version and the same result.
+
+* `110.dynamic-html` for .NET, rendering the Java version's Mustache template with Stubble.
+
+* `501.graph-pagerank` for Java, with the graph generator and PageRank written by hand, without libraries.
+
+* .NET 10 on AWS Lambda, as code packages and containers on x64 and arm64, starting with `010.sleep`.
+
 * Cold start enforcement for the local deployment: SeBS replaces the function container, and the local function servers report the first invocation of a container as cold. Requires the updated local run images.
 
 * [RustFS](https://github.com/rustfs/rustfs) is the new default S3-compatible object storage for local and OpenWhisk deployments. Minio is deprecated and kept for reproducibility (`configs/storage-minio.json`). The self-hosted object storage implementation is now shared between backends.

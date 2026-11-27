@@ -1,0 +1,11 @@
+ARG BASE_IMAGE
+ARG BASE_IMAGE_BUILDER
+
+FROM ${BASE_IMAGE_BUILDER} AS builder
+ARG TARGET_ARCHITECTURE
+COPY . /mnt/function
+RUN TARGET_ARCHITECTURE=${TARGET_ARCHITECTURE} /bin/bash /sebs/installer.sh
+
+FROM ${BASE_IMAGE}
+COPY --from=builder /mnt/function/publish/ ${LAMBDA_TASK_ROOT}/
+CMD ["function::ServerlessBench.Handler::HandleRequest"]
