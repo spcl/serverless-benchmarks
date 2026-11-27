@@ -75,7 +75,7 @@ benchmarks_cpp = [
     "503.graph-bfs",
 ]
 
-benchmarks_dotnet = ["010.sleep", "110.dynamic-html"]
+benchmarks_dotnet = ["010.sleep", "110.dynamic-html", "501.graph-pagerank"]
 
 # AWS-specific configurations
 architectures_aws = ["x64", "arm64"]

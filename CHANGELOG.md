@@ -2,6 +2,8 @@
 
 ### Features
 
+* `501.graph-pagerank` for .NET, with the same graph generator and PageRank as the Java version and the same result.
+
 * `110.dynamic-html` for .NET, rendering the Java version's Mustache template with Stubble.
 
 * `501.graph-pagerank` for Java, with the graph generator and PageRank written by hand, without libraries.

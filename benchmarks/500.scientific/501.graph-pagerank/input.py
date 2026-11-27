@@ -34,6 +34,8 @@ expected_pagerank = {
         100000: 0.0002113910712578018,
     },
 }
+# .NET implements the same steps as Java, so it gets the same values
+expected_pagerank["dotnet"] = expected_pagerank["java"]
 
 def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
     return { 'size': size_generators[size], 'seed': 42}
