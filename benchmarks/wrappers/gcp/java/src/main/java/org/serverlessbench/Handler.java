@@ -24,6 +24,9 @@ public class Handler implements HttpFunction {
     public void service(HttpRequest request, HttpResponse response)
             throws IOException {
 
+        // Checked before the benchmark runs, so that of concurrent invocations the first is cold
+        ColdStartTracker.State coldStart = ColdStartTracker.check();
+
         Instant beginTs = Instant.now();
         String requestId = request.getFirstHeader(TRACE_CONTEXT_HEADER)
           .or(() -> request.getFirstHeader(FUNCTION_EXECUTION_ID_HEADER))
@@ -41,8 +44,6 @@ public class Handler implements HttpFunction {
         String beginStr = formatTimestamp(beginTs);
         String endStr = formatTimestamp(endTs);
 
-        // Cold start and container ID come from one check, made once per invocation
-        ColdStartTracker.State coldStart = ColdStartTracker.check();
         String coldStartVar = System.getenv("cold_start");
         if (coldStartVar == null) {
             coldStartVar = "";

@@ -21,14 +21,14 @@ public class Handler {
 
     public static JsonObject main(JsonObject args) {
 
+        // Checked before the benchmark runs, so that of concurrent invocations the first is cold
+        ColdStartTracker.State coldStart = ColdStartTracker.check();
+
         Function function = new Function();
 
         Instant begin = Instant.now();
         Map<String, Object> result = function.handler(gson.fromJson(args, mapType));
         Instant end = Instant.now();
-
-        // Cold start and container ID come from one check, made once per invocation
-        ColdStartTracker.State coldStart = ColdStartTracker.check();
 
         // Convert to Unix timestamp in seconds.microseconds
         String formattedBegin = formatTimestamp(begin);

@@ -18,6 +18,9 @@ final class ColdStartTracker {
 
     private static final Path MARKER = Paths.get("/tmp/cold_run");
 
+    /** The container's ID once this JVM has checked; its later invocations are warm. */
+    private static String containerId = null;
+
     /** Cold-start state of one invocation. */
     static final class State {
         final boolean isCold;
@@ -34,15 +37,18 @@ final class ColdStartTracker {
     /**
      * Checks for the marker, creating it when it is missing.
      *
-     * <p>Call once per invocation and read both values from the result: any later check in the
-     * same container finds the marker and reports a warm start. Synchronized because some
-     * platforms run concurrent invocations in one JVM, and only one of them is the cold start.
+     * <p>Call once per invocation, before the benchmark runs, and read both values from the
+     * result: any later check in the same container reports a warm start. Synchronized because
+     * some platforms run concurrent invocations in one JVM, and only one of them is the cold
+     * start.
      *
      * @return whether this invocation is the container's first, and the container's ID
      */
     static synchronized State check() {
+        if (containerId != null) {
+            return new State(false, containerId);
+        }
         if (Files.exists(MARKER)) {
-            String containerId;
             try {
                 containerId = new String(Files.readAllBytes(MARKER), StandardCharsets.UTF_8);
             } catch (IOException e) {
@@ -50,11 +56,12 @@ final class ColdStartTracker {
             }
             return new State(false, containerId);
         }
-        String containerId = newContainerId();
+        containerId = newContainerId();
         try {
             Files.write(MARKER, containerId.getBytes(StandardCharsets.UTF_8));
         } catch (IOException ignored) {
-            // Best effort: without the marker, later invocations also report a cold start.
+            // Best effort: without the marker, a JVM started later in this container is also
+            // reported as a cold start.
         }
         return new State(true, containerId);
     }
