@@ -431,12 +431,12 @@ class PersistentStorage(ABC, LoggingBase):
                 Resources.StorageBucketType.DEPLOYMENT: "code deployment",
             }
 
-            name = self._cloud_resources.get_storage_bucket_name(bucket_type)
+            name = self.correct_name(self._cloud_resources.get_storage_bucket_name(bucket_type))
 
             if not self.exists_bucket(name):
                 self.logging.info(f"Initialize a new bucket for {description[bucket_type]}")
                 bucket = self._create_bucket(
-                    self.correct_name(name),
+                    name,
                     randomize_name=False,
                 )
             else:

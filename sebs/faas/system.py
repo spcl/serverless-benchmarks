@@ -418,6 +418,7 @@ class System(ABC, LoggingBase):
 
         if not func_name:
             func_name = self.default_function_name(code_package)
+        func_name = self.normalize_function_name(func_name)
         _, code_package_loc, system_variant, container_uri = code_package.build(
             self.package_code, self.container_client, self.finalize_container_build()
         )
@@ -471,6 +472,7 @@ class System(ABC, LoggingBase):
         # Generate function name if not provided
         if not func_name:
             func_name = self.default_function_name(code_package)
+        func_name = self.normalize_function_name(func_name)
 
         # Build the code package
         rebuilt, _, system_variant, container_uri = code_package.build(
@@ -654,6 +656,21 @@ class System(ABC, LoggingBase):
             str: Generated function name
         """
         pass
+
+    def normalize_function_name(self, func_name: str) -> str:
+        """
+        Convert a function name to the form used by the platform.
+
+        Platforms that rewrite function names on creation must override this,
+        so that cache lookups use the same name as the deployed function.
+
+        Args:
+            func_name: Function name, possibly provided by the user
+
+        Returns:
+            str: Function name as deployed and cached
+        """
+        return func_name
 
     @abstractmethod
     def enforce_cold_start(self, functions: List[Function], code_package: Benchmark):
