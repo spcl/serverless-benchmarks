@@ -1,7 +1,11 @@
 {
+  "name": "sebs-local-nodejs",
+  "private": true,
   "dependencies": {
-    "minio": "^7.0.13",
-    "strftime": "^0.10.0",
-    "uuid": "^3.4.0"
+    "csv-writer": "1.6.0",
+    "express": "5.3.0",
+    "glob": "7.2.3",
+    "strftime": "0.10.3",
+    "uuid": "9.0.1"
   }
 }

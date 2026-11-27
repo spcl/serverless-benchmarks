@@ -22,7 +22,7 @@ class AWSCreateFunction(unittest.TestCase):
         "nodejs": {
             "deployment": {"name": "aws", "aws": {"region": "us-east-1"}},
             "experiments": {
-                "runtime": {"language": "nodejs", "version": "10.x"},
+                "runtime": {"language": "nodejs", "version": "22.x"},
                 "update_code": False,
                 "update_storage": False,
                 "download_results": False,

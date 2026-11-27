@@ -24,7 +24,7 @@ jobs:
           - language: python
             version: "3.11"
           - language: nodejs
-            version: "20"
+            version: "22"
       fail-fast: false
 
     name: ${{ matrix.language }} ${{ matrix.version }} ${{ matrix.architecture }}
