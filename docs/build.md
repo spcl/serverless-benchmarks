@@ -67,7 +67,7 @@ pushing images to a custom registry. For example, a local registry deployment ca
 
 ### AWS Lambda
 
-We support deploying functions as Docker images for Python, Node.js, and C++ functions. We also support building arm64 images for this platform, except for C++ functions (extension to ARM functions is planned in the future).
+We support deploying functions as Docker images for Python, Node.js, C++, and .NET functions. We also support building arm64 images for this platform, except for C++ functions (extension to ARM functions is planned in the future).
 
 ### OpenWhisk
 

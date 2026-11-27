@@ -2,6 +2,14 @@
 
 ### Features
 
+* `311.compression` for .NET on AWS, using `System.IO.Compression` and the .NET storage wrapper.
+
+* Object storage for .NET on AWS: `Storage.cs` implements the interface of the Python wrapper's `storage` class and is added, with AWSSDK.S3, only to benchmarks using the `storage` module.
+
+* Object storage for Java on AWS: `Storage.java` implements the interface of the Python wrapper's `storage` class and is added, with the AWS SDK, only to benchmarks using the `storage` module.
+
+* .NET 10 on AWS Lambda, as code packages and containers on x64 and arm64, starting with `010.sleep`.
+
 * Cold start enforcement for the local deployment: SeBS replaces the function container, and the local function servers report the first invocation of a container as cold. Requires the updated local run images.
 
 * [RustFS](https://github.com/rustfs/rustfs) is the new default S3-compatible object storage for local and OpenWhisk deployments. Minio is deprecated and kept for reproducibility (`configs/storage-minio.json`). The self-hosted object storage implementation is now shared between backends.

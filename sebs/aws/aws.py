@@ -274,6 +274,22 @@ class AWS(System):
             mbytes = bytes_size / 1024.0 / 1024.0
             self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
+        elif language == Language.DOTNET:
+            publish_dir = os.path.join(directory, "publish")
+            if not os.path.isdir(publish_dir):
+                raise RuntimeError(
+                    f".NET output {publish_dir} missing. Ensure the .NET build produced it."
+                )
+            # Lambda loads the assemblies from the archive root
+            benchmark_archive = shutil.make_archive(
+                os.path.join(directory, benchmark), "zip", root_dir=publish_dir
+            )
+            self.logging.info("Created {} archive".format(benchmark_archive))
+
+            bytes_size = os.path.getsize(benchmark_archive)
+            mbytes = bytes_size / 1024.0 / 1024.0
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
         else:
             raise NotImplementedError()
 
@@ -313,7 +329,7 @@ class AWS(System):
             return "provided.al2023"
         elif language == Language.JAVA:
             return f"{language}{language_version}"
-        elif language in [Language.PYTHON]:
+        elif language in [Language.PYTHON, Language.DOTNET]:
             return f"{language}{language_version}"
         else:
             raise NotImplementedError()
@@ -414,6 +430,10 @@ class AWS(System):
                 create_function_params["Runtime"] = self.cloud_runtime(language, language_runtime)
                 if language == Language.JAVA:
                     create_function_params["Handler"] = "org.serverlessbench.Handler::handleRequest"
+                elif language == Language.DOTNET:
+                    # Assembly::Namespace.Type::Method
+                    handler = "function::ServerlessBench.Handler::HandleRequest"
+                    create_function_params["Handler"] = handler
                 else:
                     create_function_params["Handler"] = "handler.handler"
 

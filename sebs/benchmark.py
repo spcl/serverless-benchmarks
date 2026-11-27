@@ -686,12 +686,15 @@ class Benchmark(LoggingBase):
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: ["*.java", "pom.xml"],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
+            Language.DOTNET: ["*.cs", "*.csproj"],
         }
+        # Java's "modules" is hashed for every benchmark, so changing it rebuilds all of them
         WRAPPERS = {
             Language.PYTHON: ["*.py"],
             Language.NODEJS: ["*.js"],
-            Language.JAVA: ["src"],
+            Language.JAVA: ["src", "modules"],
             Language.CPP: ["*.cpp", "*.hpp"],
+            Language.DOTNET: ["*.cs"],
         }
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
@@ -788,6 +791,7 @@ class Benchmark(LoggingBase):
             Language.NODEJS: ["*.js", "package.json"],
             Language.JAVA: [],
             Language.CPP: ["*.cpp", "*.hpp", "dependencies.json"],
+            Language.DOTNET: ["*.cs", "*.csproj"],
         }
         path = os.path.join(self.benchmark_path, self.language_name)
         if self.language == Language.JAVA:
@@ -910,6 +914,16 @@ class Benchmark(LoggingBase):
             )
         ]
 
+        # Only for benchmarks using the module, since module SDKs make the package larger
+        module_files = self._system_config.deployment_module_files(
+            self._deployment_name, self.language_name
+        )
+        for bench_module in self._benchmark_config.modules:
+            handlers.extend(
+                os.path.join(handlers_dir, file)
+                for file in module_files.get(bench_module.value, [])
+            )
+
         for file in handlers:
             destination = os.path.join(output_dir, os.path.basename(file))
             if os.path.isdir(file):
@@ -977,7 +991,37 @@ class Benchmark(LoggingBase):
             with open(package_config, "w") as package_file:
                 json.dump(package_json, package_file, indent=2)
 
-    def format_maven_dependency(self, group_artifact: str, version: str) -> str:
+    def _module_packages(self) -> Dict[str, Any]:
+        """Collect the packages of the modules this benchmark uses.
+
+        Returns:
+            Dict[str, Any]: Package names mapped to their version or specification.
+        """
+        module_packages = self._system_config.deployment_module_packages(
+            self._deployment_name, self.language_name
+        )
+        packages: Dict[str, Any] = {}
+        for bench_module in self._benchmark_config.modules:
+            packages.update(module_packages.get(bench_module.value, {}))
+        return packages
+
+    @staticmethod
+    def parse_package_spec(spec: Any) -> Tuple[str, List[str]]:
+        """Split a package specification from systems.json into its version and exclusions.
+
+        Args:
+            spec: version string, or a dict with "version" and optional "exclusions"
+
+        Returns:
+            Tuple[str, List[str]]: the version, and the excluded "group:artifact" names
+        """
+        if isinstance(spec, dict):
+            return spec["version"], spec.get("exclusions", [])
+        return spec, []
+
+    def format_maven_dependency(
+        self, group_artifact: str, version: str, exclusions: Optional[List[str]] = None
+    ) -> str:
         """Helper method to format Java system dependencies.
         Dependencies in system.json are in "group:artifact": version format;
         this function converts them to proper Maven <dependency> blocks.
@@ -985,16 +1029,30 @@ class Benchmark(LoggingBase):
         Args:
             group_artifact: name of library to add to benchmark
             version: library version
+            exclusions: transitive dependencies to drop, as "group:artifact" names
 
         Returns:
             XML-formatted block inserted into pom.xml
         """
         group_id, artifact_id = group_artifact.split(":")
+        exclusion_block = ""
+        if exclusions:
+            excluded = "".join(
+                f"""
+                <exclusion>
+                    <groupId>{excluded_artifact.split(":")[0]}</groupId>
+                    <artifactId>{excluded_artifact.split(":")[1]}</artifactId>
+                </exclusion>"""
+                for excluded_artifact in exclusions
+            )
+            exclusion_block = f"""
+            <exclusions>{excluded}
+            </exclusions>"""
         return f"""
         <dependency>
             <groupId>{group_id}</groupId>
             <artifactId>{artifact_id}</artifactId>
-            <version>{version}</version>
+            <version>{version}</version>{exclusion_block}
         </dependency>"""
 
     def add_deployment_package_java(self, output_dir: str):
@@ -1011,17 +1069,20 @@ class Benchmark(LoggingBase):
         with open(pom_path, "r") as f:
             pom_content = f.read()
 
-        packages = self._system_config.deployment_packages(
-            self._deployment_name, self.language_name
+        packages: Dict[str, Any] = dict(
+            self._system_config.deployment_packages(self._deployment_name, self.language_name)
         )
+        packages.update(self._module_packages())
 
         dependency_blocks = ""
         if len(packages):
             for key, val in packages.items():
                 dependency_name = key.strip('"').strip("'")
-                dependency_version = val.strip('"').strip("'")
+                version, exclusions = Benchmark.parse_package_spec(val)
+                dependency_version = version.strip('"').strip("'")
                 dependency_blocks += (
-                    self.format_maven_dependency(dependency_name, dependency_version) + "\n"
+                    self.format_maven_dependency(dependency_name, dependency_version, exclusions)
+                    + "\n"
                 )
 
         if "<!-- PLATFORM_DEPENDENCIES -->" not in pom_content:
@@ -1035,6 +1096,55 @@ class Benchmark(LoggingBase):
 
         with open(pom_path, "w") as f:
             f.write(pom_content)
+
+    def format_nuget_dependency(self, package: str, version: str) -> str:
+        """Helper method to format .NET system dependencies.
+        Dependencies in systems.json are in "package": version format;
+        this function converts them to MSBuild <PackageReference> items.
+
+        Args:
+            package: name of NuGet package to add to benchmark
+            version: package version
+
+        Returns:
+            XML-formatted item inserted into function.csproj
+        """
+        return f'    <PackageReference Include="{package}" Version="{version}" />'
+
+    def add_deployment_package_dotnet(self, output_dir: str) -> None:
+        """Extend benchmark's function.csproj with system-specific packages.
+        All .NET dependencies for each platform are defined in systems.json.
+
+        Args:
+            output_dir: benchmark directory containing function.csproj to modify
+
+        Raises:
+            ValueError: when benchmark's function.csproj is missing placeholder
+        """
+        csproj_path = os.path.join(output_dir, "function.csproj")
+        with open(csproj_path, "r") as f:
+            csproj_content = f.read()
+
+        packages: Dict[str, Any] = dict(
+            self._system_config.deployment_packages(self._deployment_name, self.language_name)
+        )
+        packages.update(self._module_packages())
+
+        package_items = ""
+        for name, version in packages.items():
+            package_items += self.format_nuget_dependency(name, version) + "\n"
+
+        if "<!-- PLATFORM_DEPENDENCIES -->" not in csproj_content:
+            raise ValueError(
+                "function.csproj template is missing <!-- PLATFORM_DEPENDENCIES --> placeholder"
+            )
+
+        csproj_content = csproj_content.replace(
+            "<!-- PLATFORM_DEPENDENCIES -->", package_items.strip()
+        )
+
+        with open(csproj_path, "w") as f:
+            f.write(csproj_content)
 
     def add_deployment_package_cpp(self, output_dir: str) -> None:
         """Generates CMakeLists.txt file for C++ benchmark.
@@ -1127,6 +1237,8 @@ class Benchmark(LoggingBase):
             self.add_deployment_package_java(output_dir)
         elif self.language == Language.CPP:
             self.add_deployment_package_cpp(output_dir)
+        elif self.language == Language.DOTNET:
+            self.add_deployment_package_dotnet(output_dir)
         else:
             raise NotImplementedError
 
@@ -1273,6 +1385,7 @@ class Benchmark(LoggingBase):
                 Language.NODEJS: "package.json",
                 Language.CPP: "CMakeLists.txt",
                 Language.JAVA: "pom.xml",
+                Language.DOTNET: "function.csproj",
             }
             file = os.path.join(output_dir, PACKAGE_FILES[self.language])
             if os.path.exists(file):
