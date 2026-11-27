@@ -2,7 +2,7 @@
 
 ### Features
 
-* New `warm-up` experiment: forces a cold start, invokes the function sequentially a fixed number of times, and keeps every result with its position in the sequence, showing how execution time changes over the first calls to a new container, e.g., while a JIT compiler optimizes the code. `sebs experiment process warm-up` writes one CSV row per call, with provider metrics and the benchmark's own measurements.
+* New `warm-up` experiment: keeps every call after a forced cold start, showing how execution time changes over the first calls to a new container.
 
 * Cold start enforcement for the local deployment: SeBS replaces the function container, and the local function servers report the first invocation of a container as cold. Requires the updated local run images.
 

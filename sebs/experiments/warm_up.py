@@ -1,16 +1,9 @@
 # Copyright 2020-2025 ETH Zurich and the SeBS authors. All rights reserved.
 """Warm-up experiment: execution time over the first calls to a new container.
 
-Runtimes with just-in-time compilation, such as the JVM and .NET, get faster over the first
-calls to a container as they recompile frequently used code. The perf-cost experiment discards
-its first batch of calls and pauses between batches, so it reports the warmed-up state. This
-experiment forces a cold start, sends calls back to back to the new container, and keeps every
-sample together with its position in the sequence.
-
-Each repetition is one sequence: a forced cold start followed by a fixed number of sequential
-calls. Sequential calls reach the same container while it stays alive; the results record each
-call's container, and the experiment warns when a sequence did not start cold or spread over
-several containers.
+perf-cost discards its first calls, so it does not show how a runtime warms up, e.g., while a
+JIT compiler optimizes the code. Here, each repetition forces a cold start and keeps the result
+of every sequential call that follows.
 """
 
 import csv
@@ -21,7 +14,6 @@ import time
 from random import randrange
 from typing import Dict, List, Optional, TYPE_CHECKING
 
-from sebs.experiments.config import Config as ExperimentConfig
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.result import Result as ExperimentResult
 from sebs.faas.function import ExecutionResult, Trigger
@@ -41,26 +33,9 @@ class WarmUp(Experiment):
         input-size: benchmark input size
         repetitions: number of sequences, each starting with a forced cold start
         invocations: number of sequential calls in each sequence
-        pause: seconds to wait between calls; optional, default 0 (back to back)
+        pause: seconds to wait between calls; optional, default 0
         memory-sizes: memory sizes to run the sequences at; empty for the default size
-
-    Attributes:
-        _benchmark: The benchmark to execute
-        _benchmark_input: The input data for the benchmark
-        _function: The function to invoke
-        _trigger: The HTTP trigger used for invocations
-        _out_dir: Directory for storing results
-        _deployment_client: The deployment client to use
-        _sebs_client: The SeBS client
     """
-
-    def __init__(self, config: ExperimentConfig):
-        """Initialize a new warm-up experiment.
-
-        Args:
-            config: Experiment configuration
-        """
-        super().__init__(config)
 
     @staticmethod
     def name() -> str:
@@ -148,8 +123,8 @@ class WarmUp(Experiment):
         invocations = settings["invocations"]
         pause = settings.get("pause", 0)
 
-        # Start from a random value so that the first enforced cold start changes the
-        # function's configuration, as in perf-cost.
+        # A fresh counter value, so that the first enforced cold start changes the function's
+        # configuration even if a previous run left it deployed.
         self._deployment_client.cold_start_counter = randrange(100)
 
         result = ExperimentResult(self.config, self._deployment_client.config)
@@ -251,11 +226,10 @@ class WarmUp(Experiment):
         logging_filename: str,
         extend_time_interval: int,
     ) -> None:
-        """Download provider metrics and write every call, in order, to a CSV file.
+        """Download provider metrics and write every call, in order, to `result.csv`.
 
-        Results are processed once: the provider metrics are stored in a
-        `<results>-processed.json` file next to each results file, which later runs reuse.
-        The CSV file `result.csv` has one row per call, with its position in the sequence.
+        The metrics are stored in a `<results>-processed.json` file, which is reused while it
+        is newer than its results file.
 
         Args:
             sebs_client: The SeBS client to use
@@ -276,7 +250,7 @@ class WarmUp(Experiment):
             parts = os.path.basename(name).split("_")
             memory = int(parts[2]) if len(parts) > 2 else 0
 
-            if os.path.exists(processed):
+            if os.path.exists(processed) and os.path.getmtime(processed) >= os.path.getmtime(f):
                 self.logging.info(f"Using already processed {processed}")
                 with open(processed) as in_f:
                     data = json.load(in_f)
@@ -306,13 +280,6 @@ class WarmUp(Experiment):
                         experiments.invocations(func),
                         experiments.metrics(func),
                     )
-                    # Keep the measurements but drop the benchmark's output, which can be
-                    # large (e.g., the HTML page of 110.dynamic-html).
-                    for invoc in experiments.invocations(func).values():
-                        result = invoc.output.get("result")
-                        if isinstance(result, dict):
-                            result.pop("result", None)
-                            result.pop("output", None)
                 with open(processed, "w") as out_f:
                     out_f.write(
                         serialize(
@@ -329,11 +296,8 @@ class WarmUp(Experiment):
                 invocations.update(experiments.invocations(func))
             for sequence in data["sequences"]:
                 for call, request_id in enumerate(sequence["calls"]):
-                    if request_id is None or request_id not in invocations:
-                        continue
-                    rows.append(
-                        self._csv_row(memory, sequence["repetition"], call, invocations[request_id])
-                    )
+                    invoc = invocations.get(request_id) if request_id else None
+                    rows.append(self._csv_row(memory, sequence["repetition"], call, invoc))
 
         measurement_keys = sorted(
             {key for row in rows for key in row if key.startswith("measurement.")}
@@ -358,21 +322,20 @@ class WarmUp(Experiment):
         self.logging.info(f"Wrote {len(rows)} calls to {os.path.join(out_dir, 'result.csv')}")
 
     @staticmethod
-    def _csv_row(memory: int, repetition: int, call: int, invoc: ExecutionResult) -> dict:
+    def _csv_row(memory: int, repetition: int, call: int, invoc: Optional[ExecutionResult]) -> dict:
         """Build one CSV row for a call.
-
-        Times are in microseconds and memory in MB. Columns named `measurement.<key>` hold the
-        benchmark's own measurements, e.g. `measurement.compute_time`.
 
         Args:
             memory: Function memory size in MB, 0 for the default size
             repetition: Index of the sequence
             call: Position of the call in its sequence, 0 for the cold start
-            invoc: The call's execution result
+            invoc: The call's execution result, None if it failed
 
         Returns:
-            Dictionary from column name to value
+            Dictionary from column name to value; a failed call has only its position
         """
+        if invoc is None:
+            return {"memory": memory, "repetition": repetition, "call": call}
         row = {
             "memory": memory,
             "repetition": repetition,

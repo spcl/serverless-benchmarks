@@ -23,7 +23,7 @@ Then, each benchmark has its own JSON object containing parameters specific to t
 
 We implemented five types of experiments:
 * [Perf-Cost](#perf-cost) evaluates the performance of specified functions and estimates the cost of running them in the cloud. It supports four types of invoking functions and creates timing results involving various parts of the serverless stack.
-* [Warm-up](#warm-up) records every call of sequences that start with a cold start, showing how execution time changes over the first calls to a new container, e.g., while a JIT compiler optimizes the code.
+* [Warm-up](#warm-up) shows how execution time changes over the first calls to a new container, e.g., while a JIT compiler optimizes the code.
 * [Network Ping-pong](#network-ping-pong) evaluates the network performance and latency profile of the connection between the benchmarking machine and serverless function.
 * [Invocation Overhead](#invocation-overhead) estimates the invocation latency by running a clock-drift protocol and comparing timestamps between the benchmarking machine and serverless function.
 * [Eviction](#eviction-model) runs functions with various configurations, invokes them after a specified time, and checks if the function is still running in a warm container. The experiment verifies how different parameters affect container eviction.
@@ -125,13 +125,9 @@ Afterward, you will find a new file for each experiment configuration called `<e
 
 ### Description
 
-Runtimes with just-in-time compilation, such as the JVM and .NET, get faster over the first calls to a container as they recompile frequently used code.
-The `perf-cost` experiment discards its first batch of calls and pauses between batches, so its results describe a container that has already warmed up.
-The warm-up experiment measures the phase before that: it forces a cold start, invokes the function sequentially a fixed number of times, and keeps every result together with its position in the sequence.
-Each repetition is one such sequence.
-
-Sequential calls reach the same container as long as it stays alive.
-SeBS records the container of every call, and warns when a sequence did not start with a cold start or when its calls reached more than one container.
+`perf-cost` discards its first calls, so it does not show how a runtime warms up, e.g., while a JIT compiler optimizes the code.
+Each repetition of this experiment forces a cold start, invokes the function sequentially a fixed number of times, and keeps every result with its position in the sequence.
+SeBS warns when a sequence did not start with a cold start or reached more than one container.
 
 ### Configuring Benchmark
 
@@ -149,11 +145,8 @@ SeBS records the container of every call, and warns when a sequence did not star
 }
 ```
 
-The fields `benchmark` and `input-size` specify the benchmark function and its input.
-SeBS runs `repetitions` sequences, each with a forced cold start followed by `invocations` sequential calls.
-The optional `pause` sets the seconds to wait between calls; the default 0 sends them back to back.
-Pauses show whether the runtime keeps optimizing between calls; on AWS Lambda, the sandbox is frozen between calls.
-SeBS repeats all sequences for each memory configuration in `memory-sizes`, or uses the function's configured memory if the list is empty.
+SeBS runs `repetitions` sequences of `invocations` calls for each size in `memory-sizes`, or at the function's configured memory if the list is empty.
+The optional `pause` sets the seconds between calls (default 0), e.g., to see whether the runtime keeps optimizing while idle.
 
 ### Running Benchmark
 
@@ -161,8 +154,8 @@ SeBS repeats all sequences for each memory configuration in `memory-sizes`, or u
 sebs experiment invoke warm-up --config config.json --output-dir experiments-result
 ```
 
-The results are in the `experiments-result/warm-up` directory, in one file per memory size named `warm-up_results_<mem-size>.json`.
-Besides the data of each invocation, each file lists the sequences under `sequences`: the request IDs of their calls in order (`null` for a failed call), whether the first call was a cold start, and the containers the calls reached.
+The results are in `experiments-result/warm-up`, one file per memory size named `warm-up_results_<mem-size>.json`.
+Under `sequences`, each file lists the request IDs of each sequence's calls in order (`null` for a failed call).
 
 ### Postprocessing Results
 
@@ -170,10 +163,9 @@ Besides the data of each invocation, each file lists the sequences under `sequen
 sebs experiment process warm-up --config config.json --output-dir experiments-result
 ```
 
-As for `perf-cost`, this queries the cloud logs for provider metrics, such as AWS's initialization time and memory use, and stores them in `warm-up_results_<mem-size>-processed.json`.
-It then writes `result.csv` with one row per call, in sequence order, which is the input for plotting warm-up curves.
-The columns are `memory`, `repetition`, `call` (0 for the cold start), `request_id`, `container_id`, `is_cold`, `exec_time`, `client_time`, `provider_time`, `init_time` and `mem_used`, followed by the benchmark's own measurements as `measurement.<key>`, e.g., `measurement.compute_time`.
-All times are in microseconds, and `mem_used` is in MB.
+This downloads provider metrics into `warm-up_results_<mem-size>-processed.json` and writes `result.csv` with one row per call.
+Its columns are `memory`, `repetition`, `call` (0 for the cold start), `request_id`, `container_id`, `is_cold`, `exec_time`, `client_time`, `provider_time`, `init_time`, `mem_used`, and the benchmark's measurements as `measurement.<key>`.
+Times are in microseconds and `mem_used` in MB; a failed call has empty values.
 
 ## Network Ping-pong
 
