@@ -31,6 +31,8 @@ class SystemVariant:
         "package",
         # Lambda, OpenWhisk, and GCP
         "container",
+        # Lambda code package restored from a SnapStart snapshot
+        "snapstart",
         # GCP specific
         "function-gen1",
         "function-gen2",

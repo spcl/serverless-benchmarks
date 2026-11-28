@@ -300,6 +300,7 @@ class AWSResources(Resources):
             url: str,
             function_name: str,
             auth_type: FunctionURLAuthType = FunctionURLAuthType.NONE,
+            qualifier: Optional[str] = None,
         ):
             """Initialize AWS function URL instace.
 
@@ -307,10 +308,12 @@ class AWSResources(Resources):
                 url:
                 function_name:
                 auth_type:
+                qualifier: Alias the URL points to, if any
             """
             self._url = url
             self._function_name = function_name
             self._auth_type = auth_type
+            self._qualifier = qualifier
 
         @property
         def url(self) -> str:
@@ -341,6 +344,15 @@ class AWSResources(Resources):
             """
             return self._auth_type
 
+        @property
+        def qualifier(self) -> Optional[str]:
+            """Alias the URL points to, e.g., for SnapStart functions.
+
+            Returns:
+                Alias name, or None for the unpublished function
+            """
+            return self._qualifier
+
         @staticmethod
         def deserialize(dct: dict) -> "AWSResources.FunctionURL":
             """Deserialize JSON into instance.
@@ -356,6 +368,7 @@ class AWSResources(Resources):
                 dct["url"],
                 dct["function_name"],
                 FunctionURLAuthType.from_string(auth_type_str),
+                dct.get("qualifier"),
             )
 
         def serialize(self) -> dict:
@@ -368,6 +381,7 @@ class AWSResources(Resources):
                 "url": self.url,
                 "function_name": self.function_name,
                 "auth_type": self.auth_type.value,
+                "qualifier": self.qualifier,
             }
 
     def __init__(
@@ -546,7 +560,13 @@ class AWSResources(Resources):
         Raises:
             RuntimeError: If API creation fails after retries
             TooManyRequestsException: If API Gateway rate limits are exceeded
+            NotImplementedError: For SnapStart functions, which need function URLs
         """
+        if func.alias:
+            raise NotImplementedError(
+                "SnapStart functions are invoked through function URLs; "
+                "set use-function-url to true."
+            )
 
         http_api = self._http_apis.get(api_name)
         if not http_api:
@@ -700,11 +720,13 @@ class AWSResources(Resources):
         lambda_client = boto3_session.client(
             service_name="lambda", region_name=cast(str, self._region)
         )
+        # SnapStart functions are invoked through their alias
+        qualifier: Dict[str, Any] = {"Qualifier": func.alias} if func.alias else {}
 
         # Try to get existing Function URL configuration from AWS
         url_exists = False
         try:
-            response = lambda_client.get_function_url_config(FunctionName=func.name)
+            response = lambda_client.get_function_url_config(FunctionName=func.name, **qualifier)
             self.logging.info(f"Found existing Function URL for {func.name}")
             url = response["FunctionUrl"]
             auth_type = FunctionURLAuthType.from_string(response["AuthType"])
@@ -720,13 +742,16 @@ class AWSResources(Resources):
                     response = lambda_client.create_function_url_config(  # type: ignore[assignment]
                         FunctionName=func.name,
                         AuthType=auth_type.value,
+                        **qualifier,
                     )
                     break
                 except lambda_client.exceptions.ResourceConflictException:
                     # Function URL already exists - can happen if a concurrent process
                     # created it between our check and create, or if there was a race
                     # condition. Retrieve the existing configuration instead.
-                    response = lambda_client.get_function_url_config(FunctionName=func.name)
+                    response = lambda_client.get_function_url_config(
+                        FunctionName=func.name, **qualifier
+                    )
                     break
                 except lambda_client.exceptions.TooManyRequestsException as e:
                     # AWS is throttling requests - apply exponential backoff
@@ -772,7 +797,7 @@ class AWSResources(Resources):
             for permission in permissions:
                 try:
                     lambda_client.add_permission(
-                        FunctionName=func.name, Principal="*", **permission
+                        FunctionName=func.name, Principal="*", **permission, **qualifier
                     )
                     self.logging.info(
                         f"Applied {permission['Action']} permission for Function URL "
@@ -785,7 +810,7 @@ class AWSResources(Resources):
                         f"{permission['Action']} permission already exists for {func.name}"
                     )
 
-        function_url_obj = AWSResources.FunctionURL(url, func.name, auth_type)
+        function_url_obj = AWSResources.FunctionURL(url, func.name, auth_type, func.alias)
         self._function_urls[func.name] = function_url_obj
         return function_url_obj
 
@@ -803,9 +828,12 @@ class AWSResources(Resources):
         # Check if we have cached info about the auth type
         cached_url = self._function_urls.get(function_name)
         cached_auth_type = cached_url.auth_type if cached_url else None
+        qualifier: Dict[str, Any] = {}
+        if cached_url and cached_url.qualifier:
+            qualifier["Qualifier"] = cached_url.qualifier
 
         try:
-            lambda_client.delete_function_url_config(FunctionName=function_name)
+            lambda_client.delete_function_url_config(FunctionName=function_name, **qualifier)
             self.logging.info(f"Deleted Function URL for {function_name}")
 
             # Only remove the public access permission if auth_type was NONE
@@ -819,6 +847,7 @@ class AWSResources(Resources):
                         lambda_client.remove_permission(
                             FunctionName=function_name,
                             StatementId=statement_id,
+                            **qualifier,
                         )
                     except lambda_client.exceptions.ResourceNotFoundException:
                         # Permission doesn't exist - either it was already removed,

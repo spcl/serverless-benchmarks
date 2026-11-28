@@ -2,6 +2,8 @@
 
 ### Features
 
+* SnapStart on AWS: `--system-variant snapstart` deploys code packages of Java and Python with Lambda SnapStart, which restores cold starts from a snapshot. SeBS publishes a version after every change, invokes it through an alias, and reports the Restore Duration as initialization time.
+
 * Cold start enforcement for the local deployment: SeBS replaces the function container, and the local function servers report the first invocation of a container as cold. Requires the updated local run images.
 
 * [RustFS](https://github.com/rustfs/rustfs) is the new default S3-compatible object storage for local and OpenWhisk deployments. Minio is deprecated and kept for reproducibility (`configs/storage-minio.json`). The self-hosted object storage implementation is now shared between backends.

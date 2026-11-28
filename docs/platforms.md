@@ -142,6 +142,22 @@ restricted to invocations through the function URL (statement `FunctionURLAllowI
 Both statements are removed when the function URL is deleted.
 These permissions are attached to the function, not to the Lambda execution role.
 
+### SnapStart
+
+With `--system-variant snapstart`, SeBS deploys a code package with
+[SnapStart](https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html): Lambda initializes the
+function once, takes a snapshot, and restores the snapshot on cold starts. SeBS supports it for
+Java 11+ and Python 3.12+, and names the function with a `-snapstart` suffix.
+
+SnapStart applies only to published versions. After every code or configuration change, including
+forced cold starts, SeBS publishes a version and points the alias `snapstart` to it. Both triggers
+invoke the alias; HTTP triggers need function URLs. SeBS deletes the previous version, because
+Lambda charges for the snapshots of Python and .NET versions as long as they exist; SnapStart is
+free for Java.
+
+Lambda reports a restored call's Restore Duration instead of its Init Duration, and SeBS stores it
+as the initialization time.
+
 ## Azure Functions
 
 Azure provides a free tier for 12 months, with certain services providing free allocations beyond that.
