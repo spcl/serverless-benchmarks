@@ -2,6 +2,8 @@
 
 ### Features
 
+* `c2` variant for Java on AWS: runs the JVM with its full JIT instead of Lambda's default C1 compiler only. A variant can set its functions' environment variables through `variant_environment` in `configs/systems.json`, AWS function names include the variant, so it runs next to the default, and a variant without its own code directory uses the default code.
+
 * .NET 10 on AWS Lambda, as code packages and containers on x64 and arm64, starting with `010.sleep`.
 
 * Cold start enforcement for the local deployment: SeBS replaces the function container, and the local function servers report the first invocation of a container as cold. Requires the updated local run images.

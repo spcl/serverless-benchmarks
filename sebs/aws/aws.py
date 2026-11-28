@@ -556,8 +556,8 @@ class AWS(System):
         """Update Lambda function configuration.
 
         Updates the function's timeout, memory, and environment variables.
-        Automatically adds environment variables for NoSQL storage table names
-        if the benchmark uses NoSQL storage.
+        Automatically adds the language variant's environment variables, and those for
+        NoSQL storage table names if the benchmark uses NoSQL storage.
 
         Args:
             function: Function to update
@@ -570,7 +570,12 @@ class AWS(System):
         # We can only update storage configuration once it has been processed for this benchmark
         assert code_package.has_input_processed
 
-        envs = env_variables.copy()
+        envs = {
+            **self.system_config.deployment_variant_environment(
+                self.name(), code_package.language_name, code_package.language_variant
+            ),
+            **env_variables,
+        }
         if code_package.uses_nosql:
             nosql_storage = self.system_resources.get_nosql_storage()
             for original_name, actual_name in nosql_storage.get_tables(
@@ -612,8 +617,8 @@ class AWS(System):
         """Generate default function name for a benchmark.
 
         Creates a standardized function name based on resource ID, benchmark name,
-        language, version, and architecture. Ensures the name is compatible with
-        AWS Lambda naming requirements.
+        language, language variant, version, and architecture. Ensures the name is
+        compatible with AWS Lambda naming requirements.
 
         Args:
             code_package: Benchmark code package
@@ -626,10 +631,14 @@ class AWS(System):
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
         # Extract benchmark number (e.g., "110" from "110.dynamic-html")
         benchmark_number = code_package.benchmark.split(".")[0]
+        language = code_package.language_name
+        # Lets a variant be deployed next to the default; default names stay unchanged
+        if code_package.language_variant != "default":
+            language = f"{language}-{code_package.language_variant}"
         func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
             benchmark_number,
-            code_package.language_name,
+            language,
             code_package.language_version,
             code_package.architecture,
         )
