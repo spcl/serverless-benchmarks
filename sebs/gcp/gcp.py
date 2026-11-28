@@ -2462,6 +2462,7 @@ class GCP(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
+        language_variant: str,
     ) -> Tuple[str, float]:
         """Package benchmark code for GCP Cloud Functions deployment.
 
@@ -2482,6 +2483,7 @@ class GCP(System):
             architecture: Target architecture (x86_64, arm64)
             benchmark: Benchmark name for archive naming
             is_cached: Whether this package is from cache
+            language_variant: Language variant (e.g., 'default')
 
         Returns:
             Tuple of (archive_path, archive_size_bytes)

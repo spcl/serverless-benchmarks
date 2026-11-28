@@ -223,6 +223,8 @@ Each variant gets its own cache entry.  The cache key for a non-default variant 
 `<language>_<variant>` (e.g. `nodejs_bun`), so default and variant builds never collide.
 The cache hash includes either the `patch.diff` or all overlay source files, so any change to
 the variant code invalidates the cached package automatically.
+Container images of a variant have the variant in their tag, so they don't overwrite the default's
+images in the registry.
 
 ---
 

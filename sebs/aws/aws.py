@@ -192,6 +192,7 @@ class AWS(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
+        language_variant: str,
     ) -> Tuple[str, float]:
         """
         Package code for deployment to AWS Lambda.
@@ -218,6 +219,7 @@ class AWS(System):
             architecture: Target CPU architecture (e.g., 'x64', 'arm64')
             benchmark: Benchmark name
             is_cached: Whether code is already cached
+            language_variant: Language variant (e.g., 'default')
 
         Returns:
             Tuple containing:

@@ -209,6 +209,7 @@ class OpenWhisk(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
+        language_variant: str,
     ) -> Tuple[str, float]:
         """
         Package benchmark code for OpenWhisk deployment.
@@ -229,6 +230,7 @@ class OpenWhisk(System):
             architecture: Target architecture (e.g., 'x86_64')
             benchmark: Benchmark name
             is_cached: Whether Docker image is already cached
+            language_variant: Language variant (e.g., 'default')
 
         Returns:
             Tuple containing:
@@ -240,7 +242,7 @@ class OpenWhisk(System):
             # For Java, we need to extract the JAR from the built container
             # Get the container image URI that was just built
             _, _, _, image_uri = self._container_client.registry_name(
-                benchmark, language.value, language_version, architecture
+                benchmark, language.value, language_version, architecture, language_variant
             )
 
             self.logging.info(f"Extracting JAR from container image {image_uri}")
@@ -311,7 +313,7 @@ class OpenWhisk(System):
 
     def finalize_container_build(
         self,
-    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, float]] | None:
+    ) -> Callable[[str, Language, str, str, str, bool, str], Tuple[str, float]] | None:
         """
         Regardless of Docker image status, we need to create .zip file
         to allow registration of function with OpenWhisk.
@@ -441,6 +443,7 @@ class OpenWhisk(System):
                             code_package.language_version,
                             code_package.architecture,
                             repository=self.config.dockerhub_repository,
+                            language_variant=code_package.language_variant,
                         )
 
                     code_location = code_package.code_location
@@ -539,6 +542,7 @@ class OpenWhisk(System):
                 code_package.language_version,
                 code_package.architecture,
                 repository=self.config.dockerhub_repository,
+                language_variant=code_package.language_variant,
             )
 
         if code_package.code_location is None:

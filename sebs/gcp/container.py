@@ -55,7 +55,12 @@ class GCRContainer(DockerContainer):
         self.ar_client = build("artifactregistry", "v1", credentials=self.creds)
 
     def registry_name(
-        self, benchmark: str, language_name: str, language_version: str, architecture: str
+        self,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+        architecture: str,
+        language_variant: str = "default",
     ) -> Tuple[str, str, str, str]:
         """Build the Artifact Registry path for a benchmark image.
 
@@ -64,6 +69,7 @@ class GCRContainer(DockerContainer):
             language_name: Programming language name.
             language_version: Runtime version string.
             architecture: Target CPU architecture.
+            language_variant: Language variant (e.g., 'r2r')
 
         Returns:
             Tuple of registry name, repository name, image tag, and full image URI.
@@ -77,7 +83,12 @@ class GCRContainer(DockerContainer):
         )
 
         image_tag = self.system_config.benchmark_image_tag(
-            self.name(), benchmark, language_name, language_version, architecture
+            self.name(),
+            benchmark,
+            language_name,
+            language_version,
+            architecture,
+            language_variant,
         )
         image_uri = f"{registry_name}/{repository_name}/{benchmark}:{image_tag}"
 
@@ -124,6 +135,7 @@ class GCRContainer(DockerContainer):
         language_name: str,
         language_version: str,
         architecture: str,
+        language_variant: str = "default",
     ) -> str:
         """Push a benchmark image and resolve it to an immutable digest URI.
 
@@ -132,12 +144,13 @@ class GCRContainer(DockerContainer):
             language_name: Programming language name.
             language_version: Runtime version string.
             architecture: Target CPU architecture.
+            language_variant: Language variant (e.g., 'r2r')
 
         Returns:
             Immutable image URI if Docker exposes a digest, otherwise the tag URI.
         """
         image_uri = super().push_to_registry(
-            benchmark, language_name, language_version, architecture
+            benchmark, language_name, language_version, architecture, language_variant
         )
         return self.resolve_image_uri(image_uri)
 
@@ -150,6 +163,7 @@ class GCRContainer(DockerContainer):
         benchmark: str,
         is_cached: bool,
         builder_image: str,
+        language_variant: str = "default",
     ) -> Tuple[bool, str, float]:
         """Build the benchmark image and resolve the final image URI.
 
@@ -161,6 +175,7 @@ class GCRContainer(DockerContainer):
             benchmark: Benchmark name.
             is_cached: Whether the build can reuse a cached image.
             builder_image: Builder image to use for the build stage.
+            language_variant: Language variant, part of the image tag.
 
         Returns:
             Tuple of rebuild flag, image URI, and image size in MB.
@@ -173,6 +188,7 @@ class GCRContainer(DockerContainer):
             benchmark,
             is_cached,
             builder_image,
+            language_variant,
         )
         return rebuilt, self.resolve_image_uri(image_uri), size_mb
 

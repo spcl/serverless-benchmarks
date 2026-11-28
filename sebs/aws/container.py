@@ -84,7 +84,12 @@ class ECRContainer(DockerContainer):
         return self.ecr_client
 
     def registry_name(
-        self, benchmark: str, language_name: str, language_version: str, architecture: str
+        self,
+        benchmark: str,
+        language_name: str,
+        language_version: str,
+        architecture: str,
+        language_variant: str = "default",
     ) -> Tuple[str, str, str, str]:
         """Generate ECR registry details for a benchmark image.
 
@@ -96,6 +101,7 @@ class ECRContainer(DockerContainer):
             language_name: Programming language (e.g., 'python', 'nodejs')
             language_version: Language version (e.g., '3.8', '14')
             architecture: Target architecture (e.g., 'x64', 'arm64')
+            language_variant: Language variant (e.g., 'r2r')
 
         Returns:
             Tuple[str, str, str, str]: Registry name, repository name, image tag, and image URI
@@ -106,7 +112,12 @@ class ECRContainer(DockerContainer):
 
         repository_name = self.config.resources.get_ecr_repository(self.client)
         image_tag = self.system_config.benchmark_image_tag(
-            self.name(), benchmark, language_name, language_version, architecture
+            self.name(),
+            benchmark,
+            language_name,
+            language_version,
+            architecture,
+            language_variant,
         )
         image_uri = f"{registry_name}/{repository_name}:{image_tag}"
 
