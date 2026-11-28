@@ -12,6 +12,8 @@
 
 ### Bug Fixes
 
+* Container images of a language variant had the same tag as the default's and overwrote them in the registry; the tag now includes the variant.
+
 * `sebs docker build --platform` for another architecture (e.g., x64 images on an ARM machine) failed with Docker's containerd image store, the default since Docker 29: "image ... does not provide the specified platform". Docker's build API runs the legacy builder, so SeBS now builds such images with BuildKit (`docker build --platform`).
 
 * Local functions failed to start when their server needed more than 2.5 seconds, e.g., Node.js containers emulated with QEMU; SeBS now waits up to 30 seconds.

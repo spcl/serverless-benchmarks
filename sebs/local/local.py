@@ -186,6 +186,7 @@ class Local(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
+        language_variant: str,
     ) -> Tuple[str, float]:
         """Package function code for local execution.
 
@@ -208,6 +209,7 @@ class Local(System):
                 containers run natively (a mismatch is reported as a warning)
             benchmark: Benchmark name
             is_cached: Whether the package is from cache
+            language_variant: Language variant (e.g., 'default')
 
         Returns:
             Tuple[str, int]: (package_path, size_bytes)

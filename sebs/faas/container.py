@@ -156,6 +156,7 @@ class DockerContainer(LoggingBase):
         language_name: str,
         language_version: str,
         architecture: str,
+        language_variant: str = "default",
     ) -> Tuple[str, str, str, str]:
         """Generate registry name and image URI for a benchmark.
 
@@ -167,6 +168,7 @@ class DockerContainer(LoggingBase):
             language_name: Programming language (e.g., 'python', 'nodejs')
             language_version: Language version (e.g., '3.8', '14')
             architecture: Target architecture (e.g., 'x64', 'arm64')
+            language_variant: Language variant (e.g., 'r2r')
 
         Returns:
             Tuple[str, str, str, str]: Registry name, repository name, image tag, full image URI
@@ -179,6 +181,7 @@ class DockerContainer(LoggingBase):
         language_name: str,
         language_version: str,
         architecture: str,
+        language_variant: str = "default",
     ) -> str:
         """Push an existing local Docker image to the registry and return its URI.
 
@@ -191,12 +194,13 @@ class DockerContainer(LoggingBase):
             language_name: Programming language name (e.g., 'python')
             language_version: Language version (e.g., '3.8')
             architecture: Target architecture (e.g., 'x64')
+            language_variant: Language variant (e.g., 'r2r')
 
         Returns:
             str: Full URI of the pushed image.
         """
         registry_name, repository_name, image_tag, image_uri = self.registry_name(
-            benchmark, language_name, language_version, architecture
+            benchmark, language_name, language_version, architecture, language_variant
         )
         self.logging.info(
             f"Pushing Docker image {repository_name}:{image_tag} to registry: {registry_name}."
@@ -213,6 +217,7 @@ class DockerContainer(LoggingBase):
         benchmark: str,
         is_cached: bool,
         builder_image: str,
+        language_variant: str = "default",
     ) -> Tuple[bool, str, float]:
         """
             Build benchmark Docker image.
@@ -233,13 +238,14 @@ class DockerContainer(LoggingBase):
             benchmark: benchmark name
             is_cached: true if the image is currently cached
             builder_image: Base image for containers
+            language_variant: Language variant, part of the image tag
 
         Returns:
             Tuple[bool, str, float]: True if image was rebuilt, and image URI and size in MB
         """
 
         registry_name, repository_name, image_tag, image_uri = self.registry_name(
-            benchmark, language.value, language_version, architecture
+            benchmark, language.value, language_version, architecture, language_variant
         )
 
         # cached package, rebuild not enforced -> check for new one

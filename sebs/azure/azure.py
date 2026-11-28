@@ -221,6 +221,7 @@ class Azure(System):
         architecture: str,
         benchmark: str,
         is_cached: bool,
+        language_variant: str,
     ) -> Tuple[str, float]:
         """Package function code for Azure Functions deployment.
 
@@ -238,6 +239,7 @@ class Azure(System):
             architecture: Target architecture (currently unused)
             benchmark: Name of the benchmark
             is_cached: Whether the package is from cache
+            language_variant: Language variant (e.g., 'default')
             system_variant: Selected deployment variant
 
         Returns:

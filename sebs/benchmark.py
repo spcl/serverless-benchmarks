@@ -1351,9 +1351,9 @@ class Benchmark(LoggingBase):
 
     def build(
         self,
-        package_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, float]],
+        package_build_step: Callable[[str, Language, str, str, str, bool, str], Tuple[str, float]],
         container_client: DockerContainer | None,
-        container_build_step: Callable[[str, Language, str, str, str, bool], Tuple[str, float]]
+        container_build_step: Callable[[str, Language, str, str, str, bool, str], Tuple[str, float]]
         | None,
     ) -> Tuple[bool, str | None, SystemVariant, str | None]:
         """Build the complete benchmark deployment package.
@@ -1388,6 +1388,7 @@ class Benchmark(LoggingBase):
                         self.language_name,
                         self.language_version,
                         self.architecture,
+                        self._language_variant,
                     )
                     self._cache_client.update_container_uri(
                         self._deployment_name,
@@ -1527,6 +1528,7 @@ class Benchmark(LoggingBase):
                 self.benchmark,
                 self.is_cached_valid,
                 f"{repo_name}:{image_name}",
+                self._language_variant,
             )
             self.logging.info(
                 f"Created function container {self._container_uri},"
@@ -1546,6 +1548,7 @@ class Benchmark(LoggingBase):
                     self.architecture,
                     self.benchmark,
                     self.is_cached_valid,
+                    self._language_variant,
                 )
 
         else:
@@ -1558,6 +1561,7 @@ class Benchmark(LoggingBase):
                 self.architecture,
                 self.benchmark,
                 self.is_cached_valid,
+                self._language_variant,
             )
             self.logging.info(
                 (

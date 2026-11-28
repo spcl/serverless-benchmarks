@@ -289,6 +289,7 @@ class System(ABC, LoggingBase):
         architecture: str,
         benchmark: str,
         is_cached: bool,
+        language_variant: str,
     ) -> Tuple[str, float]:
         """
         Apply system-specific code packaging to prepare a deployment package.
@@ -309,6 +310,7 @@ class System(ABC, LoggingBase):
             architecture: Target architecture (e.g., 'x64', 'arm64')
             benchmark: Benchmark name
             is_cached: Whether the code is cached
+            language_variant: Language variant (e.g., 'default')
 
         Returns:
             Tuple containing:
@@ -319,7 +321,7 @@ class System(ABC, LoggingBase):
 
     def finalize_container_build(
         self,
-    ) -> Callable[[str, Language, str, str, str, bool], Tuple[str, float]] | None:
+    ) -> Callable[[str, Language, str, str, str, bool, str], Tuple[str, float]] | None:
         """Default behavior of container deployment is that no code package is needed.
         Thus, we return None to signal that.
 

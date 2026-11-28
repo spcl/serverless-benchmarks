@@ -265,6 +265,7 @@ class SeBSConfig:
         architecture: str,
         registry: Optional[str] = None,
         repository: Optional[str] = None,
+        language_variant: str = "default",
     ) -> str:
         """Generate full Docker image name for a benchmark.
 
@@ -275,12 +276,13 @@ class SeBSConfig:
             language_version (str): Language version (e.g., '3.8').
             architecture (str): Target architecture (e.g., 'x64').
             registry (Optional[str]): Docker registry URL. If None, uses default repository.
+            language_variant (str): Language variant (e.g., 'r2r').
 
         Returns:
             str: Complete Docker image name including registry and tag.
         """
         tag = self.benchmark_image_tag(
-            system, benchmark, language_name, language_version, architecture
+            system, benchmark, language_name, language_version, architecture, language_variant
         )
         if repository is not None:
             repo_name = repository
@@ -298,14 +300,15 @@ class SeBSConfig:
         language_name: str,
         language_version: str,
         architecture: str,
+        language_variant: str = "default",
     ) -> str:
         """Generate Docker image tag for a benchmark container.
 
         Creates a standardized tag format that includes system, benchmark, language,
-        version, architecture, optional prefix, and SeBS version.
+        language variant, version, architecture, optional prefix, and SeBS version.
 
-        Format: function.{system}.{benchmark}.{language_name}-{language_version}-
-                {architecture}[-{image_prefix}]-{sebs_version}
+        Format: function.{system}.{benchmark}.{language_name}[-{language_variant}]-
+                {language_version}-{architecture}[-{image_prefix}]-{sebs_version}
 
         Args:
             system (str): Deployment system name (e.g., 'aws', 'azure').
@@ -313,11 +316,16 @@ class SeBSConfig:
             language_name (str): Programming language name (e.g., 'python').
             language_version (str): Language version (e.g., '3.8').
             architecture (str): Target architecture (e.g., 'x64').
+            language_variant (str): Language variant, left out of the tag if 'default'.
 
         Returns:
             str: Generated Docker image tag.
         """
-        tag = f"function.{system}.{benchmark}.{language_name}-{language_version}-{architecture}"
+        language = language_name
+        # A variant's image can differ from the default's, e.g., when the variant changes the build
+        if language_variant != "default":
+            language = f"{language_name}-{language_variant}"
+        tag = f"function.{system}.{benchmark}.{language}-{language_version}-{architecture}"
         if self.image_tag_prefix:
             tag = f"{tag}-{self.image_tag_prefix}"
         sebs_version = self._system_config["general"].get("SeBS_version", "unknown")
