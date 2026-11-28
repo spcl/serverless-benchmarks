@@ -116,6 +116,22 @@ class SeBSConfig:
             "files"
         ]
 
+    def deployment_variant_environment(
+        self, deployment_name: str, language_name: str, variant: str
+    ) -> Dict[str, str]:
+        """Get the environment variables that functions of a language variant run with.
+
+        Args:
+            deployment_name (str): Name of the deployment platform (e.g., 'aws', 'azure').
+            language_name (str): Programming language name (e.g., 'java').
+            variant (str): Language variant (e.g., 'c2').
+
+        Returns:
+            Dict[str, str]: Environment variables, empty if the variant sets none.
+        """
+        deployment = self._system_config[deployment_name]["languages"][language_name]["deployment"]
+        return deployment.get("variant_environment", {}).get(variant, {})
+
     def docker_image_types(self, deployment_name: str, language_name: str) -> List[str]:
         """Get available Docker image types for a deployment and language.
 

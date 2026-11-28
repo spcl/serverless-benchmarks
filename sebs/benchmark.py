@@ -803,16 +803,10 @@ class Benchmark(LoggingBase):
         if os.path.exists(nodejs_package_json):
             shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
 
-        if self._language_variant != "default":
-            variant_dir = os.path.join(path, self._language_variant)
-            if not os.path.isdir(variant_dir):
-                raise RuntimeError(
-                    "Variant directory not found for benchmark {} language {} "
-                    "variant {}: {}".format(
-                        self.benchmark, self.language_name, self._language_variant, variant_dir
-                    )
-                )
-
+        # A variant without its own directory, e.g. one that changes only the build, uses the
+        # default code
+        variant_dir = os.path.join(path, self._language_variant)
+        if self._language_variant != "default" and os.path.isdir(variant_dir):
             patch_file = os.path.join(variant_dir, "patch.diff")
             if os.path.exists(patch_file):
                 # Patch-based variant: a unified diff (patch.diff) is applied on top of the
