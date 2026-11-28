@@ -578,10 +578,11 @@ class Variant:
 
     class Dotnet(Enum):
         """.NET runtime variants.
-        Currently only the managed runtime.
+        R2R compiles the code ahead of time with ReadyToRun.
         """
 
         DEFAULT = "default"
+        R2R = "r2r"
 
     @classmethod
     def for_language(cls, language: Language, val: str) -> Enum:

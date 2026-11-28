@@ -217,7 +217,12 @@
           "packages": {
             "Amazon.Lambda.Core": "3.4.0"
           },
-          "module_packages": {}
+          "module_packages": {},
+          "variant_build_properties": {
+            "r2r": {
+              "PublishReadyToRun": "true"
+            }
+          }
         }
       }
     },

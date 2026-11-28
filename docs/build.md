@@ -79,7 +79,8 @@ However, we still create a small zip package containing only the main handler; i
 ## Language Variants
 
 SeBS supports **language variants** — alternative runtimes or engines for the same language.
-Examples include `bun` and `llrt` for Node.js, `pypy` for Python, and `c2` for Java on AWS.
+Examples include `bun` and `llrt` for Node.js, `pypy` for Python, and `c2` for Java and `r2r`
+for .NET on AWS.
 Each variant runs the same benchmark source code (or a lightly adapted version of it) inside a
 different runtime environment, enabling direct performance comparisons between runtimes.
 
@@ -195,6 +196,15 @@ the JVM with its full JIT, since Lambda limits Java to the C1 compiler by defaul
 ```json
 "variant_environment": {
   "c2": { "JAVA_TOOL_OPTIONS": "-XX:+TieredCompilation" }
+}
+```
+
+For .NET, `variant_build_properties` sets MSBuild properties of a variant's build. The `r2r`
+variant compiles the code ahead of time with ReadyToRun:
+
+```json
+"variant_build_properties": {
+  "r2r": { "PublishReadyToRun": "true" }
 }
 ```
 

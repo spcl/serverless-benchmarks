@@ -1048,8 +1048,8 @@ class Benchmark(LoggingBase):
         return f'    <PackageReference Include="{package}" Version="{version}" />'
 
     def add_deployment_package_dotnet(self, output_dir: str) -> None:
-        """Extend benchmark's function.csproj with system-specific packages.
-        All .NET dependencies for each platform are defined in systems.json.
+        """Extend benchmark's function.csproj with system-specific packages and the
+        language variant's build properties, both defined in systems.json.
 
         Args:
             output_dir: benchmark directory containing function.csproj to modify
@@ -1077,6 +1077,15 @@ class Benchmark(LoggingBase):
         csproj_content = csproj_content.replace(
             "<!-- PLATFORM_DEPENDENCIES -->", package_items.strip()
         )
+
+        properties = self._system_config.deployment_variant_build_properties(
+            self._deployment_name, self.language_name, self._language_variant
+        )
+        if properties:
+            items = "".join(f"\n    <{name}>{value}</{name}>" for name, value in properties.items())
+            csproj_content = csproj_content.replace(
+                "</Project>", f"  <PropertyGroup>{items}\n  </PropertyGroup>\n\n</Project>"
+            )
 
         with open(csproj_path, "w") as f:
             f.write(csproj_content)
