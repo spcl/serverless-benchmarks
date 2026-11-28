@@ -81,7 +81,7 @@ def simplified_common_params(func):
     @click.option(
         "--language",
         default=None,
-        type=click.Choice(["python", "nodejs", "java", "cpp"]),
+        type=click.Choice(["python", "nodejs", "java", "cpp", "dotnet"]),
         help="Benchmark language",
     )
     @click.option("--language-version", default=None, type=str, help="Benchmark language version")
@@ -1044,7 +1044,7 @@ def docker_cmd():
 @click.option(
     "--language",
     default=None,
-    type=click.Choice(["python", "nodejs", "java", "cpp"]),
+    type=click.Choice(["python", "nodejs", "java", "cpp", "dotnet"]),
     help="Programming language",
 )
 @click.option("--language-version", default=None, type=str, help="Language version")
@@ -1141,7 +1141,7 @@ def _exit_on_failed_images(operation: str, failed: List[str]) -> None:
 @click.option(
     "--language",
     default=None,
-    type=click.Choice(["python", "nodejs", "java", "cpp"]),
+    type=click.Choice(["python", "nodejs", "java", "cpp", "dotnet"]),
     help="Programming language",
 )
 @click.option("--language-version", default=None, type=str, help="Language version")

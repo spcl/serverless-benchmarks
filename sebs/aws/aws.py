@@ -274,6 +274,22 @@ class AWS(System):
             mbytes = bytes_size / 1024.0 / 1024.0
             self.logging.info("Zip archive size {:2f} MB".format(mbytes))
 
+        elif language == Language.DOTNET:
+            publish_dir = os.path.join(directory, "publish")
+            if not os.path.isdir(publish_dir):
+                raise RuntimeError(
+                    f".NET output {publish_dir} missing. Ensure the .NET build produced it."
+                )
+            # Lambda loads the assemblies from the archive root
+            benchmark_archive = shutil.make_archive(
+                os.path.join(directory, benchmark), "zip", root_dir=publish_dir
+            )
+            self.logging.info("Created {} archive".format(benchmark_archive))
+
+            bytes_size = os.path.getsize(benchmark_archive)
+            mbytes = bytes_size / 1024.0 / 1024.0
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
         else:
             raise NotImplementedError()
 
@@ -313,7 +329,7 @@ class AWS(System):
             return "provided.al2023"
         elif language == Language.JAVA:
             return f"{language}{language_version}"
-        elif language in [Language.PYTHON]:
+        elif language in [Language.PYTHON, Language.DOTNET]:
             return f"{language}{language_version}"
         else:
             raise NotImplementedError()
@@ -414,6 +430,10 @@ class AWS(System):
                 create_function_params["Runtime"] = self.cloud_runtime(language, language_runtime)
                 if language == Language.JAVA:
                     create_function_params["Handler"] = "org.serverlessbench.Handler::handleRequest"
+                elif language == Language.DOTNET:
+                    # Assembly::Namespace.Type::Method
+                    handler = "function::ServerlessBench.Handler::HandleRequest"
+                    create_function_params["Handler"] = handler
                 else:
                     create_function_params["Handler"] = "handler.handler"
 
@@ -536,8 +556,8 @@ class AWS(System):
         """Update Lambda function configuration.
 
         Updates the function's timeout, memory, and environment variables.
-        Automatically adds environment variables for NoSQL storage table names
-        if the benchmark uses NoSQL storage.
+        Automatically adds the language variant's environment variables, and those for
+        NoSQL storage table names if the benchmark uses NoSQL storage.
 
         Args:
             function: Function to update
@@ -550,7 +570,12 @@ class AWS(System):
         # We can only update storage configuration once it has been processed for this benchmark
         assert code_package.has_input_processed
 
-        envs = env_variables.copy()
+        envs = {
+            **self.system_config.deployment_variant_environment(
+                self.name(), code_package.language_name, code_package.language_variant
+            ),
+            **env_variables,
+        }
         if code_package.uses_nosql:
             nosql_storage = self.system_resources.get_nosql_storage()
             for original_name, actual_name in nosql_storage.get_tables(
@@ -592,8 +617,8 @@ class AWS(System):
         """Generate default function name for a benchmark.
 
         Creates a standardized function name based on resource ID, benchmark name,
-        language, version, and architecture. Ensures the name is compatible with
-        AWS Lambda naming requirements.
+        language, language variant, version, and architecture. Ensures the name is
+        compatible with AWS Lambda naming requirements.
 
         Args:
             code_package: Benchmark code package
@@ -606,10 +631,14 @@ class AWS(System):
         resource_id = resources.resources_id if resources else self.config.resources.resources_id
         # Extract benchmark number (e.g., "110" from "110.dynamic-html")
         benchmark_number = code_package.benchmark.split(".")[0]
+        language = code_package.language_name
+        # Lets a variant be deployed next to the default; default names stay unchanged
+        if code_package.language_variant != "default":
+            language = f"{language}-{code_package.language_variant}"
         func_name = "sebs-{}-{}-{}-{}-{}".format(
             resource_id,
             benchmark_number,
-            code_package.language_name,
+            language,
             code_package.language_version,
             code_package.architecture,
         )

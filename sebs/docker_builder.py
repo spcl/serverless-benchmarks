@@ -85,7 +85,7 @@ class DockerImageBuilder(LoggingBase):
         """Check if multi-platform build should be used for this image.
 
         Multi-platform builds (x64 + arm64) are enabled for:
-        - AWS build images of Python, Node.js, and Java;
+        - AWS build images of Python, Node.js, Java, and .NET;
         - local build and run images of Python and Node.js: local functions run
           on the host, so x86 and ARM machines pull the image of their architecture.
 
@@ -98,7 +98,7 @@ class DockerImageBuilder(LoggingBase):
             True if multi-platform build should be used, False otherwise
         """
         if system == "aws":
-            return image_type == "build" and language in ["python", "nodejs", "java"]
+            return image_type == "build" and language in ["python", "nodejs", "java", "dotnet"]
         if system == "local":
             return image_type in ["build", "run"] and language in ["python", "nodejs"]
         return False

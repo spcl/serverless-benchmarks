@@ -170,7 +170,12 @@
             "com.amazonaws:aws-lambda-java-core": "1.2.3",
             "com.fasterxml.jackson.core:jackson-databind": "2.17.1"
           },
-          "module_packages": {}
+          "module_packages": {},
+          "variant_environment": {
+            "c2": {
+              "JAVA_TOOL_OPTIONS": "-XX:+TieredCompilation"
+            }
+          }
         }
       },
       "cpp": {
@@ -191,6 +196,33 @@
         "images": ["build"],
         "deployment": {
           "files": [ "handler.cpp", "key-value.cpp", "key-value.hpp", "storage.cpp", "storage.hpp", "redis.hpp", "redis.cpp", "utils.cpp", "utils.hpp"]
+        }
+      },
+      "dotnet": {
+        "base_images": {
+          "x64": {
+            "10": "amazon/aws-lambda-dotnet:10.2026.11.11.03-x86_64"
+          },
+          "arm64": {
+            "10": "amazon/aws-lambda-dotnet:10.2026.11.11.03-arm64"
+          }
+        },
+        "images": [
+          "build"
+        ],
+        "deployment": {
+          "files": [
+            "Handler.cs"
+          ],
+          "packages": {
+            "Amazon.Lambda.Core": "3.4.0"
+          },
+          "module_packages": {},
+          "variant_build_properties": {
+            "r2r": {
+              "PublishReadyToRun": "true"
+            }
+          }
         }
       }
     },

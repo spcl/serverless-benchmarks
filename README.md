@@ -16,7 +16,7 @@
 
 SeBS is a diverse suite of FaaS benchmarks that allows automatic performance analysis of
 commercial and open-source serverless platforms. We provide a suite of
-[benchmark applications](docs/benchmarks.md) in Python, Node.js, Java, and C++ covering workloads from web applications to scientific computing.
+[benchmark applications](docs/benchmarks.md) in Python, Node.js, Java, C++, and .NET covering workloads from web applications to scientific computing.
 With automtic [experiments](docs/experiments.md), we test and evaluate different components of FaaS systems.
 SeBS provides support for **automatic deployment** and invocation of benchmarks on
 commercial and black-box platforms

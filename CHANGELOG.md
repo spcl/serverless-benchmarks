@@ -2,6 +2,12 @@
 
 ### Features
 
+* `r2r` variant for .NET on AWS: compiles the code ahead of time with ReadyToRun, set through `variant_build_properties` in `configs/systems.json`.
+
+* `c2` variant for Java on AWS: runs the JVM with its full JIT instead of Lambda's default C1 compiler only. A variant can set its functions' environment variables through `variant_environment` in `configs/systems.json`, AWS function names include the variant, so it runs next to the default, and a variant without its own code directory uses the default code.
+
+* .NET 10 on AWS Lambda, as code packages and containers on x64 and arm64, starting with `010.sleep`.
+
 * Cold start enforcement for the local deployment: SeBS replaces the function container, and the local function servers report the first invocation of a container as cold. Requires the updated local run images.
 
 * [RustFS](https://github.com/rustfs/rustfs) is the new default S3-compatible object storage for local and OpenWhisk deployments. Minio is deprecated and kept for reproducibility (`configs/storage-minio.json`). The self-hosted object storage implementation is now shared between backends.

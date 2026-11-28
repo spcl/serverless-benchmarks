@@ -561,10 +561,11 @@ class Variant:
 
     class Java(Enum):
         """Java runtime variants.
-        Currently only JDK.
+        C2 runs the JVM with its full JIT on platforms that default to C1 only.
         """
 
         DEFAULT = "default"
+        C2 = "c2"
 
     class Cpp(Enum):
         """Cpp runtime variants.
@@ -574,6 +575,14 @@ class Variant:
         """
 
         DEFAULT = "default"
+
+    class Dotnet(Enum):
+        """.NET runtime variants.
+        R2R compiles the code ahead of time with ReadyToRun.
+        """
+
+        DEFAULT = "default"
+        R2R = "r2r"
 
     @classmethod
     def for_language(cls, language: Language, val: str) -> Enum:
@@ -598,6 +607,7 @@ Variant._LANG_MAP = {
     Language.NODEJS: Variant.NodeJS,
     Language.JAVA: Variant.Java,
     Language.CPP: Variant.Cpp,
+    Language.DOTNET: Variant.Dotnet,
 }
 
 
