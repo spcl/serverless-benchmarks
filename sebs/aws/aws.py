@@ -13,7 +13,7 @@ import os
 import shutil
 import time
 import uuid
-from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
+from typing import Any, cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 
 import boto3
 import docker
@@ -52,6 +52,8 @@ class AWS(System):
     logs_client = None
     cached = False
     _config: AWSConfig
+    # Alias of the published version that a SnapStart function's triggers invoke
+    SNAPSTART_ALIAS = "snapstart"
 
     @staticmethod
     def name() -> str:
@@ -350,6 +352,10 @@ class AWS(System):
         func_name = AWS.format_function_name(func_name)
         function_cfg = FunctionConfig.from_benchmark(code_package)
         architecture = function_cfg.architecture.value
+        alias = None
+        if system_variant.value == "snapstart":
+            self._check_snapstart_support(code_package)
+            alias = AWS.SNAPSTART_ALIAS
         # we can either check for exception or use list_functions
         # there's no API for test
         try:
@@ -367,6 +373,7 @@ class AWS(System):
                 self.config.resources.lambda_role(self.session),
                 function_cfg,
             )
+            lambda_function.alias = alias
             self.update_function(lambda_function, code_package, system_variant, container_uri)
             lambda_function.updated_code = True
             # TODO: get configuration of REST API
@@ -432,6 +439,7 @@ class AWS(System):
                 function_cfg,
                 code_bucket,
             )
+            lambda_function.alias = alias
 
             self.wait_function_active(lambda_function)
 
@@ -441,7 +449,7 @@ class AWS(System):
         # Add LibraryTrigger to a new function
         from sebs.aws.triggers import LibraryTrigger
 
-        trigger = LibraryTrigger(func_name, self)
+        trigger = LibraryTrigger(lambda_function.qualified_name, self)
         trigger.logging_handlers = self.logging_handlers
         lambda_function.add_trigger(trigger)
 
@@ -568,22 +576,69 @@ class AWS(System):
                 envs = {**response["Environment"]["Variables"], **envs}
 
         function = cast(LambdaFunction, function)
+        config: Dict[str, Any] = {
+            "FunctionName": function.name,
+            "Timeout": function.config.timeout,
+            "MemorySize": function.config.memory,
+        }
         # We only update envs if anything new was added
         if len(envs) > 0:
-            self.client.update_function_configuration(
-                FunctionName=function.name,
-                Timeout=function.config.timeout,
-                MemorySize=function.config.memory,
-                Environment={"Variables": envs},
-            )
-        else:
-            self.client.update_function_configuration(
-                FunctionName=function.name,
-                Timeout=function.config.timeout,
-                MemorySize=function.config.memory,
-            )
+            config["Environment"] = {"Variables": envs}
+        if function.alias:
+            config["SnapStart"] = {"ApplyOn": "PublishedVersions"}
+        self.client.update_function_configuration(**config)
         self.wait_function_updated(function)
         self.logging.info(f"Updated configuration of {function.name} function. ")
+        if function.alias:
+            self._publish_snapshot(function)
+
+    def _check_snapstart_support(self, code_package: Benchmark) -> None:
+        """Check that Lambda supports SnapStart for the benchmark's runtime.
+
+        Args:
+            code_package: Benchmark code package
+
+        Raises:
+            RuntimeError: If SnapStart does not support the language or its version
+        """
+        minimum = {Language.JAVA: (11,), Language.PYTHON: (3, 12)}.get(code_package.language)
+        version = tuple(int(part) for part in code_package.language_version.split("."))
+        if minimum is None or version < minimum:
+            raise RuntimeError(
+                f"SnapStart does not support {code_package.language_name} "
+                f"{code_package.language_version}; it supports Java 11+ and Python 3.12+."
+            )
+
+    def _publish_snapshot(self, function: LambdaFunction) -> None:
+        """Publish a version, which takes a SnapStart snapshot, and point the alias to it.
+
+        The previous version is deleted, because Lambda charges for the snapshots of Python
+        and .NET versions as long as they exist.
+
+        Args:
+            function: SnapStart function with its alias set
+        """
+        assert function.alias
+        version = self.client.publish_version(FunctionName=function.name)["Version"]
+        self.client.get_waiter("published_version_active").wait(
+            FunctionName=function.name, Qualifier=version
+        )
+        try:
+            previous = self.client.get_alias(FunctionName=function.name, Name=function.alias)[
+                "FunctionVersion"
+            ]
+            self.client.update_alias(
+                FunctionName=function.name, Name=function.alias, FunctionVersion=version
+            )
+        except self.client.exceptions.ResourceNotFoundException:
+            previous = None
+            self.client.create_alias(
+                FunctionName=function.name, Name=function.alias, FunctionVersion=version
+            )
+        # Lambda publishes no new version if nothing changed
+        if previous is not None and previous != version:
+            self.client.delete_function(FunctionName=function.name, Qualifier=previous)
+        self.logging.info(f"Published version {version} of {function.name} with a snapshot.")
 
     # @staticmethod
     def default_function_name(
@@ -615,6 +670,8 @@ class AWS(System):
         )
         if code_package.system_variant.is_container:
             func_name = f"{func_name}-docker"
+        elif code_package.system_variant.value == "snapstart":
+            func_name = f"{func_name}-snapstart"
         return AWS.format_function_name(func_name)
 
     @staticmethod
@@ -656,7 +713,7 @@ class AWS(System):
 
         Extracts execution metrics from AWS Lambda log entries and updates
         the corresponding ExecutionResult objects with timing, memory,
-        billing information, and init duration (when provided).
+        billing information, and init or SnapStart restore duration (when provided).
 
         Args:
             log: Raw log string from CloudWatch or synchronous invocation
@@ -670,9 +727,11 @@ class AWS(System):
             The log format expected is tab-separated AWS Lambda report format:
             "REPORT RequestId: abc123\tDuration: 100.00 ms\tBilled Duration: 100 ms\t..."
         """
+        # The log can start with other lines, e.g., RESTORE_START for SnapStart functions
+        report = next((line for line in log.splitlines() if line.startswith("REPORT ")), log)
         aws_vals = {}
-        for line in log.split("\t"):
-            if not line.isspace():
+        for line in report.split("\t"):
+            if line.strip():
                 split = line.split(":")
                 aws_vals[split[0]] = split[1].split()[0]
         if "START RequestId" in aws_vals:
@@ -693,6 +752,9 @@ class AWS(System):
         output.stats.memory_used = float(aws_vals["Max Memory Used"])
         if "Init Duration" in aws_vals:
             output.provider_times.initialization = int(float(aws_vals["Init Duration"]) * 1000)
+        # SnapStart functions restore a snapshot instead of initializing
+        elif "Restore Duration" in aws_vals:
+            output.provider_times.initialization = int(float(aws_vals["Restore Duration"]) * 1000)
 
         billed_time = int(aws_vals["Billed Duration"])
         memory = int(aws_vals["Memory Size"])

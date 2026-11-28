@@ -27,6 +27,7 @@ class LambdaFunction(Function):
         role: IAM role ARN used by the function
         runtime: Runtime environment for the function (e.g., 'python3.8')
         bucket: S3 bucket name where the function code is stored
+        alias: Alias that triggers invoke, set for SnapStart functions
     """
 
     def __init__(
@@ -58,6 +59,8 @@ class LambdaFunction(Function):
         self.role = role
         self.runtime = runtime
         self.bucket = bucket
+        # SnapStart applies only to published versions, which an alias points to
+        self.alias: Optional[str] = None
 
     @staticmethod
     def typename() -> str:
@@ -82,6 +85,7 @@ class LambdaFunction(Function):
             "runtime": self.runtime,
             "role": self.role,
             "bucket": self.bucket,
+            "alias": self.alias,
         }
 
     @staticmethod
@@ -112,6 +116,7 @@ class LambdaFunction(Function):
             cfg,
             cached_config["bucket"],
         )
+        ret.alias = cached_config.get("alias")
         for trigger in cached_config["triggers"]:
             trigger_type = cast(
                 Trigger,
@@ -120,6 +125,15 @@ class LambdaFunction(Function):
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
         return ret
+
+    @property
+    def qualified_name(self) -> str:
+        """Get the name that invocations use, including the alias if there is one.
+
+        Returns:
+            str: Function name, followed by ":<alias>" for SnapStart functions
+        """
+        return f"{self.name}:{self.alias}" if self.alias else self.name
 
     def code_bucket(self, benchmark: str, storage_client: S3) -> str:
         """

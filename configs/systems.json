@@ -200,7 +200,8 @@
     ],
     "deployments": [
       "package",
-      "container"
+      "container",
+      "snapstart"
     ]
   },
   "azure": {
