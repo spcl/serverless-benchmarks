@@ -170,7 +170,12 @@
             "com.amazonaws:aws-lambda-java-core": "1.2.3",
             "com.fasterxml.jackson.core:jackson-databind": "2.17.1"
           },
-          "module_packages": {}
+          "module_packages": {},
+          "variant_environment": {
+            "c2": {
+              "JAVA_TOOL_OPTIONS": "-XX:+TieredCompilation"
+            }
+          }
         }
       },
       "cpp": {

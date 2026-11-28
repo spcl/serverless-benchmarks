@@ -561,10 +561,11 @@ class Variant:
 
     class Java(Enum):
         """Java runtime variants.
-        Currently only JDK.
+        C2 runs the JVM with its full JIT on platforms that default to C1 only.
         """
 
         DEFAULT = "default"
+        C2 = "c2"
 
     class Cpp(Enum):
         """Cpp runtime variants.

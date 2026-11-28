@@ -2,6 +2,8 @@
 
 ### Features
 
+* `c2` variant for Java on AWS: runs the JVM with its full JIT instead of Lambda's default C1 compiler only. A variant can set its functions' environment variables through `variant_environment` in `configs/systems.json`, AWS function names include the variant, so it runs next to the default, and a variant without its own code directory uses the default code.
+
 * Cold start enforcement for the local deployment: SeBS replaces the function container, and the local function servers report the first invocation of a container as cold. Requires the updated local run images.
 
 * [RustFS](https://github.com/rustfs/rustfs) is the new default S3-compatible object storage for local and OpenWhisk deployments. Minio is deprecated and kept for reproducibility (`configs/storage-minio.json`). The self-hosted object storage implementation is now shared between backends.

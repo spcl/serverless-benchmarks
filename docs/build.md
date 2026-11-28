@@ -79,13 +79,13 @@ However, we still create a small zip package containing only the main handler; i
 ## Language Variants
 
 SeBS supports **language variants** — alternative runtimes or engines for the same language.
-Examples include `bun` and `llrt` for Node.js, and `pypy` for Python.
+Examples include `bun` and `llrt` for Node.js, `pypy` for Python, and `c2` for Java on AWS.
 Each variant runs the same benchmark source code (or a lightly adapted version of it) inside a
 different runtime environment, enabling direct performance comparisons between runtimes.
 
-A variant always has a corresponding **runtime Docker image** and, optionally, adapted benchmark
-source code.  The default execution (no variant) is always built; variant images and code are
-additive on top of it.
+A variant has a corresponding **runtime Docker image** or, on AWS, its own runtime settings
+(see below), and, optionally, adapted benchmark source code.  The default execution (no variant)
+is always built; variant images and code are additive on top of it.
 
 ---
 
@@ -162,8 +162,8 @@ rewrite using runtime-specific APIs).
 > `package.json.<version>` (e.g. `package.json.18`) inside the variant directory overrides the
 > generic `package.json` for that specific Node.js/runtime version only.
 
-If neither `patch.diff` nor any source files exist in the variant directory, the default
-sources are used unchanged (the variant differs only in its runtime Docker image).
+If the variant directory is missing, or contains neither `patch.diff` nor any source files, the
+default sources are used unchanged (the variant differs only in its runtime image or build).
 
 ---
 
@@ -187,6 +187,16 @@ under the language entry:
 
 A variant listed here must have a corresponding `Dockerfile.run` (see next section) and will be
 built automatically when `build_docker_images.py` is invoked without `--language-variant`.
+
+On AWS, a variant can instead set the environment variables its functions run with, through
+`variant_environment` under the language's `deployment` entry. Java's `c2` variant uses it to run
+the JVM with its full JIT, since Lambda limits Java to the C1 compiler by default:
+
+```json
+"variant_environment": {
+  "c2": { "JAVA_TOOL_OPTIONS": "-XX:+TieredCompilation" }
+}
+```
 
 ---
 
@@ -223,6 +233,8 @@ Each variant gets its own cache entry.  The cache key for a non-default variant 
 `<language>_<variant>` (e.g. `nodejs_bun`), so default and variant builds never collide.
 The cache hash includes either the `patch.diff` or all overlay source files, so any change to
 the variant code invalidates the cached package automatically.
+On AWS, function names include the variant too, so a variant and the default can be deployed
+side by side.
 
 ---
 
